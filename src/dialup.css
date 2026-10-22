@@ -712,18 +712,6 @@ button.bv-dial-card {
   margin-top: 1rem;
 }
 
-/* One of the folk in a sheet: Moab. */
-.bv-dial-folk-act {
-  display: grid;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-
-.bv-dial-folk-says {
-  margin: 0;
-  color: var(--dial-hot);
-}
-
 /* Social: the log, the field, the friends, who is here. */
 .bv-dial-social {
   display: grid;

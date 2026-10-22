@@ -31,6 +31,7 @@ import { text } from './dom.ts'
 import { fontsReady } from './fonts.ts'
 import { befriended, partied } from './inspect.ts'
 import { itemLine } from './itemcopy.ts'
+import { openMoabDialog } from './moabdialog.ts'
 import { mountModem } from './modemhud.ts'
 import { NetClient, socketUrl } from './net.ts'
 import { GRAIN_URL, imagesReady } from './preload.ts'
@@ -323,8 +324,18 @@ async function boot(): Promise<void> {
         send({ type: 'buy', station, kind, unit }, { buy: { station, kind } }),
     },
     citgoNames: names,
-    trade: (offer) =>
-      send({ type: 'trade', offer }, { trade: true, tradeOffer: offer }),
+    openMoab: () => {
+      void openMoabDialog({
+        open: () => state.world !== null,
+        pack: () => state.pack,
+        owned: () => state.cosmetics,
+        pending: () => state.pending.trade,
+        said: () => state.said?.text ?? null,
+        icon: (kind) => shell?.icon(kind) ?? Promise.reject(new Error()),
+        onTrade: (offer) =>
+          send({ type: 'trade', offer }, { trade: true, tradeOffer: offer }),
+      }).then(() => shell?.render(state))
+    },
     expeditions: {
       send: (kind) =>
         send({ type: 'expedition-send', kind }, { expedition: true }),

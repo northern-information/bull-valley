@@ -300,29 +300,11 @@ ramble_4 = { text = "\"I do not recognize imperialist currency. Marlboros, beer,
 eyebrow = { text = "Barter", by = "ai" }
 where = { text = "· The Golden Wok", by = "ai" }
 no_fiat = { text = "No Fiat", by = "ai" }
-tab_barter = { text = "Barter", by = "ai" }
-tab_quest = { text = "Quest", by = "ai" }
-your_side = { text = "Your Side", by = "ai" }
 pay_rate = { text = "Counted at {percent}% of Shelf", by = "ai" }
-pay_held = { text = "{count} in pack", by = "ai" }
 pay_hint = { text = "Cigarettes, drinks, fish, anything a Citgo shelf prices", by = "ai" }
-his_side = { text = "His Side", by = "ai" }
 restocks = { text = "Restocks at Midnight", by = "ai" }
-you_give = { text = "You Give", by = "ai" }
-he_asks = { text = "He Asks", by = "ai" }
-take_back = { text = "Take one back", by = "ai" }
-put_down = { text = "Put one down", by = "ai" }
-clear = { text = "Clear", by = "ai" }
-even_up = { text = "Even Up", by = "ai" }
-trade = { text = "Trade", by = "ai" }
 sold_out_button = { text = "Sold Out", by = "ai" }
-table_empty = { text = "Put things down from your side, or Even Up, for the {item}.", by = "ai" }
-cannot_cover = { text = "Your whole pack won't cover the {item}.", by = "ai" }
-table_short = { text = "Short {amount}.", by = "ai" }
-table_over = { text = "He makes no change. Take back some {item}.", by = "ai" }
-table_even = { text = "Even. Trade for the {item}.", by = "ai" }
 nothing_to_pay = { text = "\"You've got nothing I want. Come back with smokes, or something to drink.\"", by = "ai" }
-close = { text = "Leave", by = "ai" }
 bought = { text = "Erwin von Dutch slides you the {item}. \"Pleasure doing business outside the system.\"", by = "ai" }
 sold_out = { text = "\"That's all I had today. Come back tomorrow.\"", by = "ai" }
 short = { text = "\"That's not enough. I count it at shelf price, less a little for the trouble.\"", by = "ai" }
@@ -330,6 +312,29 @@ over = { text = "\"That's too much. I don't make change. Take some back.\"", by 
 worthless = { text = "\"I don't take that.\"", by = "ai" }
 too_far = { text = "\"Come closer. I'm not shouting.\"", by = "ai" }
 refused = { text = "\"Not right now.\"", by = "ai" }
+
+# The trade window, one for every trader (src/tradewindow.ts, both apps):
+# Erwin von Dutch's barter and Moab Coldë's.
+
+[trade]
+your_side = { text = "Your Side", by = "ai" }
+his_side = { text = "His Side", by = "ai" }
+in_pack = { text = "{count} in pack", by = "ai" }
+you_give = { text = "You Give", by = "ai" }
+he_asks = { text = "He Asks", by = "ai" }
+take_back = { text = "Take one back", by = "ai" }
+put_down = { text = "Put one down", by = "ai" }
+clear = { text = "Clear", by = "ai" }
+even_up = { text = "Even Up", by = "ai" }
+trade = { text = "Trade", by = "ai" }
+tab_quest = { text = "Quest", by = "ai" }
+table_empty = { text = "Put things down from your side, or Even Up, for the {item}.", by = "ai" }
+cannot_cover = { text = "Your whole pack won't cover the {item}.", by = "ai" }
+table_short = { text = "Short {amount}.", by = "ai" }
+table_over = { text = "He makes no change. Take back some {item}.", by = "ai" }
+table_even = { text = "Even. Trade for the {item}.", by = "ai" }
+close = { text = "Leave", by = "ai" }
+offline = { text = "No signal. Nothing changes hands while the valley is gone.", by = "ai" }
 
 [quests]
 rose_offer = { text = "\"There's something at the heart of the corn maze that wants a rose. A single one. Lay it down for me and the back room of the Video Vault is yours. I have the key. I've always had the key.\"", by = "ai" }
@@ -475,7 +480,6 @@ jar_gone = { text = "It is gone before you get the lid off.", by = "ai" }
 jar_refused = { text = "The slurm will not go in.", by = "ai" }
 stand_offline = { text = "No signal. The stand is shut.", by = "ai" }
 locked = { text = "Locked. The handle does not give.", by = "ai" }
-deal_offline = { text = "No signal. Erwin von Dutch will not deal with a stranger alone.", by = "ai" }
 descend = { text = "You climb down out of the light. The rungs are older than the store.", by = "ai" }
 ascend = { text = "You climb back up into the office. The fluorescent hum is almost a comfort.", by = "ai" }
 climb_tower = { text = "You climb the lookout. Up here the corn lies open below you, and nothing in the dark can reach you.", by = "ai" }
@@ -562,7 +566,6 @@ leaves_in = { text = "Marx leaves in {clock}", by = "ai" }
 [prompts]
 hop_out = { text = "E — Hop Out", by = "ai" }
 board = { text = "E — Climb into the Bed", by = "ai" }
-trade = { text = "E — Trade {count} oz of {price} for the {cosmetic}", by = "ai" }
 loot = { text = "E — Take Your Things Back", by = "ai" }
 locker = { text = "E — Open Your Locker", by = "ai" }
 laptop = { text = "E — Use the Laptop", by = "ai" }
@@ -1118,6 +1121,15 @@ says_3 = { text = "Come back later, we're not ready yet.", by = "ai" }
 says = { text = "Gold bullion.", by = "ai" }
 offer = { text = "Gold bullion. One troy ounce, and the halo is yours to burn under.", by = "ai" }
 traded = { text = "It will never go out. Neither will you.", by = "ai" }
+eyebrow = { text = "Trade", by = "ai" }
+where = { text = "· Under the Citgo Sign", by = "ai" }
+gold_only = { text = "Gold Only", by = "ai" }
+by_the_ounce = { text = "By the Troy Ounce", by = "ai" }
+for_good = { text = "Yours for Good", by = "ai" }
+ounces = { text = "{count} oz", by = "ai" }
+yours = { text = "Yours", by = "ai" }
+nothing_to_pay = { text = "\"Come back with gold. Nothing else burns right.\"", by = "ai" }
+pay_hint = { text = "Gold bullion, by the troy ounce", by = "ai" }
 
 # Fishing at the firefly pond (src/fishdialog.ts, both apps; src/fishing.ts),
 # after Final Fantasy XI: the hook's call, the feelings, and the catch.
@@ -1585,9 +1597,6 @@ short = { text = "Short {amount}", by = "ai" }
 none_visited = { text = "Stand on a Citgo's forecourt in the valley, and its shelves come to the phone.", by = "ai" }
 not_visited = { text = "You haven't stood at that Citgo yet.", by = "ai" }
 no_world = { text = "No one has opened the valley today. Its shelves come up once someone walks it.", by = "ai" }
-
-[dialup.moab]
-trade = { text = "Trade {count} oz of {price} for the {cosmetic}", by = "ai" }
 
 [dialup.expeditions]
 ride = { text = "Ride with Marx", by = "ai" }

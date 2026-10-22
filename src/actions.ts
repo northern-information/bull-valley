@@ -54,6 +54,7 @@ import { doseOf, isKeyItem, isUsable, tripSecondsOf } from './items.ts'
 import { openLaptopDialog } from './laptopdialog.ts'
 import { README } from './laptopreadme.ts'
 import { call, refused } from './marx.ts'
+import { openMoabDialog } from './moabdialog.ts'
 import { npcLine } from './npcs.ts'
 import { outfitById } from './outfits.ts'
 import {
@@ -1007,6 +1008,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (cosmetic) npcSays('moab', cosmetic.offer)
   }
 
+  // The cosmetic last asked of Moab, and the last word on a trade with
+  // him, for his window.
+  let asked: CosmeticId | null = null
+  let moabSaid: string | null = null
+
   const wear = (cosmetics: CosmeticId[]) => {
     const gained = gainedOf(s.cosmetics, cosmetics)
     s.cosmetics = cosmetics
@@ -1016,25 +1022,50 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       if (!cosmetic) continue
       npcSays('moab', cosmetic.traded)
       hud.tell(cosmetic.worn)
+      moabSaid = cosmetic.worn
     }
   }
 
   const tradeRefused = (reason: string) => {
     s.pending.trade = false
-    const offer = s.interaction?.kind === 'trade' ? s.interaction.offer : null
-    hud.tell(tradeRefusal(reason, offer))
+    moabSaid = tradeRefusal(reason, asked)
+    hud.tell(moabSaid)
   }
 
   const trade = (offer: CosmeticId) => {
     if (s.pending.trade) return
     const cosmetic = cosmeticById(offer)
     if (!cosmetic || s.cosmetics.includes(offer)) return
+    asked = offer
+    moabSaid = null
     if (!affords(s.inventory, offer)) {
       tradeRefused('short')
       return
     }
     s.pending.trade = true
     net.send({ type: 'trade', offer })
+  }
+
+  // E beside Moab Coldë: his trade window, with the pointer free, as at
+  // Erwin's (rule 14).
+  const openMoab = () => {
+    if (s.talking) return
+    s.talking = true
+    moabSaid = null
+    player.keys.clear()
+    if (document.pointerLockElement) document.exitPointerLock()
+    void openMoabDialog({
+      open: () => s.world !== null,
+      pack: () => s.inventory,
+      owned: () => s.cosmetics,
+      pending: () => s.pending.trade,
+      said: () => moabSaid,
+      icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
+      onTrade: trade,
+    }).then(() => {
+      s.talking = false
+      engagePointer()
+    })
   }
 
   // An item with no effect yet does nothing, and a cigarette waits for the
@@ -1271,7 +1302,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'trade':
         discover(['moab'])
-        trade(interaction.offer)
+        openMoab()
         return
       case 'loot':
         lootCorpse(interaction.corpse)

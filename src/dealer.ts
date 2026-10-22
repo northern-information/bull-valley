@@ -10,6 +10,7 @@
 // pays for them are both the account's pack, kept by the valley. No
 // three.js, no DOM.
 
+import * as barter from './barter.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { itemLabel } from './itemcopy.ts'
@@ -79,17 +80,7 @@ export function costIn(
 
 // What an offer (kind -> units) counts for with him, in cents.
 export function offerWorth(offer: Inventory, cfg = CONFIG): number {
-  let worth = 0
-  for (const [kind, count] of Object.entries(offer)) {
-    worth += unitWorth(kind, cfg) * count
-  }
-  return worth
-}
-
-// Whether an offer worth `worth` covers `need` (cents, with a hair for
-// the float sums).
-function covers(worth: number, need: number): boolean {
-  return worth >= need - 1e-6
+  return barter.offerWorth(offer, (kind) => unitWorth(kind, cfg))
 }
 
 // The kinds in an offer he could hand one unit of back and still be
@@ -99,48 +90,18 @@ export function spareIn(
   offer: Inventory,
   cfg = CONFIG
 ): string[] {
-  const worth = offerWorth(offer, cfg)
-  return Object.keys(offer).filter(
-    (kind) =>
-      (offer[kind] ?? 0) > 0 && covers(worth - unitWorth(kind, cfg), good.worth)
-  )
+  return barter.spareIn(good.worth, offer, (kind) => unitWorth(kind, cfg))
 }
 
-// The offer topped up out of the pack until it covers `good`, the
-// cheapest units first, then trimmed of any unit it can do without, the
-// dearest first; null when the whole of what the pack could pay cannot
-// cover it. What the offer already holds stays where it can.
+// The offer evened up out of the pack for `good` (barter.ts evenUp), or
+// null when the pack cannot cover it.
 export function evenUp(
   good: DealerGood,
   pack: Inventory,
   offer: Inventory,
   cfg = CONFIG
 ): Inventory | null {
-  const kinds = payable(pack, cfg)
-  const next: Inventory = {}
-  for (const kind of kinds) {
-    const count = Math.min(offer[kind] ?? 0, pack[kind] ?? 0)
-    if (count > 0) next[kind] = count
-  }
-  const cheapest = [...kinds].sort(
-    (a, b) => unitWorth(a, cfg) - unitWorth(b, cfg)
-  )
-  for (const kind of cheapest) {
-    const short = good.worth - offerWorth(next, cfg)
-    if (covers(-short, 0)) break
-    const room = (pack[kind] ?? 0) - (next[kind] ?? 0)
-    const want = Math.ceil(short / unitWorth(kind, cfg) - 1e-9)
-    const add = Math.min(room, want)
-    if (add > 0) next[kind] = (next[kind] ?? 0) + add
-  }
-  if (!covers(offerWorth(next, cfg), good.worth)) return null
-  for (const kind of [...cheapest].reverse()) {
-    while ((next[kind] ?? 0) > 0 && spareIn(good, next, cfg).includes(kind)) {
-      next[kind] -= 1
-    }
-    if (next[kind] === 0) delete next[kind]
-  }
-  return next
+  return barter.evenUp(good.worth, pack, offer, (kind) => unitWorth(kind, cfg))
 }
 
 // Whether a raider stands at him for the valley to deal: their last state
@@ -190,7 +151,7 @@ export function deal(
     give[pay] = count
   }
   if (Object.keys(give).length === 0) return { ok: false, reason: 'worthless' }
-  if (!covers(offerWorth(give, cfg), good.worth)) {
+  if (!barter.covers(offerWorth(give, cfg), good.worth)) {
     return { ok: false, reason: 'short' }
   }
   if (spareIn(good, give, cfg).length > 0) return { ok: false, reason: 'over' }
@@ -205,9 +166,7 @@ export function deal(
 // What a pack could pay him with: every kind it holds that a shelf
 // prices, in ITEMS order.
 export function payable(pack: Inventory, cfg = CONFIG): string[] {
-  return Object.keys(pack).filter(
-    (kind) => (pack[kind] ?? 0) > 0 && unitWorth(kind, cfg) > 0
-  )
+  return barter.payable(pack, (kind) => unitWorth(kind, cfg))
 }
 
 // What he says to a deal the valley refused.

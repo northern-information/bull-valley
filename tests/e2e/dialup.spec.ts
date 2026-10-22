@@ -315,30 +315,31 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
   await page.locator('.bv-dial-card[data-card="erwin"]').click()
   const deal = page.locator('.bv-deal')
   await expect(deal).toBeVisible()
-  await deal.locator('[data-bv="deal-even"]').click()
-  await deal.locator('[data-bv="deal-go"]').click()
-  await expect(deal.locator('[data-bv="deal-said"]')).toHaveText(
+  await deal.locator('[data-bv="trade-even"]').click()
+  await deal.locator('[data-bv="trade-go"]').click()
+  await expect(deal.locator('[data-bv="trade-said"]')).toHaveText(
     copy('dealer.bought', { item: copy('items.lsd.label') })
   )
-  await deal.locator('[data-bv="deal-tab-quest"]').click()
-  await deal.locator('[data-bv="deal-quest-go"]').click()
-  await expect(deal.locator('[data-bv="deal-said"]')).toHaveText(
+  await deal.locator('[data-bv="trade-tab-quest"]').click()
+  await deal.locator('[data-bv="trade-quest-go"]').click()
+  await expect(deal.locator('[data-bv="trade-said"]')).toHaveText(
     copy('quests.rose_given')
   )
-  await deal.locator('[data-bv="deal-close"]').click()
+  await deal.locator('[data-bv="trade-close"]').click()
 
   // Moab offers the halo once the pack holds gold.
   await desk.evaluate(() => window.__bv?.grant('gold-bullion', 1))
   await page.locator('.bv-dial-card[data-card="moab"]').click()
-  const offer = page.locator('.bv-dial-folk-act .bv-dial-btn')
-  await expect(offer).toBeVisible()
-  await offer.click()
-  await expect(page.locator('.bv-dial-toast')).toHaveText(
+  const moab = page.locator('.bv-moab')
+  await expect(moab).toContainText(copy('moab.offer'))
+  await moab.locator('[data-bv="trade-even"]').click()
+  await moab.locator('[data-bv="trade-go"]').click()
+  await expect(moab.locator('[data-bv="trade-said"]')).toHaveText(
     copy('log.cosmetic_worn', {
       cosmetic: copy('cosmetics.flaming-halo.label'),
     })
   )
-  await page.getByRole('button', { name: copy('dialup.back') }).click()
+  await moab.locator('[data-bv="trade-close"]').click()
 
   // A line said on the phone reaches the valley.
   await page.locator('.bv-dial-tab[data-tab="social"]').click()

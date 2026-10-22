@@ -2703,8 +2703,8 @@ canvas {
   outline-offset: 2px;
 }
 
-/* The Cabbage Stand's and Erwin von Dutch's dialogs (npcdialog.ts, with
-   standdialog.ts and dealdialog.ts): one 720px panel over the valley. A
+/* The Cabbage Stand's dialog and the trade window (npcdialog.ts, with
+   standdialog.ts and tradewindow.ts): one 720px panel over the valley. A
    header (an eyebrow, the status on the right, the title, the keeper's
    line), numbered sections on a 12-column grid with a 16px gutter, and a
    footer with the valley's answer and the way out. Caps for eyebrows,
@@ -2858,7 +2858,7 @@ canvas {
   gap: 16px;
 }
 
-/* A wide dialog (the intro, the stand, Erwin): two columns, so the whole
+/* A wide dialog (the intro, the stand, the trade window): two columns, so the whole
    of it fits a 1280x720 window. The header and the footer take the row;
    the side section (.bv-npc-side) takes the right, the rest stack down
    the left. Too narrow for two, it is one column like any other. */
@@ -3232,9 +3232,9 @@ canvas {
   text-align: right;
 }
 
-/* Erwin's barter window (dealdialog.ts): a list on each side, a row per
-   kind with its still, its name, what is held and what one counts for;
-   your side's rows end in a stepper, his are picked as a radio, filled in
+/* The trade window, one for every trader (tradewindow.ts): a list on
+   each side, a row per kind with its still, its name, what is held and
+   what one counts for; your side's rows end in a stepper, his are picked as a radio, filled in
    eggshell so the pick never reads as an action. The table under his side
    weighs one against the other. */
 .bv-trade-list {
@@ -3266,6 +3266,11 @@ canvas {
   width: 32px;
   height: 32px;
   object-fit: contain;
+}
+
+/* A good that is no item (a cosmetic) keeps the slot, empty. */
+.bv-trade-icon:not([src]) {
+  visibility: hidden;
 }
 
 .bv-trade-named {
@@ -3367,23 +3372,23 @@ canvas {
   background: transparent;
 }
 
-/* The barter and his quest as two tabs (the pack's, .bv-bag-tabs) across
-   the card; the quest, when shown, takes the card's width, and the dot
-   marks a step to take with him. */
-.bv-npc-ui--wide > .bv-deal-tabs {
+/* The trade and a trader's quest as two tabs (the pack's, .bv-bag-tabs)
+   across the card; the quest, when shown, takes the card's width, and the
+   dot marks a step to take with him. */
+.bv-npc-ui--wide > .bv-trade-tabs {
   flex-shrink: 0;
   grid-column: 1 / -1;
 }
 
-.bv-deal .bv-npc-ui--wide > .bv-npc-side {
+.bv-trade .bv-npc-ui--wide > .bv-npc-side {
   grid-row: 3;
 }
 
-.bv-npc-ui--wide > .bv-deal-quest {
+.bv-npc-ui--wide > .bv-trade-quest {
   grid-column: 1 / -1;
 }
 
-.bv-deal-due {
+.bv-trade-due {
   display: inline-block;
   width: 6px;
   height: 6px;

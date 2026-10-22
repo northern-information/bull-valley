@@ -15,8 +15,9 @@ const inOrder = (lines: string[], first: string, then: string) => {
 }
 
 // Moab Coldë stands by his burning horse under every Citgo sign. Come near
-// and he glows, with no prompt; E and he says his one line, in the chat log
-// under his own name.
+// and he glows, with no prompt, and says his offer if the pack can pay for
+// one; E opens his trade window, the one Erwin von Dutch keeps too
+// (tradewindow.ts).
 
 async function standAtMoab(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -38,7 +39,15 @@ async function standAtMoab(page: Page): Promise<void> {
   })
 }
 
-test('Moab Coldë says his line', async ({ page }) => {
+// E at Moab: his window, waited on until it shows.
+async function openMoab(page: Page) {
+  await page.keyboard.press('KeyE')
+  const dialog = page.locator('.bv-moab')
+  await expect(dialog).toBeVisible()
+  return dialog
+}
+
+test('Moab Coldë opens his trade window', async ({ page }) => {
   await beginRaid(page)
   await standAtMoab(page)
   // The spawn station's Moab glows, and nothing else says so.
@@ -54,25 +63,19 @@ test('Moab Coldë says his line', async ({ page }) => {
     )
     .toBe(true)
   await expect(page.locator('.bv-prompt')).toBeHidden()
-  await page.keyboard.press('KeyE')
-  await expect
-    .poll(() =>
-      page.evaluate(
-        (text) => window.__bv?.chat.find((line) => line.text === text) ?? null,
-        copy('moab.says')
-      )
-    )
-    .toEqual({
-      kind: 'npc',
-      name: copy('outfits.moab'),
-      text: copy('moab.says'),
-      at: expect.any(Number),
-    })
-  await expect(
-    page.getByRole('log', { name: copy('hud.chat_log_label') })
-  ).toContainText(`${copy('outfits.moab')}: ${copy('moab.says')}`)
-  // He opens nothing: the game keeps the pointer.
-  expect(await page.evaluate(() => window.__bv?.player.locked)).toBe(true)
+  const moab = await openMoab(page)
+  // With no gold he says his one line, and asks for #1 first.
+  await expect(moab).toContainText(copy('moab.says'))
+  await expect(moab.locator('[data-good="coleman-1"]')).toHaveAttribute(
+    'aria-checked',
+    'true'
+  )
+  await expect(moab).toContainText(copy('moab.nothing_to_pay'))
+  await expect(moab.locator('[data-bv="trade-go"]')).toBeDisabled()
+  // The pointer is free while it is open, as at Erwin's.
+  expect(await page.evaluate(() => window.__bv?.player.locked)).toBe(false)
+  await page.keyboard.press('Escape')
+  await expect(moab).toBeHidden()
 })
 
 test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
@@ -85,16 +88,19 @@ test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
     .poll(() => page.evaluate(() => window.__bv?.inventory['gold-bullion']))
     .toBe(1)
   await standAtMoab(page)
-  // In his reach he makes his offer, and the prompt says what he wants.
+  // In his reach he makes his offer; the glow alone says E.
   await expect.poll(() => said(page)).toContain(copy('moab.offer'))
-  await expect(page.locator('.bv-prompt')).toHaveText(
-    copy('prompts.trade', {
-      count: 1,
-      price: copy('items.gold-bullion.label'),
-      cosmetic: copy('cosmetics.flaming-halo.label'),
-    })
+  await expect(page.locator('.bv-prompt')).toBeHidden()
+  const moab = await openMoab(page)
+  await expect(moab.locator('[data-good="flaming-halo"]')).toHaveAttribute(
+    'aria-checked',
+    'true'
   )
-  await page.keyboard.press('KeyE')
+  // An ounce down on the table is even.
+  await moab
+    .locator('[data-kind="gold-bullion"] [data-bv="trade-more"]')
+    .click()
+  await moab.locator('[data-bv="trade-go"]').click()
   await expect
     .poll(() => page.evaluate(() => window.__bv?.cosmetics))
     .toEqual(['flaming-halo'])
@@ -112,10 +118,12 @@ test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
       )
     )
     .toBe(true)
-  // Worn for good, he has nothing more to offer: E hears his line again.
-  await expect(page.locator('.bv-prompt')).toBeHidden()
-  await page.keyboard.press('KeyE')
-  await expect.poll(() => said(page)).toContain(copy('moab.says'))
+  // Worn for good: the halo's row says it is yours, and can't be had again.
+  await expect(moab.locator('[data-good="flaming-halo"]')).toBeDisabled()
+  await expect(moab.locator('[data-good="flaming-halo"]')).toContainText(
+    copy('moab.yours')
+  )
+  await page.keyboard.press('Escape')
   // The account wears it from the titles on: the select dresses every
   // character in what /auth/me says.
   const me = (await (await page.request.get('/auth/me')).json()) as {
@@ -156,14 +164,16 @@ test('Moab Coldë trades David Coleman: #1 for ten ounces of gold', async ({
   await expect
     .poll(() => said(page))
     .toContain(copy('cosmetics.coleman-1.offer'))
-  await expect(page.locator('.bv-prompt')).toHaveText(
-    copy('prompts.trade', {
-      count: 10,
-      price: copy('items.gold-bullion.label'),
-      cosmetic: copy('cosmetics.coleman-1.label'),
-    })
+  const moab = await openMoab(page)
+  await expect(moab.locator('[data-good="coleman-1"]')).toHaveAttribute(
+    'aria-checked',
+    'true'
   )
-  await page.keyboard.press('KeyE')
+  await moab.locator('[data-bv="trade-even"]').click()
+  await expect(
+    moab.locator('[data-kind="gold-bullion"] [data-bv="trade-count"]')
+  ).toHaveText('10')
+  await moab.locator('[data-bv="trade-go"]').click()
   await expect
     .poll(() => page.evaluate(() => window.__bv?.cosmetics))
     .toEqual(['coleman-1'])
@@ -179,6 +189,7 @@ test('Moab Coldë trades David Coleman: #1 for ten ounces of gold', async ({
       )
     )
     .toBe(true)
+  await page.keyboard.press('Escape')
   // His now: the account may raid as him.
   expect(await look('coleman1')).toBe(200)
 })

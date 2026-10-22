@@ -82,6 +82,13 @@ export function moabOffer(
   return null
 }
 
+// What one unit of `kind` counts for with Moab in his trade window
+// (barter.ts): one for anything he prices a cosmetic in, so a cosmetic's
+// worth is its price's count; nothing else.
+export function moabWorth(kind: string): number {
+  return MOAB_OFFERS.some((id) => cosmeticById(id)?.price.kind === kind) ? 1 : 0
+}
+
 // What Moab asks of a raider he has no offer for: the first of his
 // cosmetics they do not have yet, or null when they have them all.
 export function moabWants(owned: readonly CosmeticId[]): CosmeticId | null {

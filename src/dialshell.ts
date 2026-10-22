@@ -8,7 +8,6 @@
 // is collapsed: no card is anywhere, so every one opens wherever the
 // raider is. The state is dialstate.ts's, redrawn whole on every frame.
 
-import { entryOf } from './book.ts'
 import { beamScale, sprintScale } from './buffs.ts'
 import { copy } from './copy.ts'
 import { dayKey } from './daily.ts'
@@ -16,7 +15,6 @@ import { DialBook, renderPage } from './dialbook.ts'
 import { renderCitgo } from './dialcitgo.ts'
 import { renderExpeditions, tickExpeditions } from './dialexpeditions.ts'
 import { DialFish } from './dialfish.ts'
-import { DialMoab } from './dialmoab.ts'
 import { DialPack, renderLocker } from './dialpack.ts'
 import { DialSocial } from './dialsocial.ts'
 import { raiderStats, wardsNow } from './dialstate.ts'
@@ -33,7 +31,6 @@ import { grouped, wardName } from './vitalshud.ts'
 import { AXES } from './wardlevels.ts'
 import type { AvatarView } from './avatarview.ts'
 import type { BookEntry } from './book.ts'
-import type { CosmeticId } from './cosmetics.ts'
 import type { CitgoActions, CitgoOpen } from './dialcitgo.ts'
 import type { ExpeditionActions } from './dialexpeditions.ts'
 import type { FishActions } from './dialfish.ts'
@@ -81,8 +78,8 @@ interface ShellOptions {
   // has loaded (citgomap.ts citgoNames).
   citgo: CitgoActions
   citgoNames: () => Promise<string[]>
-  // Trades with Moab.
-  trade: (offer: CosmeticId) => void
+  // Opens Moab's trade window over the shell.
+  openMoab: () => void
   // Says a line, and asks or ends a friendship.
   social: SocialActions
   // Sends a run out, and brings it home.
@@ -107,8 +104,8 @@ export class DialShell {
   private sheetBody: HTMLElement
   private sheetTitle: HTMLElement
   private tab: DialTab = 'lobby'
-  private sheetOpen:
-    'locker' | 'page' | 'citgo' | 'moab' | 'audio' | 'fish' | null = null
+  private sheetOpen: 'locker' | 'page' | 'citgo' | 'audio' | 'fish' | null =
+    null
   // The volume sliders, built once and kept in step with the store.
   private sliders: HTMLElement | null = null
   private lockerOpen: LockerOpen = {
@@ -121,7 +118,6 @@ export class DialShell {
   private pack: DialPack
   private book: DialBook
   private social: DialSocial
-  private moab: DialMoab | null = null
   // The firefly pond's sheet, kept across opens with its one canvas, the
   // scene on it once the 3D has loaded, and what that last showed.
   private fish: DialFish
@@ -237,7 +233,6 @@ export class DialShell {
         this.options.citgo
       )
     }
-    if (this.sheetOpen === 'moab') this.moab?.update(s)
     if (this.sheetOpen === 'fish') {
       this.fish.update(s)
       this.dressPond(s)
@@ -354,8 +349,8 @@ export class DialShell {
 
   // The items' stills on every row, and the open row's turntable, as the
   // 3D pack draws them (itemthumbs.ts), once the 3D has loaded. A book
-  // page and Moab turn their portraits on the same renderer, and keep it
-  // while their sheet is open.
+  // page turns its portrait on the same renderer, and keeps it while its
+  // sheet is open.
   private showItems(): void {
     const blank = 'img.bv-dial-item-icon:not([src])'
     if (!this.root.querySelector(blank) && this.openSpin() === this.spinning) {
@@ -366,7 +361,7 @@ export class DialShell {
       for (const img of this.root.querySelectorAll<HTMLImageElement>(blank)) {
         img.src = thumbs.icon(img.dataset.kind ?? '')
       }
-      if (this.sheetOpen === 'page' || this.sheetOpen === 'moab') return
+      if (this.sheetOpen === 'page') return
       const canvas = this.openSpin()
       if (canvas === this.spinning) return
       this.spinning = canvas
@@ -443,34 +438,12 @@ export class DialShell {
     })
   }
 
-  // Moab in the sheet, his portrait turning.
-  private openMoab(): void {
-    this.sheetOpen = 'moab'
-    this.sheetTitle.textContent = copy('outfits.moab')
-    this.sheet.hidden = false
-    this.moab = new DialMoab(this.options.trade)
-    const canvas = this.moab.portrait
-    this.sheetBody.replaceChildren(this.moab.root)
-    if (this.state) this.render(this.state)
-    void this.load().then((models) => {
-      const entry = entryOf('moab')
-      if (this.sheetOpen !== 'moab' || !canvas.isConnected || !entry) return
-      this.thumbs ??= models.createItemThumbs()
-      this.spinning = null
-      const { build } = models.portraitOf(entry)
-      this.thumbs.spinModel(canvas, 'book:moab', build, false)
-    })
-  }
-
   private closeSheet(): void {
-    if (this.sheetOpen === 'page' || this.sheetOpen === 'moab') {
-      this.thumbs?.stop()
-    }
+    if (this.sheetOpen === 'page') this.thumbs?.stop()
     if (this.sheetOpen === 'fish') {
       this.fish.close()
       this.pond?.stop()
     }
-    this.moab = null
     this.sheetOpen = null
     this.sheet.hidden = true
     this.sheetBody.replaceChildren()
@@ -566,7 +539,7 @@ export class DialShell {
         this.options.openGron()
       ),
       card('moab', copy('outfits.moab'), copy('dialup.lobby.moab_blurb'), () =>
-        this.openMoab()
+        this.options.openMoab()
       ),
       card('audio', copy('menu.audio'), copy('dialup.lobby.audio_blurb'), () =>
         this.openAudio()
