@@ -105,3 +105,53 @@ export function castPose(seconds: number, cfg: typeof CAST = CAST): CastPose {
         : -cfg.down * (1 - between(seconds, cfg.whip, cfg.settle))
   return { tilt, fly: between(seconds, cfg.release, cfg.lands) }
 }
+
+// A scoop, as the 3D valley draws it: the jar hand dips down and out at
+// the slurm on the lot, the jar tips mouth first to take it in, then
+// sweeps up past where it rests, rights itself, and settles.
+export const SCOOP = {
+  // Seconds: the dip ends, the sweep up ends, the jar has settled.
+  dip: 0.22,
+  sweep: 0.46,
+  settle: 0.75,
+  // How far down and how far back up past rest the arm turns, radians.
+  down: 0.4,
+  up: 0.3,
+  // How far the jar tips mouth first at the bottom of the dip, radians.
+  tip: 1.4,
+  // How far out the hand reaches at the bottom of the dip, metres.
+  reach: 0.14,
+} as const
+
+export interface ScoopPose {
+  // The arm's turn from where it rests: down (negative) or up.
+  tilt: number
+  // The jar's tip in the fist, mouth first: 0 upright, `tip` at most.
+  tip: number
+  // How far the hand reaches out ahead, metres.
+  reach: number
+}
+
+const AT_REST: ScoopPose = { tilt: 0, tip: 0, reach: 0 }
+
+// The scoop `seconds` after the click: at rest before 0 and once settled.
+export function scoopPose(
+  seconds: number,
+  cfg: typeof SCOOP = SCOOP
+): ScoopPose {
+  if (seconds < 0 || seconds >= cfg.settle) return AT_REST
+  if (seconds < cfg.dip) {
+    const k = between(seconds, 0, cfg.dip)
+    return { tilt: -cfg.down * k, tip: cfg.tip * k, reach: cfg.reach * k }
+  }
+  if (seconds < cfg.sweep) {
+    const k = between(seconds, cfg.dip, cfg.sweep)
+    return {
+      tilt: -cfg.down + (cfg.down + cfg.up) * k,
+      tip: cfg.tip * (1 - k),
+      reach: cfg.reach * (1 - k),
+    }
+  }
+  const k = between(seconds, cfg.sweep, cfg.settle)
+  return { tilt: cfg.up * (1 - k), tip: 0, reach: 0 }
+}
