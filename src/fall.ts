@@ -40,6 +40,25 @@ export function hurts(height: number, cfg = CONFIG.fall): boolean {
   return Number.isFinite(height) && height >= cfg.safe
 }
 
+// How fast the feet leave the ground for a jump `height` high, m/s up,
+// under CONFIG.fall.gravity: the speed that falls to nothing at the top.
+export function jumpSpeed(
+  height = CONFIG.player.jumpHeight,
+  cfg = CONFIG.fall
+): number {
+  return Math.sqrt(2 * cfg.gravity * Math.max(0, height))
+}
+
+// Whether the feet may leave the ground now: standing on it, not crouched,
+// and not sat or knelt in an emote.
+export function mayJump(state: {
+  falling: boolean
+  crouching: boolean
+  emoting: boolean
+}): boolean {
+  return !state.falling && !state.crouching && !state.emoting
+}
+
 // The highest fall the valley believes: far more than the moat is deep.
 export const FALL_MAX = 500
 

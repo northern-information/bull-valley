@@ -99,6 +99,10 @@ describe('WORLD', () => {
     expect(actionOf(WORLD, 'KeyT')).toBe('chat')
   })
 
+  it('jumps on Space', () => {
+    expect(actionOf(WORLD, 'Space')).toBe('jump')
+  })
+
   it('drops what the hand holds on Q', () => {
     expect(actionOf(WORLD, 'KeyQ')).toBe('drop')
   })

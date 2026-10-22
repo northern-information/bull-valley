@@ -27,6 +27,9 @@ export const CONFIG = {
     crouchSpeed: 2.2,
     // Walking with the phone up, dialing a Citgo portal.
     phoneSpeedScale: 0.6,
+    // How high Space lifts the feet, metres (fall.ts jumpSpeed): a hop,
+    // under CONFIG.fall.step, so it never reads as a fall.
+    jumpHeight: 0.5,
     mouseSensitivity: 0.0023,
     // How close a pickup must be for E to take it, across the ground; how
     // far above or below the feet it may lie (never a floor away); and how

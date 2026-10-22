@@ -820,6 +820,7 @@ move = { text = "Move", by = "ai" }
 sprint = { text = "Sprint", by = "ai" }
 look = { text = "Look", by = "ai" }
 crouch = { text = "Crouch", by = "ai" }
+jump = { text = "Jump", by = "ai" }
 map = { text = "Map", by = "ai" }
 inventory = { text = "Inventory", by = "ai" }
 book = { text = "Book of Shadows", by = "ai" }

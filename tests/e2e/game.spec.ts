@@ -108,6 +108,30 @@ test('Marx does donuts in the field after reading, until whistled', async ({
   await expect.poll(truck).toMatchObject({ drifting: false })
 })
 
+test('Space jumps, and the feet come back down where they left', async ({
+  page,
+}) => {
+  await beginRaid(page)
+  await page.evaluate(() => window.__bv?.teleport(0.5, 0.5))
+  await heardWhere(page)
+  const feet = () => page.evaluate(() => window.__bv?.player.groundY ?? 0)
+  const ground = await feet()
+  let top = ground
+  await page.keyboard.press('Space')
+  await expect
+    .poll(async () => {
+      top = Math.max(top, await feet())
+      return top - ground
+    })
+    .toBeGreaterThan(0.2)
+  // Down again, and no fall told: a hop is not a hard landing.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.player.fallFrom ?? null))
+    .toBeNull()
+  expect(Math.abs((await feet()) - ground)).toBeLessThan(0.1)
+  expect(await page.evaluate(() => window.__bv?.strikes)).toBe(0)
+})
+
 test('shadowmen cross the valley', async ({ page }) => {
   await beginRaid(page)
   // They are the valley's: it sends them every step.

@@ -43,6 +43,7 @@ export const WORLD = {
     labelKey: 'keys.sprint',
   },
   look: { codes: [], key: 'Mouse', labelKey: 'keys.look' },
+  jump: { codes: ['Space'], key: 'Space', labelKey: 'keys.jump' },
   crouch: { codes: ['KeyC'], key: 'C', labelKey: 'keys.crouch' },
   // The hotbar is the hand (held.ts): a number key or the wheel selects a
   // slot, and the click uses what is in it, the flashlight, the phone and

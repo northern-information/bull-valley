@@ -293,10 +293,15 @@ export function wireKeys(
         game.fishHud.press(dir)
         return
       }
-      if (actionOf(WORLD, e.code) === 'move') return
+      const held = actionOf(WORLD, e.code)
+      if (held === 'move' || held === 'jump') return
     }
     player.handleKey(e.code, true)
     switch (actionOf(WORLD, e.code)) {
+      case 'jump':
+        e.preventDefault()
+        if (!e.repeat) player.jump()
+        return
       case 'inventory':
         e.preventDefault()
         actions.openInventory()
