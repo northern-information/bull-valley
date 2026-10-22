@@ -371,21 +371,6 @@ test('a Citgo never stood at has no shelves on the phone', async ({
   )
 })
 
-test('Gron changes the name from the phone', async ({ browser }) => {
-  const page = await phone(browser)
-  await signIn(page)
-  await page.goto(`/?valley=${freshValley('dial')}`)
-  await dialIn(page)
-  await page.locator('.bv-dial-card[data-card="gron"]').click()
-  const name = freshRaider('Renamed').username
-  await page.locator('[data-bv="gron-username"]').fill(name)
-  const rename = page.locator('[data-bv="gron-rename"]')
-  await expect(rename).toBeEnabled()
-  await rename.click()
-  await page.locator('[data-bv="gron-close"]').click()
-  await expect(page.locator('.bv-dial-name')).toHaveText(name)
-})
-
 test('a new name from the phone reaches the account in the 3D valley', async ({
   browser,
 }) => {
@@ -405,6 +390,7 @@ test('a new name from the phone reaches the account in the 3D valley', async ({
   await expect(rename).toBeEnabled()
   await rename.click()
   await page.locator('[data-bv="gron-close"]').click()
+  await expect(page.locator('.bv-dial-name')).toHaveText(name)
   // The 3D valley takes it on as its own, and never as another raider's.
   const said = () =>
     desk.evaluate(() => window.__bv?.chat.map((line) => line.text) ?? [])

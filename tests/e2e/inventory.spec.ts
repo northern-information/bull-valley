@@ -1,3 +1,4 @@
+import { PACK } from '../../src/bindings.ts'
 import { copy } from './copy.ts'
 import { beginRaid, expect, freshValley, passTitles, test } from './fixtures.ts'
 
@@ -14,6 +15,19 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
   const marlboros = () =>
     page.evaluate(() => window.__bv?.inventory.marlboro ?? 0)
 
+  // Esc is the browser's and only frees the pointer to a light pause; Q
+  // opens the pause overlay, and its Click to Die goes back in.
+  const intro = page.locator('.bv-intro')
+  await expect(intro).toBeHidden()
+  await page.keyboard.press('KeyQ')
+  await expect(intro).toBeVisible()
+  await expect(page.locator('.bv-break')).toBeHidden()
+  await page.getByRole('button', { name: copy('hud.begin_play') }).click()
+  await expect(intro).toBeHidden()
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.player.locked))
+    .toBe(true)
+
   // A new account's bar is empty, so none shows.
   await expect(slots).toHaveCount(0)
   await page.keyboard.press('Tab')
@@ -23,6 +37,13 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
   // Hovering an item shows its card.
   await cell.hover()
   await expect(card).toBeVisible()
+  // The open pack lists every key it answers to (bindings.ts): E and the
+  // number keys on the card of the item under the cursor.
+  const pack = page.getByRole('dialog', { name: copy('inventory.label') })
+  for (const { key, labelKey } of Object.values(PACK)) {
+    await expect(pack).toContainText(key)
+    await expect(pack).toContainText(copy(labelKey))
+  }
   await expect(card.locator('.bv-bag-card-name')).toHaveText(
     copy('items.marlboro.label')
   )

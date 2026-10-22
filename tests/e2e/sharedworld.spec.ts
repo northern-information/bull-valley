@@ -160,6 +160,9 @@ base.describe('a shared world', { tag: '@valley' }, () => {
       expect(await aboard(a)).toBe(true)
       expect(await aboard(b)).toBe(true)
       expect((await shared(a))?.truck.riders).toHaveLength(2)
+      await expect
+        .poll(() => a.evaluate(() => window.__bv?.truck.moving))
+        .toBe(true)
       // Both ride the same truck: the two clients agree where it is, once
       // the time between the two positions is allowed for at the truck's
       // speed. A position is from the page's last frame, which on a slow CI

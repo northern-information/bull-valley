@@ -38,43 +38,6 @@ async function standAtMoab(page: Page): Promise<void> {
   })
 }
 
-test('Moab Coldë says his line', async ({ page }) => {
-  await beginRaid(page)
-  await standAtMoab(page)
-  // The spawn station's Moab glows, and nothing else says so.
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const bv = window.__bv
-        const station = bv?.world.spawnStation
-        if (!bv || !station) return false
-        const rig = bv.world.moabRigs[bv.world.fuelPoints.indexOf(station)]
-        return bv.glow === rig?.figure.group
-      })
-    )
-    .toBe(true)
-  await expect(page.locator('.bv-prompt')).toBeHidden()
-  await page.keyboard.press('KeyE')
-  await expect
-    .poll(() =>
-      page.evaluate(
-        (text) => window.__bv?.chat.find((line) => line.text === text) ?? null,
-        copy('moab.says')
-      )
-    )
-    .toEqual({
-      kind: 'npc',
-      name: copy('outfits.moab'),
-      text: copy('moab.says'),
-      at: expect.any(Number),
-    })
-  await expect(
-    page.getByRole('log', { name: copy('hud.chat_log_label') })
-  ).toContainText(`${copy('outfits.moab')}: ${copy('moab.says')}`)
-  // He opens nothing: the game keeps the pointer.
-  expect(await page.evaluate(() => window.__bv?.player.locked)).toBe(true)
-})
-
 test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
   page,
 }) => {
@@ -112,10 +75,27 @@ test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
       )
     )
     .toBe(true)
-  // Worn for good, he has nothing more to offer: E hears his line again.
+  // Worn for good, he has nothing more to offer: he glows, nothing else
+  // says so, and E has him say his one line under his own name.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const bv = window.__bv
+        const station = bv?.world.spawnStation
+        if (!bv || !station) return false
+        const rig = bv.world.moabRigs[bv.world.fuelPoints.indexOf(station)]
+        return bv.glow === rig?.figure.group
+      })
+    )
+    .toBe(true)
   await expect(page.locator('.bv-prompt')).toBeHidden()
   await page.keyboard.press('KeyE')
   await expect.poll(() => said(page)).toContain(copy('moab.says'))
+  await expect(
+    page.getByRole('log', { name: copy('hud.chat_log_label') })
+  ).toContainText(`${copy('outfits.moab')}: ${copy('moab.says')}`)
+  // He opens nothing: the game keeps the pointer.
+  expect(await page.evaluate(() => window.__bv?.player.locked)).toBe(true)
   // The account wears it from the titles on: the select dresses every
   // character in what /auth/me says.
   const me = (await (await page.request.get('/auth/me')).json()) as {
