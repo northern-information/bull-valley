@@ -449,6 +449,8 @@ recycle_refused = { text = "The wreck will not take that right now.", by = "ai" 
 fish_rod = { text = "You take a rod out of the tackle box. Somebody left it rigged.", by = "ai" }
 fish_dug = { text = "You dig into the mud bank. Nightcrawlers: {count}.", by = "ai" }
 fish_far = { text = "You are too far from the pond.", by = "ai" }
+fireflies_in = { text = "Fireflies protect you from the shadows.", by = "ai" }
+fireflies_out = { text = "You leave the light of the fireflies, back into the shadows.", by = "ai" }
 fish_has_rod = { text = "You already have a rod.", by = "ai" }
 fish_no_rod = { text = "You need a rod. There is one in the tackle box.", by = "ai" }
 fish_no_bait = { text = "You have nothing to put on the hook.", by = "ai" }

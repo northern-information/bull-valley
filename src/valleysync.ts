@@ -642,6 +642,7 @@ export function wireValley(game: Game, actions: Actions): void {
       world.shelves.jarSlurm(msg.station, msg.slot, msg.index)
       if (msg.by !== net.id) return
       s.pending.jar = false
+      game.sfx?.play('jar-clink')
       hud.tell(copy('log.slurm_jarred'))
     } else if (msg.type === 'catch') {
       // Rule 36: how the line came out; a landed fish's pack frame
@@ -649,6 +650,8 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.fish = false
       s.line = null
       s.fishSaid = catchLine(msg)
+      // A fish too big for the skill breaks the line as it comes in.
+      if (msg.outcome === 'snap') game.sfx?.play('line-snap')
       hud.tell(s.fishSaid)
       if (msg.up) hud.tell(skillUpLine(msg.skill))
     } else if (msg.type === 'task') {

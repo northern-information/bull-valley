@@ -24,6 +24,7 @@ import {
 import type { ClockSync } from './clock.ts'
 import type { PondPlace } from './fishing.ts'
 import type { Metres, XZ } from './interfaces.ts'
+import type { Lair } from './lairs.ts'
 import type { TruckRoutes } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
@@ -34,7 +35,6 @@ import type {
   ServerMessage,
 } from './protocol.ts'
 import type { TruckPose } from './shadowmen.ts'
-import type { WaterMap } from './waterside.ts'
 
 export type NetStatus = 'connecting' | 'online' | 'offline'
 
@@ -66,8 +66,8 @@ interface NetIdentity {
   // Each station's forecourt and the survey's size; see HelloMessage.
   havens: XZ[]
   metres: Metres
-  // Where the water's edges run; see HelloMessage.
-  water: WaterMap
+  // The spiders' lairs; see HelloMessage.
+  lairs: Lair[]
   // Where the corn maze lies (the Caretaker's, rule 13), or null.
   maze: MazePlace | null
   // Where each berry bush stands; see HelloMessage.
@@ -279,7 +279,7 @@ export class NetClient {
           stations: identity.stations,
           havens: identity.havens,
           metres: identity.metres,
-          water: identity.water,
+          lairs: identity.lairs,
           maze: identity.maze,
           truck: identity.truck,
           stand: identity.stand,

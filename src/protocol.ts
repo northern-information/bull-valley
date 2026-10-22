@@ -11,7 +11,6 @@ import { isHealth } from './health.ts'
 import { isFileBody, isFileId, isFileName } from './laptop.ts'
 import { isQuestStep } from './quests.ts'
 import { isResearchLine } from './recycling.ts'
-import { isWaterMap } from './waterside.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -29,6 +28,7 @@ import type {
 } from './fishing.ts'
 import type { Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
+import type { Lair } from './lairs.ts'
 import type { LaptopFileInfo } from './laptop.ts'
 import type { TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
@@ -39,11 +39,10 @@ import type { Research, ResearchLine } from './recycling.ts'
 import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { TunnelKind } from './tunnelshades.ts'
-import type { WaterMap } from './waterside.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 44
+export const PROTOCOL_VERSION = 46
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -85,7 +84,7 @@ export const MAX_COORD = 20_000
 // against the pack, this only keeps the arithmetic sane.
 export const COUNT_MAX = 1_000_000
 // No frame from a client is longer than this: the hello, with every pickup
-// and the water map, is the biggest at a few tens of thousands.
+// and its place, is the biggest at a few tens of thousands.
 export const FRAME_MAX = 256_000
 
 // How a figure stands this instant: standing, walking, crouched, or one of
@@ -260,9 +259,10 @@ export interface HelloMessage {
   // the shadowmen with them (sharedworld.ts rule 11).
   havens: XZ[]
   metres: Metres
-  // Where the water's edges run (waterside.ts): the shadow spiders come up
-  // more often near them (rule 11).
-  water: WaterMap
+  // The spiders' lairs (lairs.ts): the dish array, Castle Entropy and
+  // Bull Valley Plaza, or none; the shadow spiders come far more often
+  // near them (rule 11).
+  lairs: Lair[]
   // Where the corn maze lies, or null: the valley steps the Caretaker in
   // it (rule 13).
   maze: MazePlace | null
@@ -1505,6 +1505,25 @@ function parseHavens(value: unknown, stations: number): XZ[] | null {
   return parseSpots(value, stations)
 }
 
+// The spiders' lairs: at most LAIRS_MAX, each a place inside the survey
+// and a reach no wider than it.
+const LAIRS_MAX = 8
+
+function parseLairs(value: unknown): Lair[] | null {
+  if (!Array.isArray(value) || value.length > LAIRS_MAX) return null
+  const lairs: Lair[] = []
+  for (const entry of value as unknown[]) {
+    const at = parseXZ(entry)
+    if (!at || !isRecord(entry)) return null
+    const { radius } = entry
+    if (typeof radius !== 'number' || !(radius > 0 && radius <= MAX_COORD)) {
+      return null
+    }
+    lairs.push({ ...at, radius })
+  }
+  return lairs
+}
+
 // The firefly ponds: at most PONDS_MAX, each a pond place.
 const PONDS_MAX = 8
 
@@ -1600,7 +1619,7 @@ type HelloPlaces = Pick<
   HelloMessage,
   | 'havens'
   | 'metres'
-  | 'water'
+  | 'lairs'
   | 'maze'
   | 'truck'
   | 'stand'
@@ -1617,7 +1636,7 @@ type HelloPlaces = Pick<
 const NO_PLACES: HelloPlaces = {
   havens: [],
   metres: { width: 0, height: 0 },
-  water: { cell: 100, cols: 1, rows: 1, bits: 'AA==' },
+  lairs: [],
   maze: null,
   truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
   stand: null,
@@ -1642,11 +1661,11 @@ function nullable<T>(
 function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const havens = parseHavens(value.havens, stations)
   const metres = parseMetres(value.metres)
-  const water = isWaterMap(value.water) ? value.water : null
+  const lairs = parseLairs(value.lairs)
   const truck = parseRoutes(value.truck)
   const bushes = parseSpots(value.bushes, BUSHES_MAX)
   const rings = parseHavens(value.rings, stations)
-  if (!havens || !metres || !water || !truck || !bushes || !rings) return null
+  if (!havens || !metres || !lairs || !truck || !bushes || !rings) return null
   const maze = nullable(value.maze, parseMazePlace)
   const stand = nullable(value.stand, parseXZ)
   const wreck = nullable(value.wreck, parseXZ)
@@ -1657,7 +1676,7 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const ponds = parsePonds(value.ponds)
   if (!ponds) return null
   if (dealer === undefined || undercroft === undefined) return null
-  const places = { havens, metres, water, maze, truck, stand, bushes, dealer }
+  const places = { havens, metres, lairs, maze, truck, stand, bushes, dealer }
   return { ...places, wreck, ponds, undercroft, rings }
 }
 

@@ -132,3 +132,15 @@ export function fireflyAt(fly: Firefly, t: number): FireflyState {
     glow,
   }
 }
+
+// What crossing a firefly haven's edge says: `in` on coming into the
+// fireflies' light (no shadow follows), `out` on leaving it, and nothing
+// when the raider stays on one side, or on the first reading (`was` null),
+// so a raider placed inside is not told they came in.
+export function havenNews(
+  was: boolean | null,
+  now: boolean
+): 'in' | 'out' | null {
+  if (was === null || was === now) return null
+  return now ? 'in' : 'out'
+}

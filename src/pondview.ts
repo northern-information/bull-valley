@@ -13,6 +13,7 @@ import { applyPose, attachCosmetics, buildFigure, gripWith } from './figure.ts'
 import { finishById } from './finishes.ts'
 import { buildFireflies } from './fireflyrig.ts'
 import { buildBobber, buildFishingRod } from './fishmodels.ts'
+import { castPose } from './held.ts'
 import { samplePose } from './poses.ts'
 import { createPS1Renderer } from './ps1.ts'
 import type { AvatarLook } from './avatarview.ts'
@@ -31,6 +32,8 @@ const POND = {
   grip: -0.57,
   half: 0.9,
 }
+// How high over the straight line the bobber's flight rises, metres.
+const CAST_ARC = 1.2
 // How much thicker than life the rod is drawn.
 const ROD_THICKEN = 4
 // How the bobber bobs, plunges on a bite and swings to a fish's pull.
@@ -55,6 +58,9 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
   let renderer: THREE.WebGLRenderer | null = null
   let stopRunning: (() => void) | null = null
   let line: PondLine = { out: false }
+  // When the line last went out, performance.now() seconds: the rod's cast
+  // plays from then (held.ts castPose).
+  let castAt = -Infinity
 
   function show(look: AvatarLook, rod: string | null): void {
     stop()
@@ -143,27 +149,31 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
     scene.add(figure.group)
     scene.updateMatrixWorld(true)
     const tip = new THREE.Vector3()
+    const fist = new THREE.Vector3()
+    const dir = new THREE.Vector3()
     let held: THREE.Object3D | null = null
+    // The rod tipped `swing` past its rest (held.ts castPose), its grip in
+    // the fist, and its tip.
+    const aim = (rod: THREE.Object3D, swing: number) => {
+      const tilt = POND.tilt + swing
+      dir.set(0, Math.sin(tilt), -Math.cos(tilt))
+      rod.position.copy(fist).addScaledVector(dir, -POND.grip)
+      rod.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir)
+      tip.copy(rod.position).addScaledVector(dir, POND.half)
+    }
     if (rod) {
       // The rod in the scene's own frame: its grip in the right fist, the
       // arm the pose reaches out over the water, pointing out and up. A bat
       // or an axe that hand carries is put away for it.
       const lying = buildFishingRod(rod, { glow: false })
       held = lying.children[0]
-      const dir = new THREE.Vector3(
-        0,
-        Math.sin(POND.tilt),
-        -Math.cos(POND.tilt)
-      )
       if (figure.held) figure.held.visible = false
-      const fist = figure.fists.R.getWorldPosition(new THREE.Vector3())
-      held.position.copy(fist).addScaledVector(dir, -POND.grip)
-      held.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir)
+      figure.fists.R.getWorldPosition(fist)
+      aim(held, 0)
       // Thicker than life, or the phone's few pixels lose the blank.
       held.scale.set(1, ROD_THICKEN, ROD_THICKEN)
       scene.add(held)
       gripWith(figure, 'R', true)
-      tip.copy(held.position).addScaledVector(dir, POND.half)
     }
 
     // The bobber on the water, and its line from the rod's tip.
@@ -200,9 +210,20 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
       fireflies.update(t)
       worn.update(t)
       const out = line.out && held !== null
+      // The cast: the rod swings, and the bobber flies from the tip in an
+      // arc to the water, the line trailing it straight.
+      const swing = castPose(t - castAt)
+      if (held) aim(held, swing.tilt)
       bobber.visible = out
       fishingLine.visible = out
-      if (out) {
+      if (out && swing.fly < 1) {
+        bobber.position.lerpVectors(tip, cast, swing.fly)
+        bobber.position.y += Math.sin(swing.fly * Math.PI) * CAST_ARC
+        const end = bobber.position
+        linePoints.set([tip.x, tip.y, tip.z, end.x, end.y, end.z])
+        linePoints.set([end.x, end.y, end.z], 6)
+        lineGeometry.attributes.position.needsUpdate = true
+      } else if (out) {
         const bite = line.out && line.bite
         const want =
           line.out && line.bite && line.pull
@@ -238,6 +259,7 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
   return {
     show,
     setLine(next) {
+      if (next.out && !line.out) castAt = performance.now() / 1000
       line = next
     },
     stop,

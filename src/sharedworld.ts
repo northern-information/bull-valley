@@ -56,7 +56,8 @@
 //    where it was (drops.ts dimesFor), lying like any drop (rule 12);
 //    dimes taken up are cash, into the taker's wallet (Reduced.earn), never
 //    the pack. Among them come the shadow spiders, twice the height, far
-//    more often near the water the world was opened with (waterside.ts),
+//    more often near the lairs the world was opened with (lairs.ts: the
+//    dish array, Castle Entropy, Bull Valley Plaza),
 //    twice as long to burn, and each leaves a $20 bill, cash the same way.
 //    Marx's headlights burn them too, crediting no one: the valley never
 //    knows the roads, so it aims them from where a raider near the truck
@@ -458,6 +459,7 @@ import type { Hurt } from './fall.ts'
 import type { Angler, Bait, PondPlace } from './fishing.ts'
 import type { Burial, Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
+import type { Lair } from './lairs.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
 import type { OutfitId } from './outfits.ts'
@@ -487,7 +489,6 @@ import type { Research, ResearchLine } from './recycling.ts'
 import type { StandLedger } from './stand.ts'
 import type { WardState } from './wardlevels.ts'
 import type { ShadowHit } from './wards.ts'
-import type { WaterMap } from './waterside.ts'
 
 // A raider online: one socket.
 interface Member {
@@ -526,8 +527,8 @@ interface SharedWorld {
   stations: number
   havens: XZ[]
   metres: Metres
-  // Where the water's edges run (rule 11: the spiders).
-  water: WaterMap
+  // The spiders' lairs (rule 11, lairs.ts).
+  lairs: Lair[]
   maze: MazePlace | null
   routes: TruckRoutes
   // Where the Cabbage Stand stands, or null (rule 23).
@@ -631,7 +632,7 @@ export type ValleyAction =
       stations: number
       havens: XZ[]
       metres: Metres
-      water: WaterMap
+      lairs: Lair[]
       maze: MazePlace | null
       routes: TruckRoutes
       stand: XZ | null
@@ -1479,7 +1480,7 @@ function onJoin(
       stations: action.stations,
       havens: action.havens,
       metres: action.metres,
-      water: action.water,
+      lairs: action.lairs,
       maze: action.maze,
       routes: action.routes,
       stand: action.stand,

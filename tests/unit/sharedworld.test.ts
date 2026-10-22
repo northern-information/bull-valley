@@ -52,7 +52,6 @@ import {
 import { FRESH_STAND, standXp } from '../../src/stand.ts'
 import { UNDERCROFT } from '../../src/undercroft.ts'
 import { damageOf } from '../../src/wards.ts'
-import { dryMap } from '../../src/waterside.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
 import type { ExpeditionRun } from '../../src/expeditions.ts'
@@ -189,7 +188,7 @@ const join = (id: string): ValleyAction => ({
   stations: STATIONS,
   havens: HAVENS,
   metres: METRES,
-  water: dryMap(METRES),
+  lairs: [],
   maze: null,
   routes: ROUTES,
   stand: STAND,

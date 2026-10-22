@@ -290,6 +290,12 @@ export interface GameState {
   // The bait the rod casts with, picked at the tackle box; null for the
   // first one carried.
   bait: Bait | null
+  // Inside a pond's firefly haven as last read; null before the welcome
+  // has placed the raider.
+  inFireflies: boolean | null
+  // When the rod was last cast, on `time` (held.ts castPose); null once
+  // the cast is over.
+  castAt: number | null
   // Rule 28: every Citgo the account has stood at, and the last, as the
   // valley last said (the welcome, then every citgos frame). The Citgo
   // portals, from every snapshot; the id of the one this raider opened, while it
@@ -389,6 +395,8 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     line: null,
     fishSaid: null,
     bait: null,
+    inFireflies: null,
+    castAt: null,
     citgos: NO_CITGOS,
     portals: [],
     myPortal: null,

@@ -27,6 +27,7 @@ import { Hallucinations } from './hallucinationrig.ts'
 import { Hud } from './hud.ts'
 import { wireKeys, wirePointer } from './input.ts'
 import { createItemThumbs } from './itemthumbs.ts'
+import { lairsOf } from './lairs.ts'
 import { startLoop } from './loop.ts'
 import { MistCards } from './mistcards.ts'
 import { createMusic } from './musicrig.ts'
@@ -66,7 +67,6 @@ import { joyrideMs } from './truckplan.ts'
 import { createTruckRadio } from './truckradiorig.ts'
 import { TunnelShades } from './tunnelrig.ts'
 import { wireValley } from './valleysync.ts'
-import { waterMapOf } from './waterside.ts'
 import { buildWorld } from './world.ts'
 import type { Game } from './game.ts'
 import type { Geo } from './interfaces.ts'
@@ -283,8 +283,6 @@ async function boot() {
     beforeOpen: () => refreshSession(),
   })
 
-  // Where the water's edges run: the valley's spiders come up near them.
-  const water = waterMapOf(geo.water, geo.metres)
   const game: Game = {
     state: createGameState(world.fuelPoints.length, pick.hotbar),
     geo,
@@ -391,7 +389,8 @@ async function boot() {
     stations: world.fuelPoints.length,
     havens: world.fuelPoints.map(({ x, z }) => ({ x, z })),
     metres: geo.metres,
-    water,
+    // The spiders' lairs round the spawn Citgo, none without one.
+    lairs: world.spawnStation ? lairsOf(world.spawnStation) : [],
     maze: world.mazePlace,
     truck: truckRoutes,
     bushes: world.bushes.map(({ x, z }) => ({ x, z })),

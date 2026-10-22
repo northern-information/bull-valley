@@ -15,7 +15,12 @@ export interface FishPlayHooks {
   reel: (landed: boolean) => void
   // The line came up empty, with what to say.
   empty: (said: string) => void
+  // What the fight sounds like (sfx.ts): the bite, each crank of the reel
+  // as an arrow is answered, a fish reeled in, the line lost to the clock.
+  sound?: (id: FishSound) => void
 }
+
+export type FishSound = 'fish-bite' | 'reel-click' | 'reel-in' | 'line-snap'
 
 // Where the line stands: none in the water, waiting on the bite, a fish
 // fighting, a fish spent and waiting to be reeled, or done with here (the
@@ -30,6 +35,7 @@ export class FishPlay {
   private line: LineOut | null = null
   private fight: FightState | null = null
   private reeled = false
+  private bitten = false
   private last = 0
   private hooks: FishPlayHooks
 
@@ -45,6 +51,7 @@ export class FishPlay {
       this.line = line
       this.fight = line?.hook ? startFight(line.hook.fight) : null
       this.reeled = false
+      this.bitten = false
     }
     if (!line || this.reeled || now < line.bitesAt) return
     if (!line.hook || !this.fight) {
@@ -54,10 +61,17 @@ export class FishPlay {
     }
     // The first step after the bite runs only from the bite.
     const since = now - line.bitesAt
+    if (!this.bitten) {
+      this.bitten = true
+      this.hooks.sound?.('fish-bite')
+    }
     const step = this.fight.ms === 0 ? Math.min(since, dt) : dt
     this.fight = stepFight(line.hook.fight, this.fight, step, line.hook.seed)
     // Out of time, it is gone.
-    if (this.fight.over) this.end(false)
+    if (this.fight.over) {
+      this.hooks.sound?.('line-snap')
+      this.end(false)
+    }
   }
 
   phase(now: number): FishPhase {
@@ -83,12 +97,15 @@ export class FishPlay {
   press(dir: ArrowDir): void {
     const hook = this.line?.hook
     if (!hook || !this.fight || this.phase(this.last) !== 'fight') return
+    this.hooks.sound?.('reel-click')
     this.fight = pressFight(hook.fight, this.fight, dir)
   }
 
   // Reel the spent fish in.
   reelIn(): void {
-    if (this.phase(this.last) === 'spent') this.end(true)
+    if (this.phase(this.last) !== 'spent') return
+    this.hooks.sound?.('reel-in')
+    this.end(true)
   }
 
   // Let a fish on the line go (a line still waiting on the bite too).
