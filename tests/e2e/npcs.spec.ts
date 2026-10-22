@@ -131,5 +131,10 @@ test('Carlsten glows when you come near and opens his shelves, a line each time'
     )
     await page.keyboard.press('KeyE')
     await expect(shop).toBeHidden()
+    // The game acts on E again once it has the pointer back, which comes
+    // a beat after the window closes; a raider never presses that fast.
+    await expect
+      .poll(() => page.evaluate(() => window.__bv?.player.locked))
+      .toBe(true)
   }
 })
