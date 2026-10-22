@@ -8,8 +8,13 @@
 // The rules:
 // 1. The world is persistent. The first build to arrive opens it, and it
 //    is kept from then on, whoever comes and goes; only a build on a newer
-//    protocol (whose placements differ) opens it afresh. A client whose
-//    pickups or stations differ from the world's is turned away.
+//    protocol (whose placements differ) opens it again, with the places
+//    its hello brings. What it kept comes with it (Valley.carried,
+//    carryOver): the tombstones always, and the drops and the shelves'
+//    units while their day is still today (the shelves only when the
+//    station count is the same); the pickups taken, the truck, the portals
+//    and Erwin's stock start afresh. A client on the world's protocol
+//    whose pickups or stations differ from the world's is turned away.
 // 2. A raider comes back where their account last stood on foot, or at the
 //    spawn Citgo the first time (Valley.places).
 // 3. Matthew Marx's truck is the valley's (marx.ts): his reading and his
@@ -381,6 +386,7 @@ import {
   DIMES,
   dropSpot,
   isCash,
+  isPickupKind,
   takeUp,
 } from './drops.ts'
 import {
@@ -479,7 +485,7 @@ import {
   upgrade as upgradeStand,
 } from './stand.ts'
 import { atLocker } from './stash.ts'
-import { freshStock, onShelf, takeUnit } from './store.ts'
+import { freshStock, onShelf, STORE_LAYOUT, takeUnit } from './store.ts'
 import { levelsAt } from './wardlevels.ts'
 import { damageOf } from './wards.ts'
 import { cleanWaypoints, NO_WAYPOINTS, sameWaypoints } from './waypoints.ts'
@@ -597,9 +603,26 @@ interface ValleyPortal extends Portal {
   account: string
 }
 
+// Rule 1: what a world opened on an older protocol leaves the next one,
+// kept until the next arrival opens it with its own places: the day it
+// belonged to, its shelves (and how many stations they stocked), its drops
+// and its tombstones, and the ids the next of each gets.
+export interface Carried {
+  day: string
+  stations: number
+  shelves: ShopStock[]
+  drops: Drop[]
+  nextDrop: number
+  graves: Grave[]
+  nextGrave: number
+}
+
 // Everything the server persists.
 export interface Valley {
   world: SharedWorld | null
+  // Rule 1: what an older protocol's world left, until a build opens this
+  // one's (null once it has, or when there was none).
+  carried: Carried | null
   members: Record<string, Member>
   // An account at a bush (bushKey) -> the Central day (daily.ts dayKey)
   // that account last took a berry off it. Pruned to today's on every
@@ -1076,6 +1099,7 @@ function samePickups(a: readonly PickupSpec[], b: readonly PickupSpec[]) {
 export function createValley(): Valley {
   return {
     world: null,
+    carried: null,
     members: {},
     dailies: {},
     places: {},
@@ -1094,9 +1118,10 @@ export function createValley(): Valley {
 
 // The valley as an older build stored it, made current: the fresh one
 // fills in newer fields, and a world opened on another protocol (an older
-// build's included) is dropped, so the next arrival opens it afresh.
+// build's included) is put by, so the next arrival opens it with its own
+// places and what that world kept carried over (rule 1, carryOver).
 // The berries, the places, the bodies, the wounds and the wards carry
-// over; a valley stored as hit points left (an older build's `health`,
+// over too; a valley stored as hit points left (an older build's `health`,
 // kept against `healthMax`, three once) is read as wounds at the same
 // share of whole, and the wards an older build kept as `geometrie` as
 // the wards.
@@ -1116,10 +1141,102 @@ export function restoreValley(
     wards: rest.wards ?? geometrie ?? {},
   }
   const world: Partial<SharedWorld> | null = valley.world ?? null
-  if (!world || world.version !== PROTOCOL_VERSION) {
-    return { ...valley, world: null }
+  if (!world) return { ...valley, carried: valley.carried ?? null }
+  if (world.version !== PROTOCOL_VERSION) {
+    return { ...valley, world: null, carried: carriedFrom(world) }
   }
-  return valley
+  return { ...valley, carried: null }
+}
+
+// Rule 1: what of a world stored on another protocol is worth keeping,
+// read field by field, so a shape an older build left (a field missing,
+// or one gone bad) keeps only what reads. The tombstones and the drops
+// stand in world coordinates, so they keep their places; a drop of a kind
+// this build no longer knows is left behind. The pickups taken, the truck,
+// the portals and Erwin's stock are not kept: they index the old
+// placements, or come back with the day anyway. A world with no day kept
+// (none reads as today) keeps only its tombstones.
+function carriedFrom(world: Partial<SharedWorld>): Carried {
+  const day = typeof world.day === 'string' ? world.day : ''
+  const drops = (Array.isArray(world.drops) ? world.drops : []).filter(
+    (d): d is Drop =>
+      isPlaced(d) &&
+      Number.isInteger(d.id) &&
+      typeof d.kind === 'string' &&
+      isPickupKind(d.kind) &&
+      Number.isInteger(d.count) &&
+      d.count > 0
+  )
+  const graves = (Array.isArray(world.graves) ? world.graves : [])
+    .filter(
+      (g): g is Grave =>
+        isPlaced(g) && Number.isInteger(g.id) && typeof g.name === 'string'
+    )
+    .slice(-CONFIG.graves.max)
+  const stations = Number.isInteger(world.stations) ? world.stations! : 0
+  const shelves = Array.isArray(world.shelves) ? world.shelves : []
+  return {
+    day,
+    stations,
+    shelves: shelves.length === stations ? shelves : [],
+    drops,
+    nextDrop: nextId(world.nextDrop, drops),
+    graves,
+    nextGrave: nextId(world.nextGrave, graves),
+  }
+}
+
+function isPlaced(v: unknown): v is XZ {
+  if (!v || typeof v !== 'object') return false
+  const { x, z } = v as Partial<XZ>
+  return Number.isFinite(x) && Number.isFinite(z)
+}
+
+// The id the next of `kept` gets: the stored one, or past every kept id
+// when that is missing or behind them, so no id is given twice.
+function nextId(stored: unknown, kept: readonly { id: number }[]): number {
+  const past = kept.reduce((most, { id }) => Math.max(most, id + 1), 0)
+  return Number.isInteger(stored) ? Math.max(stored as number, past) : past
+}
+
+// Rule 1: a world opened by `opened`'s build, with what an older
+// protocol's world carried over laid back in. The tombstones stay; the
+// drops and the shelves only while that world's day is still today (the
+// day's turn would have taken them, rule 6), and the shelves only when the
+// build stocks as many stations, each shelf read unit by unit against
+// this build's layout (a row it does not have, or of another length, comes
+// in full).
+export function carryOver(
+  opened: SharedWorld,
+  carried: Carried | null
+): SharedWorld {
+  if (!carried) return opened
+  const today = carried.day === opened.day
+  return {
+    ...opened,
+    graves: carried.graves,
+    nextGrave: carried.nextGrave,
+    drops: today ? carried.drops : [],
+    nextDrop: carried.nextDrop,
+    shelves:
+      today && carried.stations === opened.stations
+        ? opened.shelves.map((full, i) => keptShelf(full, carried.shelves[i]))
+        : opened.shelves,
+  }
+}
+
+function keptShelf(full: ShopStock, kept: ShopStock | undefined): ShopStock {
+  const shelf: ShopStock = {}
+  for (const facing of STORE_LAYOUT.facings) {
+    const row = kept?.[facing.kind]
+    shelf[facing.kind] =
+      Array.isArray(row) &&
+      row.length === full[facing.kind].length &&
+      row.every((unit) => typeof unit === 'boolean')
+        ? [...row]
+        : full[facing.kind]
+  }
+  return shelf
 }
 
 // The bushes as `account` finds them at `now`: which have given up
@@ -1555,36 +1672,39 @@ function onJoin(
   let world = valley.world
   // Rule 1.
   if (!world) {
-    world = {
-      version: PROTOCOL_VERSION,
-      day: dayKey(now),
-      taken: [],
-      shelves: freshStock(action.stations),
-      drops: [],
-      nextDrop: 0,
-      graves: [],
-      nextGrave: 0,
-      truck: createTruck(now),
-      pickups: action.pickups,
-      stations: action.stations,
-      havens: action.havens,
-      metres: action.metres,
-      lairs: action.lairs,
-      maze: action.maze,
-      routes: action.routes,
-      stand: action.stand,
-      wreck: action.wreck,
-      ponds: action.ponds,
-      bushes: action.bushes,
-      dealer: action.dealer,
-      dealerStock: freshDealerStock(),
-      undercroft: action.undercroft,
-      moat: action.moat,
-      rings: action.rings,
-      portals: [],
-      nextPortal: 0,
-      payphones: action.payphones,
-    }
+    world = carryOver(
+      {
+        version: PROTOCOL_VERSION,
+        day: dayKey(now),
+        taken: [],
+        shelves: freshStock(action.stations),
+        drops: [],
+        nextDrop: 0,
+        graves: [],
+        nextGrave: 0,
+        truck: createTruck(now),
+        pickups: action.pickups,
+        stations: action.stations,
+        havens: action.havens,
+        metres: action.metres,
+        lairs: action.lairs,
+        maze: action.maze,
+        routes: action.routes,
+        stand: action.stand,
+        wreck: action.wreck,
+        ponds: action.ponds,
+        bushes: action.bushes,
+        dealer: action.dealer,
+        dealerStock: freshDealerStock(),
+        undercroft: action.undercroft,
+        moat: action.moat,
+        rings: action.rings,
+        portals: [],
+        nextPortal: 0,
+        payphones: action.payphones,
+      },
+      valley.carried
+    )
   } else if (
     !samePickups(world.pickups, action.pickups) ||
     world.stations !== action.stations
@@ -1611,6 +1731,7 @@ function onJoin(
       members,
       lines: linesOf(valley, members),
       world: { ...world, truck },
+      carried: null,
     },
     action.account,
     now
@@ -3389,7 +3510,7 @@ function onHurry(
 function onReset(valley: Valley, { now }: ValleyContext): Reduced {
   // The whole world afresh: the next arrival opens it. The members
   // stay, and are asked to come back.
-  const next: Valley = { ...valley, world: null }
+  const next: Valley = { ...valley, world: null, carried: null }
   return done(next, now, { broadcast: [frame(next, 'reset')] })
 }
 

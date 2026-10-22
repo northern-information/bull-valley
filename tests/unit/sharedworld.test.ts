@@ -59,6 +59,7 @@ import {
   waypointsFor,
 } from '../../src/sharedworld.ts'
 import { FRESH_STAND, standXp } from '../../src/stand.ts'
+import { STORE_LAYOUT } from '../../src/store.ts'
 import { UNDERCROFT } from '../../src/undercroft.ts'
 import { damageOf } from '../../src/wards.ts'
 import { WAYPOINT_MAX } from '../../src/waypoints.ts'
@@ -311,6 +312,7 @@ describe('rule 1: the world is persistent', () => {
     } as Valley
     expect(restoreValley(older)).toMatchObject({
       world: null,
+      carried: { day: dayKey(T0), drops: [], graves: [] },
       dailies: { acct: '2026-10-05' },
     })
     // An older build's raid, its berries kept.
@@ -320,6 +322,158 @@ describe('rule 1: the world is persistent', () => {
       dailies: { b: 'x' },
       places: {},
     })
+  })
+
+  // A world an older protocol opened at T0 and kept: two tombstones, a
+  // drop of dimes, a unit off a shelf, a pickup taken and Marx at his
+  // donuts, stored with `over` laid on it.
+  const olderWorld = (over: Record<string, unknown> = {}): Valley => {
+    const v = valleyWith(join('a'), {
+      type: 'take',
+      id: 'a',
+      index: 2,
+      at: HERE,
+    })
+    v.step(leaveAs('a'))
+    const world = v.valley.world!
+    const kind = STORE_LAYOUT.facings[0].kind
+    const shelves = world.shelves.map((shelf) => ({ ...shelf }))
+    shelves[1][kind] = shelves[1][kind].map((unit, i) => i !== 0 && unit)
+    return {
+      ...v.valley,
+      world: {
+        ...world,
+        version: PROTOCOL_VERSION - 1,
+        graves: [
+          { id: 3, name: 'Hollis', x: 10, z: -4 },
+          { id: 7, name: 'Wren', x: -2, z: 8 },
+        ],
+        nextGrave: 8,
+        drops: [{ id: 5, kind: 'dimes', count: 3, x: 1, z: 2, spilled: true }],
+        nextDrop: 6,
+        shelves,
+        dealerStock: {},
+        truck: { ...world.truck, riders: ['gone'] },
+        ...over,
+      },
+    }
+  }
+  const reopen = (stored: Valley, now = T0 + 60 * SEC) =>
+    reduce(restoreValley(stored), join('b'), { now, present: [] }).valley
+
+  it("carries an older protocol's tombstones and drops into the next world", () => {
+    const world = reopen(olderWorld()).world!
+    expect(world.version).toBe(PROTOCOL_VERSION)
+    expect(world.graves.map((g) => g.name)).toEqual(['Hollis', 'Wren'])
+    expect(world.nextGrave).toBe(8)
+    expect(world.drops).toEqual([
+      { id: 5, kind: 'dimes', count: 3, x: 1, z: 2, spilled: true },
+    ])
+    expect(world.nextDrop).toBe(6)
+    const kind = STORE_LAYOUT.facings[0].kind
+    expect(world.shelves[1][kind][0]).toBe(false)
+    expect(world.shelves[0][kind][0]).toBe(true)
+  })
+
+  it('takes its places from the hello, and resets what indexed the old ones', () => {
+    const stored = olderWorld()
+    const valley = reopen(stored)
+    const world = valley.world!
+    expect(world.taken).toEqual([])
+    expect(world.truck.riders).toEqual([])
+    expect(world.portals).toEqual([])
+    expect(world.dealerStock).toEqual(freshDealerStock())
+    expect(world.wreck).toEqual(WRECK_SPOT)
+    expect(world.pickups).toEqual(PICKUPS)
+    expect(valley.carried).toBeNull()
+    expect(toWire(valley)?.graves).toHaveLength(2)
+  })
+
+  it('carries only the tombstones once the day has turned', () => {
+    const world = reopen(olderWorld(), nextMidnight(T0) + SEC).world!
+    expect(world.graves).toHaveLength(2)
+    expect(world.drops).toEqual([])
+    expect(world.nextDrop).toBe(6)
+    expect(world.shelves).toEqual(reopen(createValley()).world!.shelves)
+  })
+
+  it('fills the shelves afresh when the station count moved', () => {
+    const shelves = olderWorld().world!.shelves.slice(0, 2)
+    const world = reopen(olderWorld({ stations: 2, shelves })).world!
+    expect(world.shelves).toEqual(reopen(createValley()).world!.shelves)
+  })
+
+  it('keeps only what reads of an older shape', () => {
+    const kind = STORE_LAYOUT.facings[0].kind
+    const shelves = olderWorld().world!.shelves.map((shelf) => ({
+      ...shelf,
+      [kind]: [false],
+    }))
+    const stored = olderWorld({
+      graves: [
+        { id: 2, name: 'Ok', x: 0, z: 0 },
+        { id: 4, name: 'No place' },
+        'junk',
+        { id: 9, name: 7, x: 0, z: 0 },
+      ],
+      nextGrave: undefined,
+      drops: [
+        { id: 1, kind: 'not-an-item', count: 1, x: 0, z: 0 },
+        { id: 12, kind: 'dimes', count: 0, x: 0, z: 0 },
+        { id: 11, kind: 'dimes', count: 2, x: 0, z: Number.NaN },
+        { id: 10, kind: 'dimes', count: 2, x: 0, z: 0 },
+      ],
+      nextDrop: 3,
+      shelves,
+    })
+    const world = reopen(stored).world!
+    expect(world.graves).toEqual([{ id: 2, name: 'Ok', x: 0, z: 0 }])
+    expect(world.nextGrave).toBe(3)
+    expect(world.drops.map((d) => d.id)).toEqual([10])
+    expect(world.nextDrop).toBe(11)
+    // A row of another length comes in full.
+    expect(world.shelves[0][kind].every(Boolean)).toBe(true)
+    // A world with nothing of the sort: no day, no graves, no drops.
+    const bare = olderWorld({
+      day: undefined,
+      graves: undefined,
+      drops: null,
+      shelves: undefined,
+    })
+    expect(restoreValley(bare).carried).toMatchObject({
+      day: '',
+      graves: [],
+      drops: [],
+      nextGrave: 8,
+    })
+    expect(reopen(bare).world!.graves).toEqual([])
+  })
+
+  it('caps the tombstones it carries', () => {
+    const graves = Array.from({ length: CONFIG.graves.max + 5 }, (_, id) => ({
+      id,
+      name: `G${id}`,
+      x: 0,
+      z: 0,
+    }))
+    const world = reopen(olderWorld({ graves })).world!
+    expect(world.graves).toHaveLength(CONFIG.graves.max)
+    expect(world.graves[0].id).toBe(5)
+  })
+
+  it('carries over through a restart before anyone arrives, and not past a reset', () => {
+    const once = restoreValley(olderWorld())
+    expect(restoreValley(once).carried).toEqual(once.carried)
+    const v = reduce(
+      once,
+      { type: 'reset' },
+      {
+        now: T0,
+        present: [],
+      }
+    ).valley
+    expect(v.carried).toBeNull()
+    expect(reopen(v).world!.graves).toEqual([])
   })
 
   it('reads the wards an older build kept as geometrie', () => {
