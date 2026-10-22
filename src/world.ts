@@ -68,6 +68,7 @@ import { buildRoads, buildShoulders, buildWater } from './worldsurfaces.ts'
 import type { DishArray, PortalRig, Wreck } from './assets.ts'
 import type { Sight } from './book.ts'
 import type { CastleSite } from './castlesite.ts'
+import type { YardSpot } from './castleyard.ts'
 import type { DonutField } from './donuts.ts'
 import type { GronRig, MoabRig, TylerRig } from './figure.ts'
 import type { Geo, HeightAt, Metres, ShopStock, XZ } from './interfaces.ts'
@@ -257,6 +258,9 @@ export interface World {
   // place and shore, the tackle box on its landing, and update(t) for the
   // fireflies. None without a spawn station or water near it.
   ponds: PondRig[]
+  // The payphones (castleyard.ts payphoneSpot, sharedworld.ts rule 28):
+  // the one on Castle Entropy's rim, none without the castle.
+  payphones: YardSpot[]
 }
 
 // The terrain as buildWorld may cut into it (terrain.ts HeightField): the
@@ -593,5 +597,6 @@ export function buildWorld(
     }),
     castle,
     ponds,
+    payphones: castle ? [castle.payphone] : [],
   }
 }

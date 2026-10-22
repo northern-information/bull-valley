@@ -61,6 +61,7 @@ import {
   citgoVisits,
   createShadows,
   forecourtMends,
+  phoneVisits,
   placeCaretaker,
   placeShadowman,
   seeHeadlights,
@@ -783,6 +784,9 @@ export class ValleyDO extends DurableObject<Env> {
     for (const { id, station } of citgoVisits(this.valley, placed)) {
       void this.visit(id, station)
     }
+    for (const { id, phone } of phoneVisits(this.valley, placed)) {
+      void this.findPhone(id, phone)
+    }
     if (out.struck.length === 0) return
     // Rule 24: each account struck takes its hit, once however many of its
     // sockets were touched.
@@ -985,6 +989,23 @@ export class ValleyDO extends DurableObject<Env> {
       const kept = reduced.waypoints
       if (kept) {
         this.toAccount(kept.account, { type: 'waypoints', points: kept.points })
+      }
+    })
+  }
+
+  // A raider finds a payphone (rule 28): every socket on the account hears
+  // its Citgos, the payphone with them.
+  protected async findPhone(id: string, phone: number): Promise<void> {
+    await this.locked(async () => {
+      const reduced = reduce(
+        this.valley,
+        { type: 'find-phone', id, phone },
+        this.context()
+      )
+      await this.apply(reduced)
+      const change = reduced.citgos
+      if (change) {
+        this.toAccount(change.account, { type: 'citgos', citgos: change.log })
       }
     })
   }
@@ -1468,6 +1489,7 @@ export class ValleyDO extends DurableObject<Env> {
               dealer: hello.dealer,
               undercroft: hello.undercroft,
               rings: hello.rings,
+              payphones: hello.payphones,
               level: levelOf(xp),
             },
         { now: Date.now(), present: this.presentIds(ws) }

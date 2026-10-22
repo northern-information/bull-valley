@@ -18,9 +18,11 @@ import {
 } from './chat.ts'
 import {
   arrivalAt,
+  arrivalAtPhone,
   citgoAt,
   citgoLines,
   fastTravel as fastTravelTo,
+  stopAt,
 } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -80,7 +82,7 @@ import { dose, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
 import { charterable } from './worldsync.ts'
 import type { ChatCommand, CrewFrame } from './chat.ts'
-import type { CitgoLog } from './citgos.ts'
+import type { CitgoLog, Stop } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { EmoteId } from './emotes.ts'
 import type { Hurt } from './fall.ts'
@@ -222,8 +224,8 @@ export interface Actions {
   // closeBook's.
   openMap(): void
   closeMap(relock?: boolean): void
-  // A Citgo on the map clicked: fast travel there.
-  fastTravel(station: number): void
+  // A Citgo or a payphone on the map clicked: fast travel there.
+  fastTravel(to: Stop): void
   // Rule 3: the map opened for us to pick where Marx goes ends: a point
   // picked (to), the joyride (null), or nothing asked (undefined: he left,
   // or the bed is not ours).
@@ -1515,13 +1517,16 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const citgoLabel = (station: number | null) =>
     station === null ? '' : (hud.map?.label(station) ?? '')
+  const stopLabel = (stop: Stop) =>
+    'citgo' in stop ? citgoLabel(stop.citgo) : copy('map.payphone')
 
   const applyCitgos = (log: CitgoLog, quiet = false) => {
     const before = s.citgos
     s.citgos = log
     // Before Begin there is no one to tell: the spawn Citgo is found then.
     if (quiet || !s.started) return
-    for (const line of citgoLines(before, log, citgoLabel, s.world !== null)) {
+    const inWorld = s.world !== null
+    for (const line of citgoLines(before, log, citgoLabel, inWorld)) {
       hud.tell(line)
     }
   }
@@ -1610,32 +1615,36 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (relock) engagePointer()
   }
 
-  // From the Citgo we stand at to one visited (citgos.ts fastTravel): set
-  // down in the middle of its portal ring. Where we stand is our own word,
-  // so the valley hears it from the next state frame.
-  const fastTravel = (station: number) => {
+  // From the Citgo or the found payphone we stand at to a Citgo visited
+  // or a payphone found (citgos.ts fastTravel): set down in the middle of
+  // the Citgo's portal ring, or in front of the payphone. Where we stand is
+  // our own word, so the valley hears it from the next state frame.
+  const fastTravel = (stop: Stop) => {
     if (s.aboard) {
       hud.tell(copy('log.travel_aboard'))
       return
     }
-    const here = citgoAt(player.pos, world.fuelPoints)
-    const verdict = fastTravelTo(s.citgos, here, station)
+    const here = stopAt(player.pos, world.fuelPoints, world.payphones)
+    const verdict = fastTravelTo(s.citgos, here, stop)
     if (verdict !== 'ok') {
       hud.tell(
         verdict === 'not-at-citgo'
           ? copy('log.travel_away')
           : verdict === 'here'
             ? copy('log.travel_here')
-            : copy('log.travel_unvisited', { citgo: citgoLabel(station) })
+            : copy('log.travel_unvisited', { citgo: stopLabel(stop) })
       )
       return
     }
-    const to = arrivalAt(world.rings[station], world.fuelPoints[station])
+    const to =
+      'citgo' in stop
+        ? arrivalAt(world.rings[stop.citgo], world.fuelPoints[stop.citgo])
+        : arrivalAtPhone(world.payphones[stop.phone])
     player.relocate(to.x, to.z, to.yaw)
     s.emoting = null
     s.portalGraceUntil = performance.now() + GRACE_MS
     closeMap(true)
-    hud.tell(copy('log.travel', { citgo: citgoLabel(station) }))
+    hud.tell(copy('log.travel', { citgo: stopLabel(stop) }))
   }
   // --- Rule 37: waypoints -------------------------------------------------
 
