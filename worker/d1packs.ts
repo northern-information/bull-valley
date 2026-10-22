@@ -299,37 +299,45 @@ export class D1PackStore implements PackStore {
   }
 
   // One batch is one transaction. What he gives goes in first, only while
-  // the pack still holds what it is given for; that comes out after,
-  // under the same guard, so the two land together or not at all (the
-  // two kinds always differ: he takes only what a Citgo shelf prices, and
-  // sells nothing it does).
+  // the pack still holds the whole offer; the offer comes out after, in
+  // one statement under the same guard, so it all lands together or not
+  // at all (the kinds always differ: he takes only what a Citgo shelf
+  // prices, and sells nothing it does). The guard is a subquery that
+  // names no outer column, so SQLite reads it once, before any row of
+  // the offer changes.
   async barter(
     accountId: string,
-    give: { kind: string; count: number },
+    give: Inventory,
     take: { kind: string; count: number }
   ): Promise<boolean> {
+    const gives = Object.entries(give)
+    if (gives.length === 0) return false
+    const held = gives.map(() => '(kind = ? AND count >= ?)').join(' OR ')
+    const guard = `(SELECT COUNT(*) FROM packs WHERE account_id = ? AND (${held})) = ?`
+    const guardArgs = [accountId, ...gives.flat(), gives.length]
+    const cases = gives.map(() => 'WHEN ? THEN ?').join(' ')
+    const kinds = gives.map(() => '?').join(', ')
     const results = await this.db.batch([
       this.db
         .prepare(
           'INSERT INTO packs (account_id, kind, count) ' +
-            'SELECT ?, ?, ? WHERE (SELECT count FROM packs WHERE account_id = ? AND kind = ?) >= ? ' +
+            `SELECT ?, ?, ? WHERE ${guard} ` +
             'ON CONFLICT (account_id, kind) DO UPDATE SET count = count + excluded.count'
         )
-        .bind(
-          accountId,
-          take.kind,
-          take.count,
-          accountId,
-          give.kind,
-          give.count
-        ),
+        .bind(accountId, take.kind, take.count, ...guardArgs),
       this.db
         .prepare(
-          'UPDATE packs SET count = count - ? WHERE account_id = ? AND kind = ? AND count >= ?'
+          `UPDATE packs SET count = count - CASE kind ${cases} END ` +
+            `WHERE account_id = ? AND kind IN (${kinds}) AND ${guard}`
         )
-        .bind(give.count, accountId, give.kind, give.count),
+        .bind(
+          ...gives.flat(),
+          accountId,
+          ...gives.map(([kind]) => kind),
+          ...guardArgs
+        ),
     ])
-    return (results[1]?.meta.changes ?? 0) > 0
+    return (results[1]?.meta.changes ?? 0) === gives.length
   }
 
   // A wallet never opened starts from the starting cash, as open() would.

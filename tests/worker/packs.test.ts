@@ -161,7 +161,7 @@ function packContract(makeStore: () => PackStore): void {
     expect((await store.get('a1')).pack['gold-bullion']).toBe(1)
   })
 
-  it('barters only what the pack holds, both sides together', async () => {
+  it('barters only what the pack holds, every side together', async () => {
     const store = makeStore()
     await store.open('a1')
     await store.change(
@@ -169,22 +169,24 @@ function packContract(makeStore: () => PackStore): void {
       'marlboro',
       40 - (STARTING_INVENTORY.marlboro ?? 0)
     )
-    expect(
-      await store.barter(
-        'a1',
-        { kind: 'marlboro', count: 41 },
-        { kind: 'lsd', count: 1 }
-      )
-    ).toBe(false)
-    expect((await store.get('a1')).pack).toMatchObject({ marlboro: 40, lsd: 0 })
-    expect(
-      await store.barter(
-        'a1',
-        { kind: 'marlboro', count: 37 },
-        { kind: 'lsd', count: 1 }
-      )
-    ).toBe(true)
-    expect((await store.get('a1')).pack).toMatchObject({ marlboro: 3, lsd: 1 })
+    await store.change('a1', 'pbr', 2 - (STARTING_INVENTORY.pbr ?? 0))
+    const lsd = { kind: 'lsd', count: 1 }
+    expect(await store.barter('a1', { marlboro: 41 }, lsd)).toBe(false)
+    // One kind short holds back the whole offer, the kind it holds too.
+    expect(await store.barter('a1', { marlboro: 30, pbr: 3 }, lsd)).toBe(false)
+    expect((await store.get('a1')).pack).toMatchObject({
+      marlboro: 40,
+      pbr: 2,
+      lsd: 0,
+    })
+    expect(await store.barter('a1', { marlboro: 30, pbr: 2 }, lsd)).toBe(true)
+    expect((await store.get('a1')).pack).toMatchObject({
+      marlboro: 10,
+      pbr: 0,
+      lsd: 1,
+    })
+    expect(await store.barter('a1', { marlboro: 7 }, lsd)).toBe(true)
+    expect((await store.get('a1')).pack).toMatchObject({ marlboro: 3, lsd: 2 })
   })
 
   it('steps a quest only from where it stands, with its pack change', async () => {

@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
-import { costIn, freshDealerStock, goodOf } from '../../src/dealer.ts'
+import {
+  costIn,
+  DEALER_GOODS,
+  evenUp,
+  freshDealerStock,
+  goodOf,
+} from '../../src/dealer.ts'
 import { DIME_CENTS } from '../../src/drops.ts'
 import { embark, outcomeOf } from '../../src/expeditions.ts'
 import { fightOf, quickestMs } from '../../src/fishing.ts'
@@ -859,14 +865,25 @@ describe('rule 4, cash: a pickup of cash goes into the wallet', () => {
 
 describe('rule 25: Erwin von Dutch barters', () => {
   const near = { x: DEALER.x + 1, z: DEALER.z }
+  // Each good, paid for in just enough of `pay`.
+  const enough = (kind: string, pay: string) => {
+    const good = goodOf(kind)
+    return (good && costIn(good, pay)) || 1
+  }
   const dealAs = (
     id: string,
     kind = 'mushrooms',
     pay = 'marlboro',
     at: { x: number; z: number } | null = near
-  ): ValleyAction => ({ type: 'deal', id, kind, pay, at })
+  ): ValleyAction => ({
+    type: 'deal',
+    id,
+    kind,
+    offer: { [pay]: enough(kind, pay) },
+    at,
+  })
   const mushrooms = goodOf('mushrooms')
-  const cost = mushrooms ? (costIn(mushrooms, 'marlboro') ?? 0) : 0
+  const cost = enough('mushrooms', 'marlboro')
 
   it('trades one out of his stock for the whole valley, out of the pack', () => {
     const v = valleyWith(join('a'), join('b'))
@@ -884,7 +901,7 @@ describe('rule 25: Erwin von Dutch barters', () => {
     )
     expect(r.barter).toEqual({
       account: 'acct-a',
-      give: { kind: 'marlboro', count: cost },
+      give: { marlboro: cost },
       take: { kind: 'mushrooms', count: 1 },
     })
     // No cash changes hands.
@@ -918,6 +935,28 @@ describe('rule 25: Erwin von Dutch barters', () => {
     expect(reason(v.step(dealAs('a')))).toBe('short')
     v.step({ type: 'board', id: 'a', at: HERE })
     expect(reason(v.step(dealAs('a')))).toBe('aboard')
+  })
+
+  it('takes a mixed offer, but none with a unit to spare', () => {
+    const v = valleyWith(join('a'))
+    v.setPack({ marlboro: 200, pbr: 20 })
+    const offer = { marlboro: 10, pbr: 1 }
+    const good = mushrooms ?? DEALER_GOODS[0]
+    const fill = evenUp(good, { marlboro: 200, pbr: 20 }, offer)
+    if (!fill) throw new Error('no fill')
+    const r = v.step({
+      type: 'deal',
+      id: 'a',
+      kind: good.kind,
+      offer: fill,
+      at: near,
+    })
+    expect(r.barter?.give).toEqual(fill)
+    const over = { ...fill, pbr: (fill.pbr ?? 0) + 1 }
+    expect(
+      v.step({ type: 'deal', id: 'a', kind: good.kind, offer: over, at: near })
+        .reply?.reason
+    ).toBe('over')
   })
 
   it('has a day of everything again when the day turns', () => {
@@ -3574,7 +3613,10 @@ describe('rule 29: Bull Valley Dial-Up', () => {
       type: 'deal',
       id: 'p',
       kind: 'mushrooms',
-      pay: 'marlboro',
+      offer: {
+        marlboro:
+          costIn(goodOf('mushrooms') ?? DEALER_GOODS[0], 'marlboro') ?? 1,
+      },
       at: null,
     })
     expect(deal.reply).toBeUndefined()

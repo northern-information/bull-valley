@@ -86,11 +86,12 @@ export interface PackStore {
   // the locker into the pack (negative), both or neither; false when the
   // side it comes out of holds fewer (rule 19).
   stow(accountId: string, kind: string, delta: number): Promise<boolean>
-  // A barter (sharedworld.ts rule 25): `give` out of the pack and `take`
-  // into it, both or neither; false when the pack does not hold `give`.
+  // A barter (sharedworld.ts rule 25): `give` (kind -> units) out of the
+  // pack and `take` into it, all or none; false when the pack does not
+  // hold the whole of `give`.
   barter(
     accountId: string,
-    give: { kind: string; count: number },
+    give: Inventory,
     take: { kind: string; count: number }
   ): Promise<boolean>
   // Pays `amount` cents into the wallet (dimes taken up).
@@ -322,10 +323,16 @@ export class MemoryPackStore implements PackStore {
 
   async barter(
     accountId: string,
-    give: { kind: string; count: number },
+    give: Inventory,
     take: { kind: string; count: number }
   ): Promise<boolean> {
-    if (!(await this.change(accountId, give.kind, -give.count))) return false
+    const rows = this.packs.get(accountId) ?? new Map<string, number>()
+    const gives = Object.entries(give)
+    if (gives.some(([kind, count]) => (rows.get(kind) ?? 0) < count)) {
+      return false
+    }
+    for (const [kind, count] of gives)
+      await this.change(accountId, kind, -count)
     await this.change(accountId, take.kind, take.count)
     return true
   }

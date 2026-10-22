@@ -414,7 +414,8 @@ export function wireValley(game: Game, actions: Actions): void {
       if (msg.station !== undefined && msg.item) {
         s.pending.buys.delete(`${msg.station}:${msg.item}`)
       }
-      hud.tell(buyRefusal(msg.reason, msg.item, s.cash))
+      s.shopSaid = buyRefusal(msg.reason, msg.item, s.cash)
+      hud.tell(s.shopSaid)
     } else if (msg.re === 'call') {
       hud.tell(
         copy(msg.reason === 'no-whistle' ? 'log.no_whistle' : 'log.truck_busy')

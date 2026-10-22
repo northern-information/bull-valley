@@ -628,36 +628,14 @@ button.bv-dial-card {
   color: var(--dial-dim);
 }
 
-/* The Citgo: its shelves, each kind with its price and Buy. */
-.bv-dial-citgo-cash {
-  margin: 0.25rem 0 0.75rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
-.bv-dial-shelf {
+/* The Citgo: every Citgo stood at, each opening its shelves. */
+.bv-dial-citgos {
   display: grid;
   gap: 0.5rem;
-  padding: 0.75rem 0.9rem;
 }
 
-.bv-dial-shelf-head,
-.bv-dial-shelf-foot {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
-  justify-content: space-between;
-}
-
-/* The still and the name together, the price at the far end. */
-.bv-dial-shelf-head {
-  justify-content: flex-start;
-}
-
-.bv-dial-shelf-price {
-  margin-left: auto;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+.bv-dial-citgo {
+  text-align: left;
 }
 
 .bv-dial-btn--hot {
@@ -710,18 +688,6 @@ button.bv-dial-card {
 
 .bv-dial-haul {
   margin-top: 1rem;
-}
-
-/* One of the folk in a sheet: Moab. */
-.bv-dial-folk-act {
-  display: grid;
-  gap: 0.75rem;
-  margin-top: 1rem;
-}
-
-.bv-dial-folk-says {
-  margin: 0;
-  color: var(--dial-hot);
 }
 
 /* Social: the log, the field, the friends, who is here. */

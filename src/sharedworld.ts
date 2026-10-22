@@ -191,10 +191,11 @@
 //    world was opened with him (SharedWorld.dealer): a few of each of his
 //    goods a day for the whole valley (SharedWorld.dealerStock, full
 //    again when the day turns, rule 6). He takes no cash: a raider out of
-//    the bed whose last state frame put them beside him barters one kind
-//    out of their pack for one of his, counted a little under shelf price
-//    (ValleyContext.holdings in, Reduced.barter out), and the deal earns
-//    XP as a purchase (rule 22).
+//    the bed whose last state frame put them beside him barters an offer
+//    out of their pack, any mix of kinds, each unit counted a little under
+//    shelf price, for one of his (ValleyContext.holdings in, Reduced.barter
+//    out). The offer must cover the good with no unit to spare, since he
+//    makes no change, and the deal earns XP as a purchase (rule 22).
 // 26. Quests (quests.ts): each account's stage on each is its own, kept by
 //    the valley in D1 beside the pack. Erwin von Dutch gives a raider out
 //    of the bed beside him a rose (again, if it was lost); laid at the
@@ -839,9 +840,16 @@ export type ValleyAction =
   // Rule 26: one step of `quest`. at: where the raider's last state frame
   // put them, or null.
   | { type: 'quest'; id: string; quest: string; step: QuestStep; at: XZ | null }
-  // Rule 25: one of `kind` from Erwin, bartered for with `pay`. at: where
-  // the raider's last state frame put them, or null.
-  | { type: 'deal'; id: string; kind: string; pay: string; at: XZ | null }
+  // Rule 25: one of `kind` from Erwin, bartered for with `offer` (kind ->
+  // units) out of the pack. at: where the raider's last state frame put
+  // them, or null.
+  | {
+      type: 'deal'
+      id: string
+      kind: string
+      offer: Inventory
+      at: XZ | null
+    }
   // Rule 9: a new name, a new character, or both.
   | { type: 'appearance'; id: string; name?: string; outfit?: OutfitId }
   // Rule 34: invite the raider in the valley named `name` (or join them,
@@ -921,11 +929,11 @@ export interface Reduced {
     to: QuestStage
     change: { kind: string; delta: number }
   }
-  // Rule 25: a barter that stands once the valley has taken `give` out of
-  // the account's pack and put `take` in, together.
+  // Rule 25: a barter that stands once the valley has taken `give` (kind
+  // -> units) out of the account's pack and put `take` in, together.
   barter?: {
     account: string
-    give: { kind: string; count: number }
+    give: Inventory
     take: { kind: string; count: number }
   }
   // Rule 14: a trade that stands once the valley has taken the price out
@@ -2011,7 +2019,7 @@ function onDeal(
     return refuse('too-far')
   }
   if (world.truck.riders.includes(action.id)) return refuse('aboard')
-  const sale = deal(world.dealerStock, kind, action.pay, holdings?.pack ?? {})
+  const sale = deal(world.dealerStock, kind, action.offer, holdings?.pack ?? {})
   if (!sale.ok) return refuse(sale.reason)
   const next = withWorld(valley, { ...world, dealerStock: sale.stock })
   return done(next, now, {

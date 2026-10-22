@@ -1,5 +1,5 @@
-// The frame the Cabbage Stand's and Erwin von Dutch's dialogs share
-// (standdialog.ts, dealdialog.ts), and that the menu overlay (hud.ts) and
+// The frame the Cabbage Stand's dialog and the trade window share
+// (standdialog.ts, tradewindow.ts), and that the menu overlay (hud.ts) and
 // the pack (packhud.ts) wear too: a header (an eyebrow, the status on the
 // right, the title, the keeper's line), sections each opened by a head
 // row, and a footer with the valley's last word and the way out. The

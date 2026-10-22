@@ -60,7 +60,7 @@ import { BASE_GEOMETRIE } from './health.ts'
 import { inspectRefusal } from './inspect.ts'
 import { toInventory } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
-import { doseOf, healsOf, itemById } from './items.ts'
+import { doseOf, healsOf } from './items.ts'
 import { outfitById } from './outfits.ts'
 import { partyLines, partyNews, partyRefusal } from './party.ts'
 import { barOf, levelUp } from './progression.ts'
@@ -86,7 +86,7 @@ import {
   seasonOf,
   shownKills,
 } from './season.ts'
-import { buyRefusal } from './shop.ts'
+import { buyRefusal, shelfRows } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
 import { AXES, dose, levelsAt } from './wardlevels.ts'
@@ -119,6 +119,7 @@ import type {
 import type { QuestId, QuestStage } from './quests.ts'
 import type { Research } from './recycling.ts'
 import type { SeasonProgress } from './season.ts'
+import type { ShelfRow } from './shop.ts'
 import type { StandLedger } from './stand.ts'
 
 // Rule 35: the account's crew (null: none) and the crews inviting it.
@@ -1003,34 +1004,10 @@ function expeditionRefusal(reason: string): string {
   }
 }
 
-// One kind on a Citgo's shelves as the phone lists it: its price, how
-// many are left, and the unit a buy takes (the first still on the shelf),
-// or null when none are.
-export interface ShelfRow {
-  kind: string
-  price: number
-  left: number
-  unit: number | null
-}
-
-// A Citgo's shelves as the valley last sent them, in the store's own
-// order; none with no world, or a station it has no shelf for.
+// A Citgo's shelves as the valley last sent them (shop.ts shelfRows); none
+// with no world.
 export function shelfOf(s: DialState, station: number): ShelfRow[] {
-  const shelf = s.world?.shelves[station]
-  if (!shelf) return []
-  return Object.entries(shelf).flatMap(([kind, units]) => {
-    const price = itemById(kind)?.price
-    if (price === undefined) return []
-    const unit = units.indexOf(true)
-    return [
-      {
-        kind,
-        price,
-        left: units.filter(Boolean).length,
-        unit: unit < 0 ? null : unit,
-      },
-    ]
-  })
+  return shelfRows(s.world?.shelves[station])
 }
 
 // Who this raider is, for /online.

@@ -6,11 +6,9 @@ import { CONFIG } from './config.ts'
 import { insideRing } from './coords.ts'
 import { copy } from './copy.ts'
 import { nearestCorpse } from './corpses.ts'
-import { cosmeticById } from './cosmetics.ts'
 import { GOLD_BULLION, isCash, QUARTERS, TWENTY } from './drops.ts'
 import { baitName } from './fishlines.ts'
 import { itemLabel as itemName } from './itemcopy.ts'
-import { itemById } from './items.ts'
 import { npcReach } from './npcs.ts'
 import { formatCash } from './store.ts'
 import type { CorpseWire } from './corpses.ts'
@@ -79,9 +77,10 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // Marx, Carlsten, or Moab Coldë at station `station`: he says his next
   // line.
   | { kind: 'speak'; npc: NpcId; station?: number }
-  // Moab Coldë at station `station` offers cosmetic `offer` for what the
-  // pack holds (cosmetics.ts moabOffer).
-  | { kind: 'trade'; offer: CosmeticId; station: number }
+  // Moab Coldë at station `station`: E opens his trade window. `offer` is
+  // the cosmetic he offers for what the pack holds (cosmetics.ts
+  // moabOffer), which he says as you come near, or null.
+  | { kind: 'trade'; offer: CosmeticId | null; station: number }
   // This raider's own body `corpse`: E takes their things back
   // (sharedworld.ts rule 18).
   | { kind: 'loot'; corpse: number }
@@ -257,8 +256,8 @@ export interface InteractionInput<P extends PickupSpot> {
   // Marx, Carlsten and every Moab, where each stands while he can be
   // talked to.
   npcs: readonly NpcSpot[]
-  // What Moab offers this raider (cosmetics.ts moabOffer), or null: E
-  // beside him trades for it instead of hearing his line.
+  // What Moab offers this raider (cosmetics.ts moabOffer), or null; he
+  // says it as they come near.
   moabOffer?: CosmeticId | null
   // This raider's own bodies lying in the valley (corpses.ts), and the
   // locker banks; others' bodies are no one else's to loot.
@@ -353,8 +352,12 @@ export function resolveInteraction<P extends PickupSpot>(
       }
     }
     if (near) {
-      if (near.id === 'moab' && input.moabOffer && near.station !== undefined) {
-        return { kind: 'trade', offer: input.moabOffer, station: near.station }
+      if (near.id === 'moab' && near.station !== undefined) {
+        return {
+          kind: 'trade',
+          offer: input.moabOffer ?? null,
+          station: near.station,
+        }
       }
       return near.station === undefined
         ? { kind: 'speak', npc: near.id }
@@ -664,7 +667,7 @@ export function interactionKey(interaction: Interaction): string {
     case 'speak':
       return `speak:${interaction.npc}:${interaction.station ?? ''}`
     case 'trade':
-      return `trade:${interaction.offer}:${interaction.station}`
+      return `trade:${interaction.offer ?? ''}:${interaction.station}`
     case 'loot':
       return `loot:${interaction.corpse}`
     case 'locker':
@@ -714,7 +717,9 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return interaction.bait
         ? copy('prompts.cast', { bait: baitName(interaction.bait) })
         : copy('prompts.cast_no_bait')
+    // A trader's glow says E opens his window, as a person's does.
     case 'deal':
+    case 'trade':
       return null
     // As the real one: a label for a thing, the glow alone for a person.
     case 'hallucination':
@@ -733,15 +738,5 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.leave_tower')
     case 'inspect':
       return copy('prompts.inspect', { name: interaction.name })
-    // Moab's offer is said, since the glow alone cannot say what he wants.
-    case 'trade': {
-      const cosmetic = cosmeticById(interaction.offer)
-      if (!cosmetic || !itemById(cosmetic.price.kind)) return null
-      return copy('prompts.trade', {
-        cosmetic: cosmetic.label,
-        count: cosmetic.price.count,
-        price: itemName(cosmetic.price.kind),
-      })
-    }
   }
 }

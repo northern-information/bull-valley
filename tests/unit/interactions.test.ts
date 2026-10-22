@@ -414,17 +414,17 @@ describe('resolveInteraction', () => {
     ).toEqual({ kind: 'board' })
   })
 
-  it('talks to Moab at whichever station he stands', () => {
+  it("opens Moab's trade window at whichever station he stands", () => {
     const atFar = { player: { x: moabs[1].x + 1, z: moabs[1].z } }
     expect(resolveInteraction(input({ ...atFar, npcs: moabs }))).toEqual({
-      kind: 'speak',
-      npc: 'moab',
+      kind: 'trade',
+      offer: null,
       station: 1,
     })
     const atSpawn = { player: { x: moabs[0].x, z: moabs[0].z + 1 } }
     expect(resolveInteraction(input({ ...atSpawn, npcs: moabs }))).toEqual({
-      kind: 'speak',
-      npc: 'moab',
+      kind: 'trade',
+      offer: null,
       station: 0,
     })
     // Riding past him, E still hops out.
@@ -439,7 +439,7 @@ describe('resolveInteraction', () => {
     expect(resolveInteraction(input({ ...pastReach, npcs: moabs }))).toBeNull()
   })
 
-  it('trades with Moab when he has an offer, and only with Moab', () => {
+  it('carries what Moab offers, and only Moab trades', () => {
     const atFar = { player: { x: moabs[1].x + 1, z: moabs[1].z } }
     const offer = { npcs: moabs, moabOffer: 'flaming-halo' as const }
     expect(resolveInteraction(input({ ...atFar, ...offer }))).toEqual({
@@ -458,10 +458,10 @@ describe('resolveInteraction', () => {
         })
       )
     ).toEqual({ kind: 'speak', npc: 'carlsten' })
-    // With no offer he says his line.
+    // With no offer his window opens all the same.
     expect(
       resolveInteraction(input({ ...atFar, npcs: moabs, moabOffer: null }))
-    ).toMatchObject({ kind: 'speak', npc: 'moab' })
+    ).toMatchObject({ kind: 'trade', offer: null })
   })
 })
 
@@ -691,23 +691,16 @@ describe('interactionPrompt', () => {
     expect(interactionPrompt({ kind: 'board' })).toBe(copy('prompts.board'))
   })
 
-  it("says Moab's offer: what he wants for what", () => {
-    expect(
-      interactionPrompt({ kind: 'trade', offer: 'flaming-halo', station: 0 })
-    ).toBe(
-      copy('prompts.trade', {
-        count: 1,
-        price: copy('items.gold-bullion.label'),
-        cosmetic: copy('cosmetics.flaming-halo.label'),
-      })
-    )
-  })
-
   it('leaves the people you talk to to the glow, with no prompt', () => {
     expect(interactionPrompt({ kind: 'talk' })).toBeNull()
     expect(interactionPrompt({ kind: 'speak', npc: 'carlsten' })).toBeNull()
     expect(
       interactionPrompt({ kind: 'speak', npc: 'moab', station: 0 })
+    ).toBeNull()
+    // The traders too: the glow says E opens their window.
+    expect(interactionPrompt({ kind: 'deal' })).toBeNull()
+    expect(
+      interactionPrompt({ kind: 'trade', offer: 'flaming-halo', station: 0 })
     ).toBeNull()
   })
 
