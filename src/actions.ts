@@ -842,10 +842,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
               step: roseProgress(s.quests.rose, s.inventory),
             }
           : null,
-      onDeal: (kind, pay) => {
+      icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
+      onDeal: (kind, offer) => {
         s.pendingDeal = true
         s.dealSaid = null
-        net.send({ type: 'deal', kind, pay })
+        net.send({ type: 'deal', kind, offer })
       },
       onQuest: () => {
         const step = s.quests ? dealerStep(s.quests.rose) : null

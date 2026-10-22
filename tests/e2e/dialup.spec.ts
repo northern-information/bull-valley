@@ -310,10 +310,17 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
   await expect(cash).not.toHaveText(before ?? '')
   await page.getByRole('button', { name: copy('dialup.back') }).click()
 
-  // Erwin gives the rose from anywhere.
+  // Erwin barters and gives the rose from anywhere.
+  await desk.evaluate(() => window.__bv?.grant('marlboro', 100))
   await page.locator('.bv-dial-card[data-card="erwin"]').click()
   const deal = page.locator('.bv-deal')
   await expect(deal).toBeVisible()
+  await deal.locator('[data-bv="deal-even"]').click()
+  await deal.locator('[data-bv="deal-go"]').click()
+  await expect(deal.locator('[data-bv="deal-said"]')).toHaveText(
+    copy('dealer.bought', { item: copy('items.lsd.label') })
+  )
+  await deal.locator('[data-bv="deal-tab-quest"]').click()
   await deal.locator('[data-bv="deal-quest-go"]').click()
   await expect(deal.locator('[data-bv="deal-said"]')).toHaveText(
     copy('quests.rose_given')

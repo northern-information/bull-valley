@@ -282,8 +282,9 @@ async function boot(): Promise<void> {
           ...roseLine(state.quests.rose, state.pack),
           step: roseProgress(state.quests.rose, state.pack),
         }),
-        onDeal: (kind, pay) =>
-          send({ type: 'deal', kind, pay }, { deal: true }),
+        icon: (kind) => shell?.icon(kind) ?? Promise.reject(new Error()),
+        onDeal: (kind, offer) =>
+          send({ type: 'deal', kind, offer }, { deal: true }),
         onQuest: () => {
           const step = dealerStep(state.quests.rose)
           if (step) send({ type: 'quest', quest: 'rose', step }, { deal: true })

@@ -1,9 +1,10 @@
 // Pure: Erwin von Dutch, the squatter who sleeps in the Golden Wok in Bull
 // Valley Plaza, and deals out of it (sharedworld.ts rule 25). He does not
-// recognize the wallet's money: he barters. A raider pays for one of his
-// goods with one kind out of their pack, each unit counted at a little
-// under what a Citgo shelf asks for it (CONFIG.dealer.rate), however many
-// units it takes. He has a few of each a day for the whole valley: what
+// recognize the wallet's money: he barters. A raider offers units out of
+// their pack, any mix of kinds, for one of his goods, each unit counted at
+// a little under what a Citgo shelf asks for it (CONFIG.dealer.rate); the
+// offer must cover the good, and he makes no change, so it may not hold a
+// unit it could do without. He has a few of each a day for the whole valley: what
 // one raider takes is gone for everyone until the day turns at midnight
 // Central, like a unit off a Citgo shelf (rule 7). The goods and what
 // pays for them are both the account's pack, kept by the valley. No
@@ -64,8 +65,8 @@ export function unitWorth(kind: string, cfg = CONFIG): number {
   return (price / contentsOf(kind)) * cfg.dealer.rate
 }
 
-// How many units of `pay` one of `good` costs, or null when he will not
-// take `pay`.
+// How many units of `pay` one of `good` costs on its own, or null when
+// he will not take `pay`.
 export function costIn(
   good: DealerGood,
   pay: string,
@@ -74,6 +75,72 @@ export function costIn(
   const worth = unitWorth(pay, cfg)
   if (worth <= 0) return null
   return Math.ceil(good.worth / worth - 1e-9)
+}
+
+// What an offer (kind -> units) counts for with him, in cents.
+export function offerWorth(offer: Inventory, cfg = CONFIG): number {
+  let worth = 0
+  for (const [kind, count] of Object.entries(offer)) {
+    worth += unitWorth(kind, cfg) * count
+  }
+  return worth
+}
+
+// Whether an offer worth `worth` covers `need` (cents, with a hair for
+// the float sums).
+function covers(worth: number, need: number): boolean {
+  return worth >= need - 1e-6
+}
+
+// The kinds in an offer he could hand one unit of back and still be
+// covered for `good`: the change he will not make.
+export function spareIn(
+  good: DealerGood,
+  offer: Inventory,
+  cfg = CONFIG
+): string[] {
+  const worth = offerWorth(offer, cfg)
+  return Object.keys(offer).filter(
+    (kind) =>
+      (offer[kind] ?? 0) > 0 && covers(worth - unitWorth(kind, cfg), good.worth)
+  )
+}
+
+// The offer topped up out of the pack until it covers `good`, the
+// cheapest units first, then trimmed of any unit it can do without, the
+// dearest first; null when the whole of what the pack could pay cannot
+// cover it. What the offer already holds stays where it can.
+export function evenUp(
+  good: DealerGood,
+  pack: Inventory,
+  offer: Inventory,
+  cfg = CONFIG
+): Inventory | null {
+  const kinds = payable(pack, cfg)
+  const next: Inventory = {}
+  for (const kind of kinds) {
+    const count = Math.min(offer[kind] ?? 0, pack[kind] ?? 0)
+    if (count > 0) next[kind] = count
+  }
+  const cheapest = [...kinds].sort(
+    (a, b) => unitWorth(a, cfg) - unitWorth(b, cfg)
+  )
+  for (const kind of cheapest) {
+    const short = good.worth - offerWorth(next, cfg)
+    if (covers(-short, 0)) break
+    const room = (pack[kind] ?? 0) - (next[kind] ?? 0)
+    const want = Math.ceil(short / unitWorth(kind, cfg) - 1e-9)
+    const add = Math.min(room, want)
+    if (add > 0) next[kind] = (next[kind] ?? 0) + add
+  }
+  if (!covers(offerWorth(next, cfg), good.worth)) return null
+  for (const kind of [...cheapest].reverse()) {
+    while ((next[kind] ?? 0) > 0 && spareIn(good, next, cfg).includes(kind)) {
+      next[kind] -= 1
+    }
+    if (next[kind] === 0) delete next[kind]
+  }
+  return next
 }
 
 // Whether a raider stands at him for the valley to deal: their last state
@@ -88,38 +155,48 @@ export function atDealer(
 }
 
 type DealRefusal =
-  'no-such-good' | 'sold-out' | 'worthless' | 'short' | 'too-far'
+  'no-such-good' | 'sold-out' | 'worthless' | 'short' | 'over' | 'too-far'
 
 type DealOutcome =
   | {
       ok: true
       // What comes out of the pack for it, how many of the good go in,
       // and his stock after.
-      give: { kind: string; count: number }
+      give: Inventory
       units: number
       stock: DealerStock
     }
   | { ok: false; reason: DealRefusal }
 
-// One of `kind` out of `stock` for units of `pay` out of `pack`: refused
-// for a good he does not deal, one gone today, payment he will not take,
-// or a pack that does not hold enough of it.
+// One of `kind` out of `stock` for `offer` out of `pack`: refused for a
+// good he does not deal, one gone today, an offer empty or holding
+// anything he will not take, a pack that does not hold the offer or an
+// offer that does not cover the good, or one with a unit to spare.
 export function deal(
   stock: DealerStock,
   kind: string,
-  pay: string,
+  offer: Inventory,
   pack: Inventory,
   cfg = CONFIG
 ): DealOutcome {
   const good = goodOf(kind)
   if (!good) return { ok: false, reason: 'no-such-good' }
   if (leftOf(stock, kind) < 1) return { ok: false, reason: 'sold-out' }
-  const count = costIn(good, pay, cfg)
-  if (count === null) return { ok: false, reason: 'worthless' }
-  if ((pack[pay] ?? 0) < count) return { ok: false, reason: 'short' }
+  const give: Inventory = {}
+  for (const [pay, count] of Object.entries(offer)) {
+    if (count < 1) continue
+    if (unitWorth(pay, cfg) <= 0) return { ok: false, reason: 'worthless' }
+    if ((pack[pay] ?? 0) < count) return { ok: false, reason: 'short' }
+    give[pay] = count
+  }
+  if (Object.keys(give).length === 0) return { ok: false, reason: 'worthless' }
+  if (!covers(offerWorth(give, cfg), good.worth)) {
+    return { ok: false, reason: 'short' }
+  }
+  if (spareIn(good, give, cfg).length > 0) return { ok: false, reason: 'over' }
   return {
     ok: true,
-    give: { kind: pay, count },
+    give,
     units: contentsOf(kind),
     stock: { ...stock, [kind]: leftOf(stock, kind) - 1 },
   }
@@ -127,9 +204,9 @@ export function deal(
 
 // What a pack could pay him with: every kind it holds that a shelf
 // prices, in ITEMS order.
-export function payable(pack: Inventory): string[] {
+export function payable(pack: Inventory, cfg = CONFIG): string[] {
   return Object.keys(pack).filter(
-    (kind) => (pack[kind] ?? 0) > 0 && unitWorth(kind) > 0
+    (kind) => (pack[kind] ?? 0) > 0 && unitWorth(kind, cfg) > 0
   )
 }
 
@@ -140,6 +217,8 @@ export function dealRefusal(reason: string): string {
       return copy('dealer.sold_out')
     case 'short':
       return copy('dealer.short')
+    case 'over':
+      return copy('dealer.over')
     case 'worthless':
       return copy('dealer.worthless')
     case 'too-far':

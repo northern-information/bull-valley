@@ -300,25 +300,33 @@ ramble_4 = { text = "\"I do not recognize imperialist currency. Marlboros, beer,
 eyebrow = { text = "Barter", by = "ai" }
 where = { text = "· The Golden Wok", by = "ai" }
 no_fiat = { text = "No Fiat", by = "ai" }
-pay_with = { text = "Pay With", by = "ai" }
+tab_barter = { text = "Barter", by = "ai" }
+tab_quest = { text = "Quest", by = "ai" }
+your_side = { text = "Your Side", by = "ai" }
 pay_rate = { text = "Counted at {percent}% of Shelf", by = "ai" }
 pay_held = { text = "{count} in pack", by = "ai" }
-pay_hint = { text = "Cigarettes, drinks, anything a Citgo shelf prices", by = "ai" }
-goods = { text = "His Goods", by = "ai" }
+pay_hint = { text = "Cigarettes, drinks, fish, anything a Citgo shelf prices", by = "ai" }
+his_side = { text = "His Side", by = "ai" }
 restocks = { text = "Restocks at Midnight", by = "ai" }
-good = { text = "Good", by = "ai" }
-left = { text = "Left Today", by = "ai" }
-held = { text = "In Pack", by = "ai" }
-costs = { text = "Costs", by = "ai" }
-no_cost = { text = "—", by = "ai" }
+you_give = { text = "You Give", by = "ai" }
+he_asks = { text = "He Asks", by = "ai" }
+take_back = { text = "Take one back", by = "ai" }
+put_down = { text = "Put one down", by = "ai" }
+clear = { text = "Clear", by = "ai" }
+even_up = { text = "Even Up", by = "ai" }
 trade = { text = "Trade", by = "ai" }
 sold_out_button = { text = "Sold Out", by = "ai" }
-short_by = { text = "Short {count}", by = "ai" }
+table_empty = { text = "Put things down from your side, or Even Up, for the {item}.", by = "ai" }
+cannot_cover = { text = "Your whole pack won't cover the {item}.", by = "ai" }
+table_short = { text = "Short {amount}.", by = "ai" }
+table_over = { text = "He makes no change. Take back some {item}.", by = "ai" }
+table_even = { text = "Even. Trade for the {item}.", by = "ai" }
 nothing_to_pay = { text = "\"You've got nothing I want. Come back with smokes, or something to drink.\"", by = "ai" }
 close = { text = "Leave", by = "ai" }
 bought = { text = "Erwin von Dutch slides you the {item}. \"Pleasure doing business outside the system.\"", by = "ai" }
 sold_out = { text = "\"That's all I had today. Come back tomorrow.\"", by = "ai" }
 short = { text = "\"That's not enough. I count it at shelf price, less a little for the trouble.\"", by = "ai" }
+over = { text = "\"That's too much. I don't make change. Take some back.\"", by = "ai" }
 worthless = { text = "\"I don't take that.\"", by = "ai" }
 too_far = { text = "\"Come closer. I'm not shouting.\"", by = "ai" }
 refused = { text = "\"Not right now.\"", by = "ai" }

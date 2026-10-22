@@ -313,6 +313,15 @@ export class DialShell {
     if (this.state) this.render(this.state)
   }
 
+  // An item's still, as every row here shows it, for a dialog drawn over
+  // the shell (Erwin's).
+  icon(kind: string): Promise<string> {
+    return this.load().then((models) => {
+      this.thumbs ??= models.createItemThumbs()
+      return this.thumbs.icon(kind)
+    })
+  }
+
   // The 3D, loaded the first time it is wanted.
   private load(): ReturnType<ShellOptions['models']> {
     this.models ??= this.options.models()

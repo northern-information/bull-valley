@@ -802,7 +802,13 @@ describe('ValleyDO', () => {
       '{"type":"dev","op":"grant","kind":"marlboro","count":200}'
     )
     const held = lastPack(a)?.marlboro ?? 0
-    const deal = JSON.stringify({ type: 'deal', kind: 'lsd', pay: 'marlboro' })
+    const lsd = goodOf('lsd')
+    const cost = lsd ? (costIn(lsd, 'marlboro') ?? 0) : 0
+    const deal = JSON.stringify({
+      type: 'deal',
+      kind: 'lsd',
+      offer: { marlboro: cost },
+    })
     // Nowhere the valley heard them stand: too far.
     await v.webSocketMessage(ws(a), deal)
     expect(a.last<NackMessage>()).toEqual({
@@ -818,8 +824,6 @@ describe('ValleyDO', () => {
       by: idOf(a),
       item: 'lsd',
     })
-    const lsd = goodOf('lsd')
-    const cost = lsd ? (costIn(lsd, 'marlboro') ?? 0) : 0
     const pack = a.frames().findLast((m): m is PackMessage => m.type === 'pack')
     expect(pack?.pack.lsd).toBe(1)
     expect(pack?.pack.marlboro).toBe(held - cost)
@@ -828,7 +832,7 @@ describe('ValleyDO', () => {
     // What he will not take, he refuses.
     await v.webSocketMessage(
       ws(a),
-      JSON.stringify({ type: 'deal', kind: 'lsd', pay: 'cabbage' })
+      JSON.stringify({ type: 'deal', kind: 'lsd', offer: { cabbage: 5 } })
     )
     expect(a.last<NackMessage>().reason).toBe('worthless')
   })
@@ -855,9 +859,11 @@ describe('ValleyDO', () => {
         return store.barter(...args)
       },
     })
+    const lsd = goodOf('lsd')
+    const cost = lsd ? (costIn(lsd, 'marlboro') ?? 0) : 0
     const dealing = v.webSocketMessage(
       ws(a),
-      JSON.stringify({ type: 'deal', kind: 'lsd', pay: 'marlboro' })
+      JSON.stringify({ type: 'deal', kind: 'lsd', offer: { marlboro: cost } })
     )
     await settle()
     const taking = v.webSocketMessage(ws(b), '{"type":"take","index":4}')
@@ -869,7 +875,6 @@ describe('ValleyDO', () => {
       .findLast((m): m is WorldMessage => m.type === 'world')
     expect(last?.reason).toBe('taken')
     expect(last?.world?.taken).toContain(4)
-    const lsd = goodOf('lsd')
     expect(last?.world?.dealer.lsd).toBe((lsd?.perDay ?? 0) - 1)
     const stored = s.storage.map.get('valley') as { world: { taken: number[] } }
     expect(stored.world.taken).toContain(4)

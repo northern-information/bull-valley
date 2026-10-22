@@ -533,10 +533,29 @@ describe('parseClientMessage', () => {
     })
     expect(parse({ ...hello, dealer: { z: 1 } })).toBeNull()
     expect(
-      parse({ type: 'deal', kind: 'mushrooms', pay: 'pbr', extra: 1 })
-    ).toEqual({ type: 'deal', kind: 'mushrooms', pay: 'pbr' })
+      parse({
+        type: 'deal',
+        kind: 'mushrooms',
+        offer: { pbr: 3, marlboro: 12 },
+        extra: 1,
+      })
+    ).toEqual({
+      type: 'deal',
+      kind: 'mushrooms',
+      offer: { pbr: 3, marlboro: 12 },
+    })
     expect(parse({ type: 'deal', kind: 'lsd' })).toBeNull()
-    expect(parse({ type: 'deal', kind: 4, pay: 'pbr' })).toBeNull()
+    expect(parse({ type: 'deal', kind: 'lsd', pay: 'pbr' })).toBeNull()
+    expect(parse({ type: 'deal', kind: 4, offer: { pbr: 1 } })).toBeNull()
+    expect(parse({ type: 'deal', kind: 'lsd', offer: {} })).toBeNull()
+    expect(parse({ type: 'deal', kind: 'lsd', offer: [3] })).toBeNull()
+    expect(parse({ type: 'deal', kind: 'lsd', offer: { pbr: 0 } })).toBeNull()
+    expect(parse({ type: 'deal', kind: 'lsd', offer: { pbr: 1.5 } })).toBeNull()
+    expect(parse({ type: 'deal', kind: 'lsd', offer: { pbr: '2' } })).toBeNull()
+    const many = Object.fromEntries(
+      Array.from({ length: 17 }, (_, i) => [`k${i}`, 1])
+    )
+    expect(parse({ type: 'deal', kind: 'lsd', offer: many })).toBeNull()
     expect(parse({ type: 'quest', quest: 'rose', step: 'lay' })).toEqual({
       type: 'quest',
       quest: 'rose',

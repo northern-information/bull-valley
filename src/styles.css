@@ -3232,56 +3232,222 @@ canvas {
   text-align: right;
 }
 
-/* The payment Erwin takes, one picked, filled in eggshell so it never
-   reads as an action. */
-.bv-npc-chips {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.bv-npc-chip {
+/* Erwin's barter window (dealdialog.ts): a list on each side, a row per
+   kind with its still, its name, what is held and what one counts for;
+   your side's rows end in a stepper, his are picked as a radio, filled in
+   eggshell so the pick never reads as an action. The table under his side
+   weighs one against the other. */
+.bv-trade-list {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.bv-trade-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
   box-sizing: border-box;
-  min-height: 56px;
-  padding: 0 12px;
+  min-height: 44px;
+  padding: 2px 8px;
   font: inherit;
+  font-size: 0.875rem;
   text-align: left;
+  color: var(--bv-eggshell);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgb(240 234 214 / 10%);
+}
+
+.bv-trade-icon {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.bv-trade-named {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bv-trade-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bv-trade-each,
+.bv-trade-worth {
+  min-width: 4.5em;
+  text-align: right;
+}
+
+.bv-trade-each {
+  color: var(--bv-npc-dim);
+}
+
+.bv-trade-row--on {
+  background: rgb(240 234 214 / 6%);
+}
+
+.bv-trade-steps {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.bv-trade-count {
+  min-width: 2.5em;
+  text-align: center;
+}
+
+.bv-trade-row--on .bv-trade-count {
+  color: var(--bv-citgo);
+}
+
+.bv-trade-step {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 600;
   color: var(--bv-eggshell);
   background: transparent;
   border: 1px solid rgb(240 234 214 / 40%);
   cursor: pointer;
 }
 
-.bv-npc-chip b {
-  font-size: 0.75rem;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
-
-.bv-npc-chip small {
-  font-size: 0.6875rem;
-  letter-spacing: 0.08em;
-  opacity: 0.7;
-}
-
-.bv-npc-chip:hover,
-.bv-npc-chip:focus-visible {
+.bv-trade-step:hover,
+.bv-trade-step:focus-visible {
   border-color: var(--bv-eggshell);
+  transform: translateY(-1px);
 }
 
-.bv-npc-chip[aria-checked='true'] {
+.bv-trade-step:disabled {
+  cursor: not-allowed;
+  border-color: rgb(240 234 214 / 40%);
+  border-style: dashed;
+  opacity: 0.4;
+  transform: none;
+}
+
+.bv-trade-row--good {
+  cursor: pointer;
+}
+
+.bv-trade-row--good:hover,
+.bv-trade-row--good:focus-visible {
+  background: rgb(240 234 214 / 6%);
+}
+
+.bv-trade-row--good[aria-checked='true'] {
   color: var(--fi-bg);
   background: var(--bv-eggshell);
-  border-color: var(--bv-eggshell);
 }
 
-.bv-npc-chip:disabled {
+.bv-trade-row--good[aria-checked='true'] :is(.bv-npc-label, .bv-trade-worth) {
+  color: var(--fi-bg);
+}
+
+.bv-trade-row--good[aria-checked='true'] .bv-npc-pip {
+  border-color: var(--fi-bg);
+}
+
+.bv-trade-row--good[aria-checked='true'] .bv-npc-pip--on {
+  background: var(--fi-bg);
+}
+
+.bv-trade-row--good:disabled {
   cursor: not-allowed;
+  background: transparent;
+}
+
+/* The barter and his quest as two tabs (the pack's, .bv-bag-tabs) across
+   the card; the quest, when shown, takes the card's width, and the dot
+   marks a step to take with him. */
+.bv-npc-ui--wide > .bv-deal-tabs {
+  flex-shrink: 0;
+  grid-column: 1 / -1;
+}
+
+.bv-deal .bv-npc-ui--wide > .bv-npc-side {
+  grid-row: 3;
+}
+
+.bv-npc-ui--wide > .bv-deal-quest {
+  grid-column: 1 / -1;
+}
+
+.bv-deal-due {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 8px;
+  vertical-align: middle;
+  background: var(--bv-citgo);
+}
+
+/* The table: what you give against what he asks, on one meter that fills
+   toward even, Citgo red while short, eggshell once even, gold with a unit
+   to spare. */
+.bv-trade-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border: 1px solid var(--bv-npc-line);
+}
+
+.bv-trade-sums {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.bv-trade-sum {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bv-trade-sums b {
+  font-size: 1.125rem;
+}
+
+.bv-trade-meter {
+  height: 8px;
+  border: 1px solid var(--bv-npc-edge);
+}
+
+.bv-trade-meter > span {
+  display: block;
+  height: 100%;
+  background: var(--bv-citgo);
+}
+
+.bv-trade-table--even .bv-trade-meter > span {
+  background: var(--bv-eggshell);
+}
+
+.bv-trade-table--over .bv-trade-meter > span {
+  background: var(--fi-gold);
+}
+
+.bv-trade-state {
+  min-height: 1.375rem;
+  font-size: 0.8125rem;
+  color: var(--bv-npc-soft);
+}
+
+.bv-trade-acts {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr;
+  gap: 12px;
 }
 
 .bv-npc-empty {
@@ -3438,13 +3604,29 @@ canvas {
   }
 
   .bv-npc-head > *,
-  .bv-npc-section > .bv-npc-grid > *,
-  .bv-npc-chips {
+  .bv-npc-section > .bv-npc-grid > * {
     grid-column: 1 / -1;
   }
 
-  .bv-npc-chips {
-    grid-template-columns: minmax(0, 1fr);
+  .bv-trade-list {
+    max-height: none;
+  }
+
+  .bv-trade-row {
+    gap: 8px;
+    padding: 4px;
+  }
+
+  .bv-trade-each {
+    min-width: 0;
+  }
+
+  .bv-trade-acts {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .bv-trade-acts > [data-bv='deal-go'] {
+    grid-column: 1 / -1;
   }
 
   .bv-npc-costs {
