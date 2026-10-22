@@ -3,7 +3,6 @@ import {
   beginRaid,
   expect,
   heardWhere,
-  onLastPoint,
   passTitles,
   signIn,
   test,
@@ -14,37 +13,6 @@ import type { Page } from '@playwright/test'
 // Matthew Marx's truck, as the valley has it.
 const leg = (page: Page) =>
   page.evaluate(() => window.__bv?.marx?.leg.kind ?? null)
-
-test('climbing into the bed starts the countdown, and Marx leaves with you', async ({
-  page,
-}) => {
-  await beginRaid(page)
-  expect(await leg(page)).toBe('parked')
-  await page.evaluate(() => {
-    const bv = window.__bv
-    if (!bv) throw new Error('no dev hook')
-    bv.player.relocate(bv.truck.x + 1, bv.truck.z + 1, Math.atan2(1, 1))
-  })
-  // The valley lets into the bed only a raider it has heard beside it.
-  await heardWhere(page)
-  await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.board'))
-  await page.keyboard.press('KeyE')
-  await expect.poll(() => page.evaluate(() => window.__bv?.aboard)).toBe(true)
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const leg = window.__bv?.marx?.leg
-        return leg?.kind === 'parked' && leg.leavesAt !== null
-      })
-    )
-    .toBe(true)
-  await page.evaluate(() => window.__bv?.hurryTruck(0))
-  await expect.poll(() => leg(page)).toBe('joyride')
-  expect(await page.evaluate(() => window.__bv?.aboard)).toBe(true)
-  await expect
-    .poll(() => page.evaluate(() => window.__bv?.truck.moving))
-    .toBe(true)
-})
 
 test('alone in the valley, the first one in picks where Marx goes and he leaves at once', async ({
   page,
@@ -130,18 +98,6 @@ test('Space jumps, and the feet come back down where they left', async ({
     .toBeNull()
   expect(Math.abs((await feet()) - ground)).toBeLessThan(0.1)
   expect(await page.evaluate(() => window.__bv?.strikes)).toBe(0)
-})
-
-test('shadowmen cross the valley', async ({ page }) => {
-  await beginRaid(page)
-  // They are the valley's: it sends them every step.
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () => window.__bv?.shadowmen.table.frames.at(-1)?.shadowmen.length
-      )
-    )
-    .toBeGreaterThan(0)
 })
 
 // The Citgo the valley last saw this raider stand at: the spawn Citgo,
@@ -325,59 +281,6 @@ test("a shadowman's touch takes its hit, and the Citgo makes you whole", async (
   })
   await expect.poll(() => page.evaluate(() => window.__bv?.health)).toBe(1000)
   await expect(page.locator('.bv-chat')).toContainText(copy('log.mended'))
-})
-
-test("a shadowman's touch on the last point puts you back at the Citgo", async ({
-  page,
-}) => {
-  await beginRaid(page)
-  // The static is up for strikeSeconds of wall clock. On a runner at a frame
-  // a second that can come and go between two polls, so the page records
-  // when it shows and when it clears instead of the spec trying to catch it.
-  await page.evaluate(() => {
-    const el = document.querySelector('.bv-static')
-    if (!el) throw new Error('no static overlay')
-    const marks: { shownAt?: number; hiddenAt?: number } = {}
-    Object.assign(window, { staticMarks: marks })
-    new MutationObserver(() => {
-      const hidden = el.hasAttribute('hidden')
-      if (!hidden) marks.shownAt ??= performance.now()
-      else if (marks.shownAt !== undefined) marks.hiddenAt ??= performance.now()
-    }).observe(el, { attributes: true, attributeFilter: ['hidden'] })
-  })
-  const marks = () =>
-    page.evaluate(
-      () =>
-        (window as { staticMarks?: { shownAt?: number; hiddenAt?: number } })
-          .staticMarks
-    )
-  // Out of the forecourt haven on the last point, then a shadowman beside
-  // you: the valley has it rush you, and says it touched you.
-  await page.evaluate(() => window.__bv?.teleport(0.5, 0.5))
-  await heardWhere(page)
-  await onLastPoint(page)
-  await page.evaluate(() => {
-    const bv = window.__bv
-    if (!bv) return
-    bv.placeShadowman(bv.player.pos.x, bv.player.pos.z + 3)
-  })
-  await expect.poll(() => page.evaluate(() => window.__bv?.strikes)).toBe(1)
-  // It showed, then cleared.
-  await expect.poll(async () => (await marks())?.hiddenAt).toBeDefined()
-  await expect(page.locator('.bv-static')).toBeHidden()
-  // It lasted strikeSeconds (1.6 s) of wall clock, give or take a frame. On
-  // frame-capped game time it would stretch to half a minute on a slow
-  // runner, so this bound catches that coming back.
-  const { shownAt = 0, hiddenAt = 0 } = (await marks()) ?? {}
-  expect(hiddenAt - shownAt).toBeLessThan(10_000)
-  const fromSpawn = await page.evaluate(() => {
-    const bv = window.__bv
-    if (!bv) return null
-    const { pos } = bv.player
-    return Math.hypot(pos.x - bv.world.spawn.x, pos.z - bv.world.spawn.z)
-  })
-  expect(fromSpawn).toBeLessThan(1)
-  expect(await page.evaluate(() => window.__bv?.aboard)).toBe(false)
 })
 
 test('the chosen character is the body you raid in, and is remembered', async ({

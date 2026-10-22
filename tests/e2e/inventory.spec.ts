@@ -1,3 +1,4 @@
+import { PACK } from '../../src/bindings.ts'
 import { copy } from './copy.ts'
 import { beginRaid, expect, freshValley, passTitles, test } from './fixtures.ts'
 
@@ -24,6 +25,13 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
   // Hovering an item shows its card.
   await cell.hover()
   await expect(card).toBeVisible()
+  // The open pack lists every key it answers to (bindings.ts): E and the
+  // number keys on the card of the item under the cursor.
+  const pack = page.getByRole('dialog', { name: copy('inventory.label') })
+  for (const { key, labelKey } of Object.values(PACK)) {
+    await expect(pack).toContainText(key)
+    await expect(pack).toContainText(copy(labelKey))
+  }
   await expect(card.locator('.bv-bag-card-name')).toHaveText(
     copy('items.marlboro.label')
   )

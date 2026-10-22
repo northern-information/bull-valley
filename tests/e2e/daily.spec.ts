@@ -10,12 +10,12 @@ import {
 } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// The berry bush on the spawn lot gives each account one berry a day. The
-// valley keeps the record, so a second arrival on the same account finds
-// the bush picked clean. Both tests join one valley as one raider, in
+// Every berry bush (the spawn lot's, and the six at the heart of the corn
+// maze) gives each account one berry a day. The valley keeps the record,
+// so a second arrival on the same account finds the bush picked clean. Both tests join one valley as one raider, in
 // order, each on a fresh page: booting the game takes most of a minute on
 // CI, so a test boots once. The pack is the account's too: a fresh raider
-// has no berries, and the second arrival's welcome carries the one picked.
+// has no berries, and the second arrival's welcome carries the ones picked.
 
 test.describe.configure({ mode: 'serial' })
 
@@ -85,6 +85,39 @@ test('the berry bush gives one berry, then is picked clean', async ({
   await page.keyboard.press('KeyE')
   await expect(label).toHaveText(copy('labels.berry_picked'))
   expect(await berries(page)).toBe(1)
+
+  // A bush at the heart of the corn maze gives a berry of its own. The
+  // Caretaker parked at the maze's far corner, out of sight of the heart:
+  // a strike there would leave the berry on the raider's body.
+  await page.evaluate(() => {
+    const bv = window.__bv
+    const corner = bv?.world.mazePlace
+    if (!bv || !corner) throw new Error('no maze')
+    bv.placeCaretaker(corner.x, corner.z)
+  })
+  // A step in from the second bush toward the portal, looking at it.
+  const heartBush = await page.evaluate(() => {
+    const bv = window.__bv
+    const bush = bv?.world.bushes[1]
+    const heart = bv?.world.portal?.at
+    if (!bv || !bush || !heart) throw new Error('no maze bush')
+    const d = Math.hypot(heart.x - bush.x, heart.z - bush.z)
+    bv.player.relocate(
+      bush.x + ((heart.x - bush.x) / d) * 0.9,
+      bush.z + ((heart.z - bush.z) / d) * 0.9,
+      bv.player.yaw
+    )
+    return { x: bush.x, z: bush.z }
+  })
+  await faceSpot(page, heartBush.x, heartBush.z, 0.6)
+  await heardWhere(page)
+  await expect(label).toHaveText(copy('labels.berries'))
+  await page.keyboard.press('KeyE')
+  await expect.poll(() => berries(page)).toBe(2)
+  await expect(label).toHaveText(copy('labels.berry_picked'))
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.daily?.collected))
+    .toEqual([0, 1])
 })
 
 test('the valley remembers the account on the next arrival', async ({
@@ -92,10 +125,10 @@ test('the valley remembers the account on the next arrival', async ({
 }) => {
   await beginRaid(page, 0, { valley, raider })
   expect(await page.evaluate(() => window.__bv?.daily)).toMatchObject({
-    collected: [0],
+    collected: [0, 1],
   })
-  // A new page, and the berry is still in the pack.
-  expect(await berries(page)).toBe(1)
+  // A new page, and the berries are still in the pack.
+  expect(await berries(page)).toBe(2)
   await standAtBush(page)
   await expect(page.locator('.bv-item-label')).toHaveText(
     copy('labels.berry_picked')

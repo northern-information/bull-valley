@@ -605,7 +605,8 @@ describe('ValleyDO', () => {
   })
 
   it('writes the Citgos a raider stands at, and opens a Citgo portal to the last', async () => {
-    // Noon Central, so the day's turn is not the next thing due.
+    // Noon Central, so the day's turn is not the next thing due: run near
+    // midnight Central, it wakes the valley before the portal closes.
     vi.useFakeTimers({ toFake: ['Date'], now: Date.UTC(2026, 6, 1, 17) })
     onTestFinished(() => {
       vi.useRealTimers()

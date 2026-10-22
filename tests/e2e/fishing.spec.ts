@@ -242,9 +242,13 @@ test('three ponds, and a slurm caught alive in the jar', async ({ page }) => {
     .toBeGreaterThan(0)
   // Beside one, looking down at it. Slurms crawl, and Carlsten bats them,
   // so on a slow machine the one stood beside can be gone before the
-  // prompt reads: stand beside whichever crawls now until the click has
-  // one to catch.
+  // prompt reads, or before the click lands: stand beside whichever
+  // crawls now and click again until one is caught. A click with nothing
+  // in reach only scoops the air.
+  const jarred = () => page.evaluate(() => window.__bv?.inventory.slurm ?? 0)
   await expect(async () => {
+    // A catch the last try waited out may have landed since.
+    if ((await jarred()) > 0) return
     await page.evaluate(() => {
       const bv = window.__bv
       if (!bv) throw new Error('no hook')
@@ -263,13 +267,12 @@ test('three ponds, and a slurm caught alive in the jar', async ({ page }) => {
       copy('prompts.jar_slurm'),
       { timeout: 2_000 }
     )
-  }).toPass({ timeout: 30_000 })
-  await page.keyboard.press('KeyE')
-  expect(await page.evaluate(() => window.__bv?.inventory.slurm ?? 0)).toBe(0)
-  await page.evaluate(() => window.__bv?.useHand())
-  await expect
-    .poll(() => page.evaluate(() => window.__bv?.inventory.slurm ?? 0))
-    .toBe(1)
+    await page.keyboard.press('KeyE')
+    expect(await jarred()).toBe(0)
+    await page.evaluate(() => window.__bv?.useHand())
+    await expect.poll(jarred, { timeout: 5_000 }).toBe(1)
+  }).toPass({ timeout: 45_000 })
+  expect(await jarred()).toBe(1)
   await expect(page.locator('.bv-chat')).toContainText(copy('log.slurm_jarred'))
 })
 

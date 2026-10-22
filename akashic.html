@@ -118,9 +118,30 @@
         border: 1px solid var(--fi-slate);
         padding: 2px 8px;
       }
-      .ak-panel select {
+      .ak-panel select,
+      .ak-search {
         flex: 1;
         min-width: 0;
+      }
+      .ak-search {
+        font: inherit;
+        color: inherit;
+        background: #020617;
+        border: 1px solid var(--fi-slate);
+        padding: 2px 6px;
+      }
+      .ak-kinds {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-bottom: 8px;
+      }
+      .ak-panel .ak-kinds button {
+        padding: 0 6px;
+      }
+      .ak-kinds button[aria-pressed="true"] {
+        border-color: var(--fi-cyan);
+        color: var(--fi-cyan);
       }
       .ak-panel :focus-visible {
         outline: 3px solid var(--fi-cyan);
@@ -242,6 +263,18 @@
     <section class="ak-panel" aria-label="Asset viewer">
       <h1>Akashic</h1>
       <div class="ak-row">
+        <input
+          type="search"
+          name="search"
+          class="ak-search"
+          placeholder="Search assets [/]"
+          aria-label="Search assets"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </div>
+      <div class="ak-kinds" role="group" aria-label="Kind"></div>
+      <div class="ak-row">
         <button type="button" data-step="-1" aria-label="Previous asset">
           ←
         </button>
@@ -252,8 +285,8 @@
       <p class="ak-stats" aria-live="polite"></p>
     </section>
     <p class="ak-hint">
-      drag orbit · scroll zoom · right-drag pan · ←/→ cycle · keys toggle · M
-      map
+      drag orbit · scroll zoom · right-drag pan · ←/→ cycle · / search · keys
+      toggle · M map
     </p>
     <script type="module" src="/src/akashic.ts"></script>
   </body>

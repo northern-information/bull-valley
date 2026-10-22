@@ -1,17 +1,10 @@
-import { PACK, PACK_IN_MENU, WORLD } from '../../src/bindings.ts'
+import { PACK_IN_MENU, WORLD } from '../../src/bindings.ts'
 import { copy } from './copy.ts'
-import {
-  beginRaid,
-  expect,
-  freshValley,
-  passTitles,
-  signIn,
-  test,
-} from './fixtures.ts'
+import { expect, freshValley, passTitles, signIn, test } from './fixtures.ts'
 
 // The controls players read are drawn from bindings.ts, so every bound
-// action shows where it applies: the valley's on the intro card, the
-// pack's in the open pack.
+// action shows where it applies: the valley's on the intro card, and the
+// pack's in the open pack (inventory.spec.ts).
 
 test('the intro card lists every key the valley answers to', async ({
   page,
@@ -39,20 +32,5 @@ test('the intro card lists every key the valley answers to', async ({
     await expect(
       table.getByRole('cell', { name: label, exact: true })
     ).toBeVisible()
-  }
-})
-
-test('the open pack lists every key it answers to', async ({ page }) => {
-  await beginRaid(page)
-  await page.keyboard.press('Tab')
-  const pack = page.getByRole('dialog', { name: copy('inventory.label') })
-  await expect(pack).toBeVisible()
-  // E and the number keys are on the card of the item under the cursor.
-  await pack.locator('.bv-bag-cell').first().hover()
-  await expect(pack.locator('.bv-bag-card')).toBeVisible()
-  for (const { key, labelKey } of Object.values(PACK)) {
-    const label = copy(labelKey)
-    await expect(pack).toContainText(key)
-    await expect(pack).toContainText(label)
   }
 })
