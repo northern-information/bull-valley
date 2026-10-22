@@ -86,6 +86,8 @@ export function createTargets(game: Game): Targets {
         return world.shelves.laptop
       case 'stand':
         return world.stand?.group ?? null
+      case 'recycle':
+        return world.wreck?.car ?? null
       case 'deal':
         return world.plaza?.dealer.group ?? null
       case 'locked':
