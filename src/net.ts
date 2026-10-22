@@ -86,6 +86,8 @@ interface NetIdentity {
   undercroft: MazePlace | null
   // The middle of each lot's Citgo portal ring (rule 28).
   rings: XZ[]
+  // Where each payphone stands (rule 28).
+  payphones: XZ[]
 }
 
 // Reconnect schedule; the last delay holds for every attempt after.
@@ -289,6 +291,7 @@ export class NetClient {
           dealer: identity.dealer,
           undercroft: identity.undercroft,
           rings: identity.rings,
+          payphones: identity.payphones,
           ...was,
         } satisfies ClientMessage)
       )

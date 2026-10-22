@@ -225,6 +225,7 @@ const MAZE = { x: 5000, z: 5000, yaw: 0 }
 
 // Where a build sets up the Cabbage Stand: on the first station's lot.
 const STAND = { x: -4, z: -17 }
+const PAYPHONE = { x: 3000, z: -3000 }
 const WRECK = { x: 6, z: 27 }
 // The firefly pond (rule 36), clear of every station.
 const POND = { x: -5000, z: 5000, radius: 80, landing: { x: -5060, z: 5000 } }
@@ -272,6 +273,7 @@ const hello = (
       x: i * 1000 + 2,
       z: 14,
     })),
+    payphones: [PAYPHONE],
   })
 
 // The last pack frame a socket was sent.

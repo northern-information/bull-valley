@@ -21,7 +21,8 @@ test("walking off the moat's rim shatters, the body at the bottom", async ({
   await page.evaluate(() => window.__bv?.grant('marlboro', 20))
   await expect.poll(() => carrying(page)).toBeGreaterThan(19)
 
-  // On the rim a couple of metres back from the edge, facing the island.
+  // On the rim just back from the edge, inside the fence (castleyard.ts),
+  // facing the island.
   const place = await page.evaluate(() => {
     const castle = window.__bv?.world.castle
     if (!castle) throw new Error('No castle in the valley')
@@ -31,8 +32,8 @@ test("walking off the moat's rim shatters, the body at the bottom", async ({
     const ox = mid.x - castle.middle.x
     const oz = mid.z - castle.middle.z
     const len = Math.hypot(ox, oz)
-    const x = mid.x + (ox / len) * 2
-    const z = mid.z + (oz / len) * 2
+    const x = mid.x + (ox / len) * 0.8
+    const z = mid.z + (oz / len) * 0.8
     // Forward is (-sin yaw, -cos yaw): toward the middle.
     const yaw = Math.atan2(ox / len, oz / len)
     window.__bv?.player.relocate(x, z, yaw)
@@ -158,4 +159,61 @@ test('a slurm in the moat squashes underfoot', async ({ page }) => {
       )
     )
     .toBe('squashed')
+})
+
+test('the payphone on the rim, once found, is a stop for fast travel', async ({
+  page,
+}) => {
+  test.slow()
+  await beginRaid(page)
+  const phoneAt = () =>
+    page.evaluate(() => {
+      const phone = window.__bv?.world.payphones[0]
+      if (!phone) throw new Error('No payphone in the valley')
+      return { x: phone.x, z: phone.z }
+    })
+  const fromPhone = async () => {
+    const at = await phoneAt()
+    return page.evaluate((at) => {
+      const { x, z } = window.__bv!.player.pos
+      return Math.hypot(x - at.x, z - at.z)
+    }, at)
+  }
+  // Not yet found: no fast travel there.
+  await page.evaluate(() => window.__bv?.phoneTravel(0))
+  expect(await fromPhone()).toBeGreaterThan(50)
+
+  // Stand at it, and the valley writes it in the account's log.
+  const at = await phoneAt()
+  await page.evaluate((at) => {
+    const phone = window.__bv!.world.payphones[0]
+    window.__bv?.player.relocate(
+      at.x + Math.cos(phone.yaw) * 1.5,
+      at.z + Math.sin(phone.yaw) * 1.5,
+      0
+    )
+  }, at)
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.citgos.phones ?? []), {
+      timeout: 15_000,
+    })
+    .toContain(0)
+  await expect(page.locator('.bv-chat')).toContainText(
+    copy('log.payphone_found')
+  )
+
+  // From the payphone to the spawn Citgo, and back again.
+  const home = await page.evaluate(() => window.__bv?.citgos.last ?? 0)
+  await page.evaluate((i) => window.__bv?.fastTravel(i), home)
+  await expect
+    .poll(() =>
+      page.evaluate((i) => {
+        const bv = window.__bv!
+        const ring = bv.world.rings[i]
+        return Math.hypot(bv.player.pos.x - ring.x, bv.player.pos.z - ring.z)
+      }, home)
+    )
+    .toBeLessThan(1)
+  await page.evaluate(() => window.__bv?.phoneTravel(0))
+  await expect.poll(fromPhone).toBeLessThan(2.5)
 })

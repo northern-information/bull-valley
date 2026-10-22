@@ -8,7 +8,7 @@
 
 import { buffedBeam } from './buffs.ts'
 import { caretakerAt, createCaretaker, stepCaretaker } from './caretaker.ts'
-import { citgoAt } from './citgos.ts'
+import { citgoAt, phoneAt, phonesOf } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { woundsOf } from './health.ts'
 import { onLookout } from './lookout.ts'
@@ -469,6 +469,29 @@ export function citgoVisits(
     visits.push({ id, station })
   }
   return visits
+}
+
+// Rule 28: each raider on foot, out of the bed, standing at a payphone
+// their account has not found, by their last state frame; one an account.
+export function phoneVisits(
+  valley: Valley,
+  placed: readonly Placed[]
+): { id: string; phone: number }[] {
+  const world = valley.world
+  if (!world || world.payphones.length === 0) return []
+  const finds: { id: string; phone: number }[] = []
+  const seen = new Set<string>()
+  for (const { id, at } of placed) {
+    const member = valley.members[id]
+    if (!at || !member || seen.has(member.account)) continue
+    if (inTheBed(valley, id)) continue
+    const phone = phoneAt(at, world.payphones)
+    if (phone === null) continue
+    seen.add(member.account)
+    if (phonesOf(citgosFor(valley, member.account)).includes(phone)) continue
+    finds.push({ id, phone })
+  }
+  return finds
 }
 
 // A dev server's shadowman (or spider) standing still at (x, z), for the
