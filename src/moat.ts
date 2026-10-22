@@ -481,8 +481,9 @@ const PIPE_CORNER = 3
 // raider who walks off the rim lands on one, `catchPipe`) down by `drop`
 // at a time, as far as `floorClear` over the floor, each level broken
 // into runs `length` long with `gap`s between, each run in one of the
-// `rows` out from the wall, a share `missing`. Clear of the corners. A
-// run by a fire escape bends out past its outer rail and back.
+// `rows` out from the wall, a share `missing` (the first under the rim)
+// or `sparse` (any under that). Clear of the corners. A run by a fire
+// escape bends out past its outer rail and back.
 export function moatPipes(
   raw: HeightAt,
   place: MazePlace,
@@ -579,7 +580,12 @@ export function moatPipes(
           const grey = rng() < 0.5
           const valve = rng() < 0.6 ? rng() : null
           const junction = rng() < 0.5 ? rng() : null
-          const missing = rng() < cfg.missing
+          // The first run under the rim here is laid as a rule, to catch
+          // a raider who walks off; any under it seldom.
+          const over = tops[tops.indexOf(top) - 1]
+          const first =
+            over === undefined || rimOver(d0, d1) - over < cfg.under[0]
+          const missing = rng() < (first ? cfg.missing : cfg.sparse)
           // Only the lowest level turns down to the floor, past nothing
           // under it, and never by a stair's foot.
           const drop = rng() < cfg.toFloor && top === tops.at(-1) && !near(d1)
@@ -641,6 +647,77 @@ export function pipeWalls(
     })
   }
   return walls
+}
+
+// Whether a point lies in a fire escape's strip, from its wall out past its
+// outer rail and on past its ends, by `pad` all round.
+function onStair(stair: FireEscape, p: XZ, pad: number): boolean {
+  const [a, b] = stair.ends
+  const len = Math.hypot(b.x - a.x, b.z - a.z)
+  const t = ((p.x - a.x) * (b.x - a.x) + (p.z - a.z) * (b.z - a.z)) / len
+  const s = (p.x - a.x) * stair.inward.x + (p.z - a.z) * stair.inward.z
+  return t > -pad && t < len + pad && s > -pad && s < stair.depth + pad
+}
+
+// How far a pipe's fittings keep off a fire escape's strip, and how big a
+// junction box stands (along the wall, up it, out from it).
+const FITTING_CLEAR = 0.5
+export const JUNCTION = { wide: 1.2, high: 1.2, deep: 0.6 }
+
+// What of a pipe reaches back to the wall: a bracket every `every` metres
+// along each stretch that runs level at one distance out (from the pipe
+// to the wall behind it), and the junction box on the wall over its first
+// stretch at `junction` along it (where its middle stands). None stands
+// in or over a fire escape's strip, so nothing reaches into its lanes: a
+// stretch round one hangs from its bends.
+export interface PipeFittings {
+  brackets: [XZ & { y: number }, XZ & { y: number }][]
+  junction: (XZ & { y: number }) | null
+}
+
+export function pipeFittings(
+  pipe: MoatPipe,
+  stairs: readonly FireEscape[],
+  every = 4
+): PipeFittings {
+  const { normal, wall, points } = pipe
+  const outOf = (p: XZ) => (p.x - wall.x) * normal.x + (p.z - wall.z) * normal.z
+  const back = (p: XZ & { y: number }, out: number) => ({
+    x: p.x - normal.x * out,
+    z: p.z - normal.z * out,
+    y: p.y,
+  })
+  const clear = (p: XZ, pad: number) =>
+    !stairs.some((stair) => onStair(stair, p, pad))
+  const lerp = (p: XZ & { y: number }, q: XZ & { y: number }, t: number) => ({
+    x: p.x + (q.x - p.x) * t,
+    z: p.z + (q.z - p.z) * t,
+    y: p.y + (q.y - p.y) * t,
+  })
+  const brackets: PipeFittings['brackets'] = []
+  for (let i = 0; i < points.length - 1; i++) {
+    const p = points[i]
+    const q = points[i + 1]
+    const out = outOf(p)
+    if (p.y !== q.y || Math.abs(out - outOf(q)) > 1e-3) continue
+    const span = Math.hypot(q.x - p.x, q.z - p.z)
+    if (span < 1e-3) continue
+    for (let d = 0; d <= span; d += every) {
+      const at = lerp(p, q, d / span)
+      const to = back(at, out)
+      if (!clear(at, FITTING_CLEAR) || !clear(to, FITTING_CLEAR)) continue
+      brackets.push([at, to])
+    }
+  }
+  let junction: PipeFittings['junction'] = null
+  if (pipe.junction !== null) {
+    // On the wall over the pipe, clear of the level over it.
+    const at = lerp(points[0], points[1], pipe.junction)
+    const box = back(at, outOf(at) - JUNCTION.deep / 2)
+    box.y += 1.1
+    if (clear(box, FITTING_CLEAR + JUNCTION.wide / 2)) junction = box
+  }
+  return { brackets, junction }
 }
 
 // How far a foot hangs over a pipe's sides and still stands on it.

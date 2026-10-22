@@ -6,7 +6,7 @@ import {
   memo,
   mergeStatic,
 } from './assetkit.ts'
-import { CONFIG } from './config.ts'
+import { JUNCTION, pipeFittings } from './moat.ts'
 import { concreteArt, vineArt } from './moatart.ts'
 import { mulberry32, range } from './rng.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
@@ -271,7 +271,15 @@ export function buildMoat(build: MoatBuild): MoatRig {
 
   // The pipes.
   for (const run of build.pipes) {
-    pipeRun(group, run, run.grey ? pipeGrey : pipe, valve, box, iron)
+    pipeRun(
+      group,
+      run,
+      build.stairs,
+      run.grey ? pipeGrey : pipe,
+      valve,
+      box,
+      iron
+    )
   }
 
   // The fire escapes.
@@ -344,24 +352,21 @@ export function buildMoat(build: MoatBuild): MoatRig {
   return { group, update }
 }
 
-// One pipe: a tube along each stretch with a knuckle at each bend,
-// brackets back to the wall from the stretches that hug it, and its valve
-// wheel and junction box on its first stretch.
+// One pipe: a tube along each stretch with a knuckle at each bend, its
+// brackets back to the wall and its junction box (moat.ts pipeFittings,
+// clear of the fire escapes), and its valve wheel on its first stretch.
 function pipeRun(
   group: THREE.Group,
   run: MoatPipe,
+  stairs: readonly FireEscape[],
   material: THREE.Material,
   valve: THREE.Material,
   box: THREE.Material,
   iron: THREE.Material
 ): void {
-  const { radius, normal, wall } = run
-  const points = run.points.map((p) => new THREE.Vector3(p.x, p.y, p.z))
-  // How far out from the wall a point stands, and the furthest row: past
-  // it, a stretch is going round a fire escape, and hangs from its bends.
-  const outOf = (p: THREE.Vector3) =>
-    (p.x - wall.x) * normal.x + (p.z - wall.z) * normal.z
-  const furthest = radius + 0.75 + Math.max(...CONFIG.castle.pipes.rows)
+  const { radius, normal } = run
+  const v = (p: XZ & { y: number }) => new THREE.Vector3(p.x, p.y, p.z)
+  const points = run.points.map(v)
   for (let i = 0; i < points.length - 1; i++) {
     const from = points[i]
     const to = points[i + 1]
@@ -385,21 +390,10 @@ function pipeRun(
       knuckle.position.copy(from)
       group.add(knuckle)
     }
-    // Brackets back to the wall, where the stretch runs along it in its
-    // row.
-    if (from.y !== to.y) continue
-    const out = outOf(from)
-    if (Math.abs(out - outOf(to)) > 1e-3 || out > furthest + 1e-3) continue
-    for (let d = 0; d <= span; d += 4) {
-      const at = from.clone().lerp(to, d / span)
-      strut(
-        group,
-        at,
-        at.clone().add(new THREE.Vector3(-normal.x * out, 0, -normal.z * out)),
-        0.12,
-        iron
-      )
-    }
+  }
+  const fittings = pipeFittings(run, stairs)
+  for (const [at, wallAt] of fittings.brackets) {
+    strut(group, v(at), v(wallAt), 0.12, iron)
   }
   const [from, to] = points
   if (run.valve !== null) {
@@ -413,16 +407,12 @@ function pipeRun(
     wheel.rotation.y = -Math.atan2(normal.z, normal.x) + Math.PI / 2
     group.add(wheel)
   }
-  if (run.junction !== null) {
-    // On the wall over the pipe, clear of the level over it.
-    const junction = new THREE.Mesh(new THREE.BoxGeometry(1.2, 1.2, 0.6), box)
-    const at = from.clone().lerp(to, run.junction)
-    const back = outOf(at) - 0.3
-    junction.position.set(
-      at.x - normal.x * back,
-      at.y + 1.1,
-      at.z - normal.z * back
+  if (fittings.junction) {
+    const junction = new THREE.Mesh(
+      new THREE.BoxGeometry(JUNCTION.wide, JUNCTION.high, JUNCTION.deep),
+      box
     )
+    junction.position.copy(v(fittings.junction))
     junction.rotation.y = -Math.atan2(-normal.x, normal.z)
     group.add(junction)
   }
