@@ -16,6 +16,7 @@ import { isLevels } from './buffs.ts'
 import {
   CHAT_COPY,
   chatCommand,
+  crewChatLine,
   joinedLine,
   onlineLine,
   partyChatLine,
@@ -24,6 +25,7 @@ import {
   whisperLine,
 } from './chat.ts'
 import { citgoLines, NO_CITGOS } from './citgos.ts'
+import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import {
   cosmeticById,
@@ -31,6 +33,7 @@ import {
   toCosmetics,
   tradeRefusal,
 } from './cosmetics.ts'
+import { crewLines, crewNamed, crewNews, crewRefusal } from './crews.ts'
 import {
   DAILY_TASK,
   NO_TASK,
@@ -45,6 +48,8 @@ import {
   riskOf,
   wardOf,
 } from './expeditions.ts'
+import { lineOutOf, skillText, toAnglerWire } from './fishing.ts'
+import { anglerNews, catchLine, fishRefusal, skillUpLine } from './fishlines.ts'
 import {
   friendNews,
   friendRefusal,
@@ -94,11 +99,13 @@ import type {
   ExpeditionOutcome,
   ExpeditionRun,
 } from './expeditions.ts'
+import type { AnglerWire, LineOut } from './fishing.ts'
 import type { PendingAsk } from './friends.ts'
 import type { Inventory, WardAxis } from './interfaces.ts'
 import type { OutfitId } from './outfits.ts'
 import type {
   ClientMessage,
+  CrewWire,
   FriendWire,
   InspectWire,
   NackMessage,
@@ -113,6 +120,12 @@ import type { QuestId, QuestStage } from './quests.ts'
 import type { Research } from './recycling.ts'
 import type { SeasonProgress } from './season.ts'
 import type { StandLedger } from './stand.ts'
+
+// Rule 35: the account's crew (null: none) and the crews inviting it.
+export interface CrewState {
+  crew: CrewWire | null
+  invites: { tag: string; name: string }[]
+}
 
 export interface DialState {
   // Our id in the valley, from the welcome; null before it.
@@ -131,6 +144,11 @@ export interface DialState {
   // Rule 33: the research, as the valley last sent it (asked for as the
   // Recycling Center opens); null before.
   research: Research | null
+  // Rule 36: the angler, as the valley last sent it (asked for as the
+  // phone dials in and as the tackle box opens); null before. The line in
+  // the water, as cast (fishing.ts LineOut).
+  angler: AnglerWire | null
+  line: LineOut | null
   health: number
   healthMax: number
   // The wards as the valley last said them, at local `wardsAt` ms; they
@@ -157,6 +175,9 @@ export interface DialState {
   inspected: InspectWire | null
   // Rule 34: the party as the valley last sent it (none at first).
   party: PartyWire
+  // Rule 35: the crew and the invites waiting, as the valley last sent
+  // them (none at first).
+  crew: CrewState
   // The last snapshot of the world, or null when no 3D raider has opened
   // one.
   world: WorldWire | null
@@ -175,6 +196,7 @@ export interface DialState {
 export interface Pending {
   stand: boolean
   recycle: boolean
+  fish: boolean
   locker: boolean
   buy: { station: number; kind: string } | null
   deal: boolean
@@ -190,11 +212,14 @@ export interface Pending {
   inspect: string | null
   // Who an invite went to (rule 34), for a refusal's line.
   invite: string | null
+  // What a crew frame named (rule 35), for a refusal's line.
+  crew: string | null
 }
 
 const NOTHING_PENDING: Pending = {
   stand: false,
   recycle: false,
+  fish: false,
   locker: false,
   buy: null,
   deal: false,
@@ -207,6 +232,7 @@ const NOTHING_PENDING: Pending = {
   whisperTo: null,
   inspect: null,
   invite: null,
+  crew: null,
 }
 
 export const NO_WARDS: WardLevels = {
@@ -227,6 +253,8 @@ export const DIALED: DialState = {
   xp: 0,
   stand: null,
   research: null,
+  angler: null,
+  line: null,
   health: BASE_GEOMETRIE,
   healthMax: BASE_GEOMETRIE,
   wards: NO_WARDS,
@@ -243,6 +271,7 @@ export const DIALED: DialState = {
   friends: [],
   inspected: null,
   party: { members: [], invites: [] },
+  crew: { crew: null, invites: [] },
   world: null,
   citgoNames: [],
   said: null,
@@ -455,6 +484,36 @@ export function applyFrame(
     // Rule 33: loose change found in the 3D valley, for the log.
     case 'found':
       return told(s, foundLine(msg.dimes), wall)
+    // Rule 36: the angler as read, or after a dig, the rod or a catch; the
+    // phone's own dig or rod is answered on the screen and in the log, as
+    // the stand's is.
+    case 'angler': {
+      const next = { ...s, angler: toAnglerWire(msg.angler) ?? s.angler }
+      const line = anglerNews(msg)
+      if (!line) return next
+      const done = { ...next, pending: { ...next.pending, fish: false } }
+      return s.pending.fish
+        ? news(done, line, now, wall)
+        : told(done, line, wall)
+    }
+    // Rule 36: the line in the water, as dealt; the tackle box plays it.
+    case 'line':
+      return {
+        ...s,
+        line: lineOutOf(msg, now),
+        pending: { ...s.pending, fish: false },
+        said: null,
+      }
+    // Rule 36: how the line came out.
+    case 'catch': {
+      const done = {
+        ...s,
+        line: null,
+        pending: { ...s.pending, fish: false },
+      }
+      const caught = news(done, catchLine(msg), now, wall)
+      return msg.up ? told(caught, skillUpLine(msg.skill), wall) : caught
+    }
     // Rule 27: something passed, by this account to a raider or to it.
     case 'passed': {
       const item = itemLabel(msg.kind)
@@ -609,6 +668,17 @@ export function applyFrame(
     }
     case 'party-chat':
       return { ...s, chat: pushLine(s.chat, partyChatLine(msg)) }
+    // Rule 35: the crew, its news, and a line said to it.
+    case 'crew':
+      return { ...s, crew: { crew: msg.crew, invites: msg.invites } }
+    case 'crew-news':
+      return told(
+        { ...s, pending: { ...s.pending, crew: null } },
+        crewNews(msg, s.name),
+        wall
+      )
+    case 'crew-chat':
+      return { ...s, chat: pushLine(s.chat, crewChatLine(msg)) }
     // Another season's or another task's progress says nothing of this
     // one's.
     case 'season': {
@@ -657,6 +727,20 @@ export function applyFrame(
           return saying(
             { ...s, pending: { ...s.pending, recycle: false } },
             recycleRefusal(msg.reason),
+            now
+          )
+        // Rule 36. A reel refused has no line left to reel.
+        case 'tackle':
+        case 'dig':
+        case 'cast':
+        case 'reel':
+          return saying(
+            {
+              ...s,
+              line: msg.re === 'reel' ? null : s.line,
+              pending: { ...s.pending, fish: false },
+            },
+            fishRefusal(msg.reason),
             now
           )
         case 'stow':
@@ -748,6 +832,13 @@ function refused(
         { inspect: null },
         inspectRefusal(msg.reason, s.pending.inspect ?? '')
       )
+    case 'crew-create':
+    case 'crew-invite':
+    case 'crew-join':
+    case 'crew-leave':
+    case 'crew-kick':
+    case 'crew-chat':
+      return done({ crew: null }, crewRefusal(msg.reason, s.pending.crew ?? ''))
     case 'invite':
     case 'party-leave':
     case 'party-chat':
@@ -767,7 +858,15 @@ function refused(
 // One line of the raider's record: what it counts, how far along, and how
 // full its bar reads (0 to 1), or null where it has none.
 export interface RaiderStat {
-  id: 'xp' | 'season' | 'task' | 'book' | 'citgos' | 'loose-change' | 'worn'
+  id:
+    | 'xp'
+    | 'season'
+    | 'task'
+    | 'book'
+    | 'citgos'
+    | 'loose-change'
+    | 'fishing'
+    | 'worn'
   label: string
   value: string
   share: number | null
@@ -834,6 +933,19 @@ export function raiderStats(s: DialState, day: string): RaiderStat[] {
         top,
       }),
       share: level / top,
+    })
+  }
+  // Rule 36: the fishing skill, once the valley has said the angler.
+  if (s.angler) {
+    stats.push({
+      id: 'fishing',
+      label: copy('dialup.raider.fishing'),
+      value: copy('dialup.raider.fishing_value', {
+        skill: skillText(s.angler.skill),
+        caught: s.angler.caught,
+        limit: s.angler.perDay,
+      }),
+      share: s.angler.skill / CONFIG.fishing.skillCap,
     })
   }
   if (worn.length > 0) {
@@ -930,7 +1042,8 @@ export interface Self {
 // A line typed into the phone's chat: the state after it, and the frame
 // it sends the valley (null when it is answered here). A line is said to
 // everyone; /online and /party are answered here; /friends, /w, /friend,
-// /unfriend, /inspect, /invite, /leave and /p go to the valley; an emote needs
+// /unfriend, /inspect, /invite, /leave, /p, /crew's sub-commands and /c
+// go to the valley; /crew alone is answered here too; an emote needs
 // a body (sharedworld.ts rule 29), so the phone says so.
 export function sayLine(
   s: DialState,
@@ -1000,5 +1113,15 @@ export function sayLine(
       return { state: s, frame: { type: 'party-leave' } }
     case 'partySay':
       return { state: s, frame: { type: 'party-chat', text: command.text } }
+    case 'crew':
+      return {
+        state: crewLines(s.crew).reduce((at, line) => told(at, line, now), s),
+        frame: null,
+      }
+    case 'crewFrame':
+      return {
+        state: asked(s, { crew: crewNamed(command.frame) }),
+        frame: command.frame,
+      }
   }
 }

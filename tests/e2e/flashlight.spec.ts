@@ -183,7 +183,7 @@ test('a shadow spider takes twice as long and leaves a $20 bill', async ({
     return spot
   })
   // The valley sends it as a spider, and the client draws it as one. Near
-  // water a crossing spider may come up too, so only the one placed counts.
+  // a lair a crossing spider may come up too, so only the one placed counts.
   await expect
     .poll(() =>
       page.evaluate(

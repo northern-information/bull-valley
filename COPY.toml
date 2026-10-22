@@ -44,8 +44,8 @@ begin_connecting = { text = "Reaching the Valley…", by = "ai" }
 begin_reconnecting = { text = "Reconnecting…", by = "ai" }
 begin_lost = { text = "Back to the Menu", by = "ai" }
 begin_play = { text = "Click to Die", by = "ai" }
-begin_resume = { text = "Click to Resume", by = "ai" }
 begin_failed = { text = "The Valley Will Not Resolve", by = "ai" }
+break = { text = "Click to Die · {key} for the Menu", by = "ai" }
 geometrie_shattered = { text = "GEOMETRIE SHATTERED", by = "ai" }
 countdown_label = { text = "Truck leaves in", by = "ai" }
 chat_log_label = { text = "Chat", by = "ai" }
@@ -120,6 +120,7 @@ tracker_label = { text = "Raider level {level}: {into} of {span} XP to the next"
 tracker_label_max = { text = "Raider level {level}, the highest", by = "ai" }
 banner = { text = "Level {level}", by = "ai" }
 tag = { text = "{name} · {level}", by = "ai" }
+tag_crew = { text = "[{tag}] {name} · {level}", by = "ai" }
 
 # The sign-in card (src/signin.ts).
 
@@ -445,6 +446,25 @@ recycle_short = { text = "You do not have the empties for that.", by = "ai" }
 recycle_top = { text = "There is nothing more to learn there.", by = "ai" }
 recycle_offline = { text = "No signal. The wreck is quiet.", by = "ai" }
 recycle_refused = { text = "The wreck will not take that right now.", by = "ai" }
+fish_rod = { text = "You take a rod out of the tackle box. Somebody left it rigged.", by = "ai" }
+fish_dug = { text = "You dig into the mud bank. Nightcrawlers: {count}.", by = "ai" }
+fish_far = { text = "You are too far from the pond.", by = "ai" }
+fireflies_in = { text = "Fireflies protect you from the shadows.", by = "ai" }
+fireflies_out = { text = "You leave the light of the fireflies, back into the shadows.", by = "ai" }
+fish_has_rod = { text = "You already have a rod.", by = "ai" }
+fish_no_rod = { text = "You need a rod. There is one in the tackle box.", by = "ai" }
+fish_no_bait = { text = "You have nothing to put on the hook.", by = "ai" }
+fish_tired = { text = "You can't fish any more today.", by = "ai" }
+fish_dug_out = { text = "The bank is dug out here. Give it a minute.", by = "ai" }
+fish_busy = { text = "Your line is already in the water.", by = "ai" }
+fish_offline = { text = "No signal. The pond is still.", by = "ai" }
+fish_refused = { text = "Nothing is biting right now.", by = "ai" }
+slurm_jarred = { text = "You scoop the slurm into the jar. It bares its tooth at you through the glass.", by = "ai" }
+jar_none = { text = "You need something to keep it in. Erwin von Dutch has jars.", by = "ai" }
+jar_full = { text = "The jar is full. The slurms in it are watching you.", by = "ai" }
+jar_far = { text = "You are too far from it.", by = "ai" }
+jar_gone = { text = "It is gone before you get the lid off.", by = "ai" }
+jar_refused = { text = "The slurm will not go in.", by = "ai" }
 stand_offline = { text = "No signal. The stand is shut.", by = "ai" }
 locked = { text = "Locked. The handle does not give.", by = "ai" }
 deal_offline = { text = "No signal. Erwin von Dutch will not deal with a stranger alone.", by = "ai" }
@@ -528,6 +548,10 @@ locker = { text = "E — Open Your Locker", by = "ai" }
 laptop = { text = "E — Use the Laptop", by = "ai" }
 stand = { text = "E — Tend Your Stand", by = "ai" }
 recycle = { text = "E — Recycling Center", by = "ai" }
+fish = { text = "E — Tackle Box", by = "ai" }
+jar_slurm = { text = "Click — Catch the Slurm", by = "ai" }
+cast = { text = "Click — Cast with {bait}", by = "ai" }
+cast_no_bait = { text = "No Bait — Dig at the Tackle Box", by = "ai" }
 locked = { text = "E — Locked", by = "ai" }
 lay = { text = "E — Lay the Rose", by = "ai" }
 descend = { text = "E — Climb Down", by = "ai" }
@@ -565,7 +589,7 @@ offline = { text = "No one can hear you.", by = "ai" }
 online = { text = "In the valley: {names}.", by = "ai" }
 online_name = { text = "{name} (level {level})", by = "ai" }
 online_phone = { text = "{name} (level {level}, on the phone)", by = "ai" }
-unknown_command = { text = "No such command. Try /online, /emotes, /friends, /friend name, /unfriend name, /inspect name, /invite name, /party, /leave, /p message or /w name message.", by = "ai" }
+unknown_command = { text = "No such command. Try /online, /emotes, /friends, /friend name, /unfriend name, /inspect name, /invite name, /party, /leave, /p message, /crew, /c message or /w name message.", by = "ai" }
 usage_whisper = { text = "To whisper: /w name message", by = "ai" }
 usage_friend = { text = "To ask a raider to be friends: /friend name", by = "ai" }
 usage_unfriend = { text = "To stop being friends: /unfriend name", by = "ai" }
@@ -632,6 +656,49 @@ join_button = { text = "Join", by = "ai" }
 leave_button = { text = "Leave", by = "ai" }
 heading = { text = "Party", by = "ai" }
 
+# Crews (src/crews.ts): /crew create TAG Name starts one, /crew invite
+# name (the leader), /crew join TAG, /crew leave, /crew kick name (the
+# leader), /crew lists it, /c says a line to it alone.
+
+[crew]
+heading = { text = "Crew", by = "ai" }
+heading_line = { text = "[{tag}] {crew}", by = "ai" }
+members = { text = "Members: {names}.", by = "ai" }
+leader_name = { text = "{name} (leader)", by = "ai" }
+none = { text = "You are in no crew. /crew create TAG Name starts one.", by = "ai" }
+invite_waiting = { text = "[{tag}] {crew} invites you. /crew join {tag} to join.", by = "ai" }
+created = { text = "You started [{tag}] {crew}. You lead it.", by = "ai" }
+news_invited = { text = "{name} invites you to [{tag}] {crew}. /crew join {tag} to join.", by = "ai" }
+sent = { text = "You invited {name} to the crew.", by = "ai" }
+you_joined = { text = "You joined [{tag}] {crew}.", by = "ai" }
+news_joined = { text = "{name} joined the crew.", by = "ai" }
+you_left = { text = "You left the crew.", by = "ai" }
+news_left = { text = "{name} left the crew.", by = "ai" }
+you_kicked = { text = "You were put out of the crew.", by = "ai" }
+news_kicked = { text = "{name} was put out of the crew.", by = "ai" }
+you_lead = { text = "You lead the crew now.", by = "ai" }
+news_leader = { text = "{name} leads the crew now.", by = "ai" }
+ended = { text = "[{tag}] is no more.", by = "ai" }
+said = { text = "{name} to the crew", by = "ai" }
+short = { text = "Starting a crew costs {cost}.", by = "ai" }
+tag_taken = { text = "Another crew wears [{tag}].", by = "ai" }
+name_taken = { text = "Another crew has that name.", by = "ai" }
+bad_tag = { text = "A tag is 2 to 4 letters or digits.", by = "ai" }
+in_crew = { text = "You are in a crew already. /crew leave first.", by = "ai" }
+their_crew = { text = "{name} is in a crew already.", by = "ai" }
+not_leader = { text = "Only the crew's leader can do that.", by = "ai" }
+no_invite = { text = "No invite from [{tag}] is waiting.", by = "ai" }
+not_member = { text = "{name} is not in your crew.", by = "ai" }
+self = { text = "Not yourself.", by = "ai" }
+full = { text = "A crew holds {size}. This one is full.", by = "ai" }
+failed = { text = "The crew could not be changed. Try again soon.", by = "ai" }
+usage = { text = "Crews: /crew create TAG Name, /crew invite name, /crew join TAG, /crew leave, /crew kick name, /c message", by = "ai" }
+usage_say = { text = "To speak to your crew: /c message", by = "ai" }
+invite_button = { text = "Invite to Crew", by = "ai" }
+invited_button = { text = "Invited to Crew", by = "ai" }
+join_button = { text = "Join", by = "ai" }
+leave_button = { text = "Leave", by = "ai" }
+
 # Inspecting another raider (src/inspect.ts): E on one in reach, or
 # /inspect name, opens their card.
 
@@ -644,6 +711,7 @@ character = { text = "Character", by = "ai" }
 character_value = { text = "{character}, {finish} guitar", by = "ai" }
 cosmetics = { text = "Wearing", by = "ai" }
 none = { text = "Nothing extra", by = "ai" }
+none_crew = { text = "None", by = "ai" }
 add_friend = { text = "Add Friend", by = "ai" }
 accept = { text = "Accept Friend", by = "ai" }
 asked = { text = "Asked", by = "ai" }
@@ -696,6 +764,8 @@ medicine = { text = "Medicine", by = "ai" }
 forage = { text = "Forage", by = "ai" }
 valuable = { text = "Valuable", by = "ai" }
 material = { text = "Material", by = "ai" }
+fish = { text = "Fish", by = "ai" }
+rod = { text = "Fishing rod", by = "ai" }
 key_item = { text = "Key item, kept through death", by = "ai" }
 
 # Place names, shown in prompts (src/landmarks.ts).
@@ -739,7 +809,8 @@ credit = { text = "2008-2026 AD Northern Information", by = "ai" }
 move = { text = "Move", by = "ai" }
 sprint = { text = "Sprint", by = "ai" }
 look = { text = "Look", by = "ai" }
-flashlight = { text = "Flashlight", by = "ai" }
+use_held = { text = "Flashlight, Jar or Rod", by = "ai" }
+held = { text = "Switch Hand", by = "ai" }
 crouch = { text = "Crouch", by = "ai" }
 phone = { text = "Citgo Portal", by = "ai" }
 map = { text = "Map", by = "ai" }
@@ -754,6 +825,7 @@ chat = { text = "Chat", by = "ai" }
 chat_scroll_up = { text = "Scroll Up", by = "ai" }
 chat_scroll_down = { text = "Scroll Down", by = "ai" }
 pause = { text = "Pause", by = "ai" }
+menu = { text = "Menu", by = "ai" }
 use = { text = "Use", by = "ai" }
 assign = { text = "Assign", by = "ai" }
 clear_slot = { text = "Clear Slot", by = "ai" }
@@ -773,6 +845,9 @@ in_pack = { text = "{action} (in Pack)", by = "ai" }
 switch_tab = { text = "Switch Tab", by = "ai" }
 turn_page = { text = "Turn the Page", by = "ai" }
 close = { text = "Close", by = "ai" }
+fish_left = { text = "Left", by = "ai" }
+fish_right = { text = "Right", by = "ai" }
+fish_reel = { text = "Reel In", by = "ai" }
 
 # Sign-in errors, from the Worker (worker/auth.ts) and the client's
 # fallbacks (src/auth.ts, src/account.ts). They show on the sign-in card,
@@ -1023,6 +1098,55 @@ says_3 = { text = "Come back later, we're not ready yet.", by = "ai" }
 says = { text = "Gold bullion.", by = "ai" }
 offer = { text = "Gold bullion. One troy ounce, and the halo is yours to burn under.", by = "ai" }
 traded = { text = "It will never go out. Neither will you.", by = "ai" }
+
+# Fishing at the firefly pond (src/fishdialog.ts, both apps; src/fishing.ts),
+# after Final Fantasy XI: the hook's call, the feelings, and the catch.
+
+[fishing]
+title = { text = "Tackle Box", by = "ai" }
+eyebrow = { text = "Fishing", by = "ai" }
+where = { text = "· The Firefly Pond", by = "ai" }
+says = { text = "Green tin, rust at the hinges. The fireflies never leave this water, and nothing from the dark comes past them.", by = "ai" }
+angler = { text = "Angler", by = "ai" }
+skill = { text = "Skill", by = "ai" }
+today = { text = "Today", by = "ai" }
+today_value = { text = "{caught} / {limit}", by = "ai" }
+take_rod = { text = "Take a Rod", by = "ai" }
+has_rod = { text = "Fishing With the {rod}", by = "ai" }
+dig = { text = "Dig for Nightcrawlers", by = "ai" }
+dig_wait = { text = "Dig Again in {seconds}s", by = "ai" }
+cast_with = { text = "Cast with {bait}", by = "ai" }
+bait = { text = "Bait", by = "ai" }
+bait_on = { text = "{bait} on the Hook", by = "ai" }
+how = { text = "R or the scroll wheel puts the rod in your hand. Stand at the water and click to cast; A and D answer the fish, and a click reels it in once it is spent.", by = "ai" }
+hud_wait = { text = "Waiting on a bite · Click to give up", by = "ai" }
+hud_fight = { text = "A / D to answer · Click to give up", by = "ai" }
+hud_reel = { text = "Click to reel it in", by = "ai" }
+why_bait = { text = "No {bait}", by = "ai" }
+why_tired = { text = "Done for today", by = "ai" }
+waiting = { text = "The bobber sits on the black water.", by = "ai" }
+stamina = { text = "Fish", by = "ai" }
+clock = { text = "Line", by = "ai" }
+spent = { text = "Spent", by = "ai" }
+give_up = { text = "Give Up", by = "ai" }
+reel = { text = "Reel In", by = "ai" }
+close = { text = "Close", by = "ai" }
+reading = { text = "Opening the box…", by = "ai" }
+hook_small = { text = "Something caught the hook!", by = "ai" }
+hook_large = { text = "Something caught the hook!!!", by = "ai" }
+hook_item = { text = "You feel something pulling at your line.", by = "ai" }
+feel_unsure = { text = "You don't know if you have enough skill to reel this one in.", by = "ai" }
+feel_fairly = { text = "You're fairly sure you don't have enough skill to reel this one in.", by = "ai" }
+feel_positive = { text = "You're positive you don't have enough skill to reel this one in!", by = "ai" }
+epic = { text = "This strength... You get the sense that you are on the verge of an epic catch!", by = "ai" }
+warn = { text = "You don't know how much longer you can keep this one on the line...", by = "ai" }
+nothing = { text = "You didn't catch anything.", by = "ai" }
+caught = { text = "You caught a {item}!", by = "ai" }
+caught_junk = { text = "You reel in an {item}. Not a fish.", by = "ai" }
+lost_skill = { text = "You lost your catch due to your lack of skill.", by = "ai" }
+snap = { text = "Your line snaps!", by = "ai" }
+gave_up = { text = "You give up and reel in your line.", by = "ai" }
+skill_up = { text = "Your fishing skill rises to {skill}.", by = "ai" }
 
 # Guitar finishes on the character select. Keys match src/finishes.ts.
 
@@ -1284,6 +1408,77 @@ blurb = { text = "Erwin von Dutch wants it laid at the heart of the corn maze. D
 label = { text = "Video Vault Key", by = "ai" }
 blurb = { text = "A brass key on a red tag that says BACK, from Erwin von Dutch for the rose. It opens the office behind the Video Vault, for whoever carries it.", by = "ai" }
 
+[items.fishing-rod]
+label = { text = "Fishing Rod", by = "ai" }
+blurb = { text = "Six feet of fiberglass and a spinning reel, out of the tackle box at the firefly pond. Nothing bites without it.", by = "ai" }
+
+[items.slurm]
+label = { text = "Slurm", by = "ai" }
+blurb = { text = "A black slug off a Citgo's dripline, caught alive before Carlsten's bat found it. It keeps baring its tooth. The shadow carp will take nothing else.", by = "ai" }
+
+[items.slurm-jar]
+label = { text = "Slurm Jar", by = "ai" }
+blurb = { text = "A gallon Mason jar from Erwin von Dutch, nail holes in the lid. E on a slurm still crawling on a Citgo's lot puts it in. Holds six.", by = "ai" }
+
+[items.shadow-carp]
+label = { text = "Shadow Carp", by = "ai" }
+blurb = { text = "A carp gone the colour of the shadowmen, one red eye burning. It rose for a slurm and nothing else. Erwin von Dutch wants to know where you got it.", by = "ai" }
+
+[items.zebco-33]
+label = { text = "Zebco 33", by = "ai" }
+blurb = { text = "The push-button spincast every kid in Illinois learned on. Forgiving, and a little longer on the line than the tackle box's rod.", by = "ai" }
+bought = { text = "A Zebco 33 off the rack. The button clicks.", by = "ai" }
+
+[items.ugly-stik]
+label = { text = "Ugly Stik", by = "ai" }
+blurb = { text = "Fiberglass and graphite, a clear tip, near enough unbreakable. A big fish comes in on it that would snap a cheaper line.", by = "ai" }
+bought = { text = "An Ugly Stik off the rack. It bends and comes back.", by = "ai" }
+
+[items.g-loomis]
+label = { text = "G. Loomis", by = "ai" }
+blurb = { text = "A thousand dollars of graphite, light as a reed, a gold wrap at every guide. It feels the fish before you do, and it holds the fish longest.", by = "ai" }
+bought = { text = "The G. Loomis, out of the rack. The clerk watches you go.", by = "ai" }
+
+[items.nightcrawlers]
+label = { text = "Nightcrawlers", by = "ai" }
+blurb = { text = "Dug out of the mud bank at the firefly pond. Most of what lives in there will take one.", by = "ai" }
+
+[items.bluegill]
+label = { text = "Bluegill", by = "ai" }
+blurb = { text = "A palm-sized sunfish with a black ear flap. The pond is full of them. Erwin von Dutch takes fish.", by = "ai" }
+
+[items.pumpkinseed]
+label = { text = "Pumpkinseed", by = "ai" }
+blurb = { text = "A sunfish with an orange belly and blue squiggles on its cheeks. It bites in daylight.", by = "ai" }
+
+[items.yellow-perch]
+label = { text = "Yellow Perch", by = "ai" }
+blurb = { text = "Gold with dark bars down its sides. Mornings and afternoons.", by = "ai" }
+
+[items.black-crappie]
+label = { text = "Black Crappie", by = "ai" }
+blurb = { text = "Silver, speckled black, a mouth like paper. It comes up at dusk and stays up all night.", by = "ai" }
+
+[items.bullhead]
+label = { text = "Bullhead", by = "ai" }
+blurb = { text = "A small brown catfish with whiskers and a grudge. It feeds after dark.", by = "ai" }
+
+[items.largemouth-bass]
+label = { text = "Largemouth Bass", by = "ai" }
+blurb = { text = "Green, a dark stripe down its flank, a jaw past its eye. It hits at dawn and dusk.", by = "ai" }
+
+[items.channel-catfish]
+label = { text = "Channel Catfish", by = "ai" }
+blurb = { text = "Blue-grey, forked tail, eight barbels. It noses the bottom from dusk on.", by = "ai" }
+
+[items.common-carp]
+label = { text = "Common Carp", by = "ai" }
+blurb = { text = "Bronze scales the size of dimes. It ignores worms and takes the berries.", by = "ai" }
+
+[items.ghost-catfish]
+label = { text = "Ghost Catfish", by = "ai" }
+blurb = { text = "A channel cat gone white as bone, older than the Citgo. It only bites at night. Some say the fireflies are there to keep it in.", by = "ai" }
+
 # Bull Valley Dial-Up, the valley on a phone (src/dialmain.ts and the
 # dial* modules): the brand, the modem it opens on, and its screens.
 
@@ -1324,6 +1519,9 @@ stand_blurb = { text = "Your outpost on the spawn Citgo's lot. Banking while you
 recycling = { text = "Recycling Center", by = "ai" }
 recycling_blurb = { text = "Feed your empties to the wreck for research.", by = "ai" }
 recycling_level = { text = "Loose change, level {level} of {top}.", by = "ai" }
+fishing = { text = "Firefly Pond", by = "ai" }
+fishing_blurb = { text = "The tackle box on the landing. Cast from here.", by = "ai" }
+fishing_skill = { text = "Skill {skill}. {caught} of {limit} today.", by = "ai" }
 locker = { text = "Citgo Locker", by = "ai" }
 locker_blurb = { text = "Your stash, the same at every Citgo.", by = "ai" }
 banked = { text = "{amount} banked", by = "ai" }
@@ -1333,6 +1531,11 @@ erwin_blurb = { text = "Barters out of the Golden Wok. No fiat currency.", by = 
 gron_blurb = { text = "Changes your name and your character.", by = "ai" }
 moab_blurb = { text = "Burns under every Citgo sign. Trades for gold.", by = "ai" }
 audio_blurb = { text = "How loud the music and the sounds play, kept on your account.", by = "ai" }
+
+[dialup.fish]
+scene = { text = "You, on the shore of the firefly pond, rod in hand.", by = "ai" }
+angler = { text = "Skill {skill} · {caught}/{limit} today · {worms} worms · {berries} berries · {slurms} slurms · {rod}", by = "ai" }
+no_rod = { text = "no rod", by = "ai" }
 
 [dialup.raider]
 title = { text = "LV {level} · {outfit}", by = "ai" }
@@ -1348,6 +1551,8 @@ task = { text = "Shadows today", by = "ai" }
 book = { text = "Book of Shadows", by = "ai" }
 citgos = { text = "Citgos found", by = "ai" }
 loose_change = { text = "{pct}% · level {level} / {top}", by = "ai" }
+fishing = { text = "Fishing", by = "ai" }
+fishing_value = { text = "{skill} · {caught} / {limit} today", by = "ai" }
 worn = { text = "Wearing", by = "ai" }
 wards = { text = "No wards going.", by = "ai" }
 

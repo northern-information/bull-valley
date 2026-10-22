@@ -22,11 +22,12 @@ const lsd = goodOf('lsd')
 if (!lsd) throw new Error('no LSD')
 
 describe('Erwin von Dutch', () => {
-  it('deals LSD, Adderall and mushrooms, none of them on a Citgo shelf', () => {
+  it('deals LSD, Adderall, mushrooms and the slurm jar, none of them on a Citgo shelf', () => {
     expect(DEALER_GOODS.map((good) => good.kind)).toEqual([
       'lsd',
       'adderall',
       'mushrooms',
+      'slurm-jar',
     ])
     for (const good of DEALER_GOODS) {
       expect(itemById(good.kind)?.price, good.kind).toBeUndefined()

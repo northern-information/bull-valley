@@ -8,6 +8,7 @@ import { knownOf, toFound } from './book.ts'
 import { isLevels } from './buffs.ts'
 import {
   CHAT_COPY,
+  crewChatLine,
   emoteLine,
   joinedLine,
   othersLine,
@@ -18,9 +19,18 @@ import {
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { toCosmetics } from './cosmetics.ts'
+import { crewNews, crewRefusal } from './crews.ts'
 import { DAILY_TASK, taskLine, taskNews, taskOf } from './dailytask.ts'
 import { boughtLine, dealRefusal } from './dealer.ts'
 import { seenEmote } from './emotes.ts'
+import { lineOutOf, toAnglerWire } from './fishing.ts'
+import {
+  anglerNews,
+  catchLine,
+  fishRefusal,
+  jarRefusal,
+  skillUpLine,
+} from './fishlines.ts'
 import {
   friendNews,
   friendRefusal,
@@ -184,6 +194,17 @@ export function wireValley(game: Game, actions: Actions): void {
         return
       case 'party-chat':
         hud.chatLine(partyChatLine(msg), now)
+        return
+      // Rule 35: the crew, its news, and a line said to it.
+      case 'crew':
+        s.crew = { crew: msg.crew, invites: msg.invites }
+        return
+      case 'crew-news':
+        s.pending.crew = null
+        hud.tell(crewNews(msg, game.pick.username))
+        return
+      case 'crew-chat':
+        hud.chatLine(crewChatLine(msg), now)
         return
       case 'pong':
         return
@@ -391,6 +412,9 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(CHAT_COPY.tooFast)
     } else if (msg.re === 'whisper') {
       hud.tell(whisperRefusal(msg.reason, s.pending.whisperTo ?? ''))
+    } else if (msg.re.startsWith('crew-')) {
+      hud.tell(crewRefusal(msg.reason, s.pending.crew ?? ''))
+      s.pending.crew = null
     } else if (
       msg.re === 'invite' ||
       msg.re === 'party-leave' ||
@@ -459,6 +483,21 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.recycle = false
       s.researchSaid = recycleRefusal(msg.reason)
       hud.tell(s.researchSaid)
+    } else if (msg.re === 'jar-slurm') {
+      // Rule 36: gone, out of reach, or no jar with room in it.
+      s.pending.jar = false
+      hud.tell(jarRefusal(msg.reason))
+    } else if (
+      msg.re === 'tackle' ||
+      msg.re === 'dig' ||
+      msg.re === 'cast' ||
+      msg.re === 'reel'
+    ) {
+      // Rule 36. A reel refused has no line left to reel.
+      s.pending.fish = false
+      if (msg.re === 'reel') s.line = null
+      s.fishSaid = fishRefusal(msg.reason)
+      hud.tell(s.fishSaid)
     } else if (msg.re.startsWith('laptop-')) {
       s.laptop?.refused(msg.reason)
     } else if (msg.re === 'portal') {
@@ -581,6 +620,40 @@ export function wireValley(game: Game, actions: Actions): void {
     } else if (msg.type === 'found') {
       // Rule 33: loose change, already in the wallet the pack frame says.
       hud.tell(foundLine(msg.dimes))
+    } else if (msg.type === 'angler') {
+      // Rule 36: the angler as read, or after a dig, the rod or a catch,
+      // to every socket on the account. A dig's and the rod's pack frame
+      // follows.
+      const angler = toAnglerWire(msg.angler)
+      if (angler) s.angler = angler
+      const news = anglerNews(msg)
+      if (!news) return
+      s.pending.fish = false
+      s.fishSaid = news
+      hud.tell(news)
+    } else if (msg.type === 'line') {
+      // Rule 36: the line in the water, as dealt; the dialog plays it.
+      s.pending.fish = false
+      s.fishSaid = null
+      s.line = lineOutOf(msg, performance.now())
+    } else if (msg.type === 'slurm-jarred') {
+      // Rule 36: a slurm off the lot into someone's jar; ours, its pack
+      // frame follows.
+      world.shelves.jarSlurm(msg.station, msg.slot, msg.index)
+      if (msg.by !== net.id) return
+      s.pending.jar = false
+      game.sfx?.play('jar-clink')
+      hud.tell(copy('log.slurm_jarred'))
+    } else if (msg.type === 'catch') {
+      // Rule 36: how the line came out; a landed fish's pack frame
+      // follows.
+      s.pending.fish = false
+      s.line = null
+      s.fishSaid = catchLine(msg)
+      // A fish too big for the skill breaks the line as it comes in.
+      if (msg.outcome === 'snap') game.sfx?.play('line-snap')
+      hud.tell(s.fishSaid)
+      if (msg.up) hud.tell(skillUpLine(msg.skill))
     } else if (msg.type === 'task') {
       // Rule 16: credited with a burn. A reward's pack frame follows.
       if (!applyTask(msg.task)) return

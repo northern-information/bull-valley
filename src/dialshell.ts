@@ -15,11 +15,13 @@ import { dayKey } from './daily.ts'
 import { DialBook, renderPage } from './dialbook.ts'
 import { renderCitgo } from './dialcitgo.ts'
 import { renderExpeditions, tickExpeditions } from './dialexpeditions.ts'
+import { DialFish } from './dialfish.ts'
 import { DialMoab } from './dialmoab.ts'
 import { DialPack, renderLocker } from './dialpack.ts'
 import { DialSocial } from './dialsocial.ts'
 import { raiderStats, wardsNow } from './dialstate.ts'
 import { el, text } from './dom.ts'
+import { rodIn, skillText } from './fishing.ts'
 import { iconSvg } from './icons.ts'
 import { OUTFITS } from './outfits.ts'
 import { barOf } from './progression.ts'
@@ -34,12 +36,14 @@ import type { BookEntry } from './book.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { CitgoActions, CitgoOpen } from './dialcitgo.ts'
 import type { ExpeditionActions } from './dialexpeditions.ts'
+import type { FishActions } from './dialfish.ts'
 import type { LockerOpen, PackActions } from './dialpack.ts'
 import type { SocialActions } from './dialsocial.ts'
 import type { DialState } from './dialstate.ts'
 import type { FinishId } from './finishes.ts'
 import type { ItemThumbs } from './itemthumbs.ts'
 import type { OutfitId } from './outfits.ts'
+import type { PondView } from './pondview.ts'
 import type { SettingsStore } from './settingsui.ts'
 
 export type DialTab = 'lobby' | 'pack' | 'expeditions' | 'social' | 'book'
@@ -69,6 +73,8 @@ interface ShellOptions {
   // Opens the stand's dialog over the shell; Erwin's and Gron's too.
   openStand: () => void
   openRecycle: () => void
+  // Fishing at the firefly pond, from the lobby's sheet (dialfish.ts).
+  fish: FishActions
   openErwin: () => void
   openGron: () => void
   // Buys off a Citgo's shelf, with every Citgo's name once the survey
@@ -101,8 +107,8 @@ export class DialShell {
   private sheetBody: HTMLElement
   private sheetTitle: HTMLElement
   private tab: DialTab = 'lobby'
-  private sheetOpen: 'locker' | 'page' | 'citgo' | 'moab' | 'audio' | null =
-    null
+  private sheetOpen:
+    'locker' | 'page' | 'citgo' | 'moab' | 'audio' | 'fish' | null = null
   // The volume sliders, built once and kept in step with the store.
   private sliders: HTMLElement | null = null
   private lockerOpen: LockerOpen = {
@@ -116,6 +122,11 @@ export class DialShell {
   private book: DialBook
   private social: DialSocial
   private moab: DialMoab | null = null
+  // The firefly pond's sheet, kept across opens with its one canvas, the
+  // scene on it once the 3D has loaded, and what that last showed.
+  private fish: DialFish
+  private pond: PondView | null = null
+  private pondDressed = ''
   private state: DialState | null = null
   // The raider's turntable: one canvas kept across redraws, and what it
   // last showed them in.
@@ -159,6 +170,8 @@ export class DialShell {
     this.pack = new DialPack(options.pack)
     this.book = new DialBook((entry) => this.openPage(entry))
     this.social = new DialSocial(options.social)
+    this.fish = new DialFish(options.fish, options.now)
+    this.fish.onLine = (line) => this.pond?.setLine(line)
     this.portrait = el('div', 'bv-dial-portrait')
     this.avatarCanvas = document.createElement('canvas')
     this.avatarCanvas.className = 'bv-dial-portrait-canvas'
@@ -225,6 +238,10 @@ export class DialShell {
       )
     }
     if (this.sheetOpen === 'moab') this.moab?.update(s)
+    if (this.sheetOpen === 'fish') {
+      this.fish.update(s)
+      this.dressPond(s)
+    }
     this.showSaid(s)
   }
 
@@ -388,6 +405,35 @@ export class DialShell {
     if (this.state) this.render(this.state)
   }
 
+  // The firefly pond in the sheet, the raider fishing it.
+  private openFish(): void {
+    this.sheetOpen = 'fish'
+    this.sheetTitle.textContent = copy('dialup.lobby.fishing')
+    this.sheet.hidden = false
+    this.sheetBody.replaceChildren(this.fish.root)
+    this.fish.open()
+    this.pondDressed = ''
+    if (this.state) this.render(this.state)
+  }
+
+  // The raider at the pond in what they wear, with the rod they fish with.
+  private dressPond(s: DialState): void {
+    const look = {
+      outfit: this.options.outfit,
+      finish: this.options.finish,
+      cosmetics: s.cosmetics,
+    }
+    const rod = rodIn(s.pack)
+    const key = JSON.stringify([look, rod])
+    if (key === this.pondDressed) return
+    this.pondDressed = key
+    void this.load().then((models) => {
+      if (this.sheetOpen !== 'fish' || this.pondDressed !== key) return
+      this.pond ??= models.createPondView(this.fish.canvas)
+      this.pond.show(look, rod)
+    })
+  }
+
   // Moab in the sheet, his portrait turning.
   private openMoab(): void {
     this.sheetOpen = 'moab'
@@ -410,6 +456,10 @@ export class DialShell {
   private closeSheet(): void {
     if (this.sheetOpen === 'page' || this.sheetOpen === 'moab') {
       this.thumbs?.stop()
+    }
+    if (this.sheetOpen === 'fish') {
+      this.fish.close()
+      this.pond?.stop()
     }
     this.moab = null
     this.sheetOpen = null
@@ -472,6 +522,18 @@ export class DialShell {
             })
           : copy('dialup.lobby.recycling_blurb'),
         () => this.options.openRecycle()
+      ),
+      card(
+        'fishing',
+        copy('dialup.lobby.fishing'),
+        s.angler
+          ? copy('dialup.lobby.fishing_skill', {
+              skill: skillText(s.angler.skill),
+              caught: s.angler.caught,
+              limit: s.angler.perDay,
+            })
+          : copy('dialup.lobby.fishing_blurb'),
+        () => this.openFish()
       ),
       card(
         'locker',

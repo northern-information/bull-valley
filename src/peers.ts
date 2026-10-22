@@ -16,6 +16,8 @@ import {
   attachFlashlight,
   buildFigure,
 } from './figure.ts'
+import { BOX_ROD } from './fishing.ts'
+import { buildHeldJar, buildHeldRod } from './heldmodels.ts'
 import { flashlightArm, samplePose, strideOf, stridePose } from './poses.ts'
 import {
   applyHealth,
@@ -30,7 +32,7 @@ import {
 import type { Flashlight } from './assets.ts'
 import type { Figure, Worn } from './figure.ts'
 import type { Peer, PeerTable } from './presence.ts'
-import type { PeerStateWire, PeerWire } from './protocol.ts'
+import type { HeldWire, PeerStateWire, PeerWire } from './protocol.ts'
 
 // The name floats this far above the feet. A figure stands about 1.8 m;
 // in the Flaming Halo, the name floats over the fire.
@@ -61,8 +63,11 @@ export interface PartyMember {
 
 interface Puppet {
   figure: Figure
-  // In the left hand, its own materials: disposed with the label.
+  // In the left hand, its own materials: disposed with the label. The jar
+  // or the rod in its place (held.ts) is built the first time they hold
+  // it, and is theirs alone too.
   flashlight: Flashlight
+  held: { kind: HeldWire; object: THREE.Object3D } | null
   // Their cosmetics, their own too.
   worn: Worn
   label: THREE.Sprite
@@ -142,6 +147,15 @@ export function nameLabel(tag: string): {
   sprite.scale.set(1.2, 0.3, 1)
   sprite.position.y = LABEL_HEIGHT
   return { sprite, texture }
+}
+
+// A peer's name tag: their name and level, and their crew's tag before
+// them when they are in one (sharedworld.ts rule 35).
+function tagOf(peer: Peer): string {
+  const { name, level, crew } = peer
+  return crew
+    ? copy('level.tag_crew', { tag: crew, name, level })
+    : copy('level.tag', { name, level })
 }
 
 export class Peers {
@@ -291,9 +305,13 @@ export class Peers {
       } else {
         applyPose(puppet.figure, samplePose('stand'))
       }
-      // The flashlight up and on, whatever the legs are doing.
-      if (at.light) applyJoints(puppet.figure, flashlightArm(at.pitch))
-      puppet.flashlight.setOn(at.light)
+      // The flashlight up and on, or the jar or the rod held out in its
+      // place, whatever the legs are doing.
+      this.hold(puppet, at.held ?? null)
+      if (at.light || at.held) {
+        applyJoints(puppet.figure, flashlightArm(at.pitch))
+      }
+      puppet.flashlight.setOn(at.light && !at.held)
       puppet.worn.update(this.time)
     }
   }
@@ -306,9 +324,7 @@ export class Peers {
     figure.group.visible = false
     const flashlight = attachFlashlight(figure)
     const worn = attachCosmetics(figure, peer.cosmetics)
-    const { sprite, texture } = nameLabel(
-      copy('level.tag', { name: peer.name, level: peer.level })
-    )
+    const { sprite, texture } = nameLabel(tagOf(peer))
     if (peer.cosmetics.includes('flaming-halo')) {
       sprite.position.y = LABEL_OVER_HALO
     }
@@ -321,6 +337,7 @@ export class Peers {
     this.puppets.set(peer.id, {
       figure,
       flashlight,
+      held: null,
       worn,
       label: sprite,
       texture,
@@ -328,6 +345,22 @@ export class Peers {
       cycle: 0,
       at: null,
     })
+  }
+
+  // What a peer's left fist holds: the flashlight, or the jar or a rod in
+  // its place. Which rod is not sent; every peer's is the box's.
+  private hold(puppet: Puppet, held: HeldWire | null): void {
+    puppet.flashlight.group.visible = held === null
+    if ((puppet.held?.kind ?? null) === held) return
+    if (puppet.held) {
+      puppet.held.object.removeFromParent()
+      disposeTree(puppet.held.object)
+    }
+    puppet.held = null
+    if (!held) return
+    const object = held === 'jar' ? buildHeldJar(1) : buildHeldRod(BOX_ROD, 1)
+    puppet.figure.fists.L.add(object)
+    puppet.held = { kind: held, object }
   }
 
   // The figure's geometry and materials are shared with every other figure
@@ -339,6 +372,7 @@ export class Peers {
     this.scene.remove(puppet.figure.group)
     // The flashlight's lens glow texture is shared; nothing else of it is.
     disposeTree(puppet.flashlight.group)
+    if (puppet.held) disposeTree(puppet.held.object)
     puppet.worn.dispose()
     puppet.label.material.dispose()
     puppet.texture.dispose()

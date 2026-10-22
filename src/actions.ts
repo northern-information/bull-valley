@@ -26,6 +26,7 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { emptied, fallen, isEmpty, spilledDimes } from './corpses.ts'
 import { affords, cosmeticById, gainedOf, tradeRefusal } from './cosmetics.ts'
+import { crewLines, crewNamed } from './crews.ts'
 import { stepIndex } from './cycle.ts'
 import { openDealDialog } from './dealdialog.ts'
 import { ramble } from './dealer.ts'
@@ -39,7 +40,10 @@ import {
   QUARTERS,
 } from './drops.ts'
 import { finishById } from './finishes.ts'
+import { openFishDialog } from './fishdialog.ts'
+import { inPond } from './fishing.ts'
 import { openGronDialog } from './grondialog.ts'
+import { baitFor, nextTool } from './held.ts'
 import { assign, clearSlot as clearHotbarSlot, place, spent } from './hotbar.ts'
 import { befriended, partied } from './inspect.ts'
 import { openInspectDialog } from './inspectdialog.ts'
@@ -75,7 +79,7 @@ import { planLeg } from './truckplan.ts'
 import { dose, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
 import { charterable } from './worldsync.ts'
-import type { ChatCommand } from './chat.ts'
+import type { ChatCommand, CrewFrame } from './chat.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { EmoteId } from './emotes.ts'
@@ -220,6 +224,11 @@ export interface Actions {
   endCharter(to?: XZ | null): void
   // The left button: the flashlight up and on, or down and off.
   toggleFlashlight(): void
+  // The left click: what the left hand holds, used (held.ts).
+  useHeld(): void
+  // R or the wheel: the next thing carried into the left hand (`step`
+  // -1: the one before).
+  switchHeld(step?: 1 | -1): void
   // The pickup is ours: into the pack.
   applyTake(pickup: Pickup): void
   // Someone else got it.
@@ -695,6 +704,113 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
   }
 
+  // A frame to the valley about fishing, the last word on one cleared.
+  const askFish = (msg: Parameters<typeof net.send>[0]) => {
+    s.pending.fish = true
+    s.fishSaid = null
+    net.send(msg)
+  }
+  // The line the click cast: the fish reeled in or let go, and the line
+  // that came up empty, as the fight over the view plays it (fishhud.ts).
+  game.fishHud.onReel = (landed) => askFish({ type: 'reel', landed })
+  game.fishHud.onSound = (id) => game.sfx?.play(id)
+  game.fishHud.onEmpty = (said) => {
+    s.line = null
+    s.fishSaid = said
+    hud.tell(said)
+  }
+
+  // E at the tackle box on the firefly pond's landing: the angler, a rod
+  // and the dig, and the bait the rod casts with, the pointer free for it
+  // as at the stand. The angler is the account's (rule 36): the dialog
+  // asks the valley for it as it opens; the angler frames that answer
+  // show in it as they land. The cast is the click's, with the rod in hand.
+  const fish = () => {
+    if (s.talking || !s.world) return
+    s.fishSaid = null
+    net.send({ type: 'angler' })
+    withDialog(() =>
+      openFishDialog({
+        angler: () => s.angler,
+        pack: () => s.inventory,
+        bait: () => baitFor(s.bait, s.inventory),
+        pending: () => s.pending.fish,
+        said: () => s.fishSaid,
+        serverNow: () => net.clock.serverNow(performance.now()),
+        onTackle: () => askFish({ type: 'tackle' }),
+        onDig: () => {
+          game.sfx?.play('dig')
+          askFish({ type: 'dig' })
+        },
+        onBait: (bait) => {
+          s.bait = bait
+        },
+      })
+    )
+  }
+
+  // The click with the rod in hand: a line out answered (fishhud.ts), or
+  // a cast from the bank of a firefly pond with the bait picked at the
+  // tackle box. The valley deals what bites (rule 36).
+  const castOrReel = () => {
+    if (game.fishHud.click() || s.line || s.pending.fish) return
+    if (
+      !inPond(
+        world.ponds.map((pond) => pond.place),
+        player.pos
+      )
+    ) {
+      hud.tell(copy('log.fish_far'))
+      return
+    }
+    const bait = baitFor(s.bait, s.inventory)
+    if (!bait) {
+      hud.tell(copy('log.fish_no_bait'))
+      return
+    }
+    // The raider stands to the line, and the rod swings.
+    player.keys.clear()
+    s.castAt = s.time
+    game.sfx?.play('rod-cast')
+    askFish({ type: 'cast', bait })
+  }
+
+  // The click with the jar in hand: the slurm it is aimed at, if any in
+  // reach (rule 36). The valley says whether it was still there to catch.
+  const jarSlurm = () => {
+    const aim = s.interaction
+    if (aim?.kind !== 'jar-slurm' || s.pending.jar) return
+    s.pending.jar = true
+    const { station, slot, index } = aim
+    net.send({ type: 'jar-slurm', station, slot, index })
+  }
+
+  // The left click: whatever the left hand holds, used.
+  const useHeld = () => {
+    if (s.aboard) return
+    switch (s.held) {
+      case 'flashlight':
+        toggleFlashlight()
+        return
+      case 'jar':
+        jarSlurm()
+        return
+      case 'rod':
+        castOrReel()
+    }
+  }
+
+  // R or the wheel: the next thing carried into the left hand, raised
+  // into view. A
+  // line in the water is given up as the rod is put away.
+  const switchHeld = (step: 1 | -1 = 1) => {
+    const next = nextTool(s.held, s.inventory, step)
+    if (next === s.held) return
+    if (s.held === 'rod') game.fishHud.giveUp()
+    s.held = next
+    s.flashlight = { up: next !== 'flashlight', lift: 0 }
+  }
+
   // E beside Erwin von Dutch, the squatter in the plaza: what he deals
   // and what he wants for it, and his quest, in a dialog with the pointer
   // free, as at the stand (rules 25 and 26).
@@ -1168,6 +1284,13 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'recycle':
         recycle()
         return
+      case 'fish':
+        fish()
+        return
+      // The click's, with the jar or the rod in hand (useHeld).
+      case 'jar-slurm':
+      case 'cast':
+        return
       case 'deal':
         openDeal()
         return
@@ -1268,6 +1391,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'party':
         for (const line of partyLines(s.party)) hud.tell(line)
         return
+      case 'crew':
+        for (const line of crewLines(s.crew)) hud.tell(line)
+        return
     }
     if (!net.online) {
       hud.tell(CHAT_COPY.offline)
@@ -1299,7 +1425,20 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'partySay':
         net.send({ type: 'party-chat', text: command.text })
         return
+      case 'crewFrame':
+        sendCrew(command.frame)
+        return
     }
+  }
+
+  // Rule 35: a crew frame, with what it named kept for a refusal's line.
+  const sendCrew = (frame: CrewFrame) => {
+    if (!net.online) {
+      hud.tell(CHAT_COPY.offline)
+      return
+    }
+    s.pending.crew = crewNamed(frame)
+    net.send(frame)
   }
 
   // Rule 34: an invite to the party, or theirs taken up; the valley's
@@ -1349,6 +1488,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
           net.send({ type: 'friend', name })
           if (s.inspected) s.inspected = befriended(s.inspected)
         },
+        onCrew: (name) => sendCrew({ type: 'crew-invite', name }),
         onParty: (name) => {
           if (!net.online) {
             hud.tell(CHAT_COPY.offline)
@@ -1559,6 +1699,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     endCharter,
     applyDropTaken,
     toggleFlashlight,
+    useHeld,
+    switchHeld,
     applyTake,
     markTaken,
     markUntaken,

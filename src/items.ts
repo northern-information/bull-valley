@@ -11,7 +11,7 @@
 //   id        inventory kind and mesh key
 //   category  'cigarette' | 'joint' | 'psychedelic' | 'stimulant' |
 //             'drink' | 'medicine' | 'forage' | 'valuable' | 'material' |
-//             'key-item'
+//             'fish' | 'rod' | 'key-item'
 //   start     count in a new inventory
 //   contents  how many the pack, bottle or box holds (1 when absent); the
 //             inventory counts these, and a buy or a pickup adds a full one
@@ -124,6 +124,21 @@ interface Material extends ItemBase {
   price?: undefined
 }
 
+// Never on a shelf and of no use but to sell: what the firefly pond gives
+// up (fishing.ts, sharedworld.ts rule 36). Erwin von Dutch takes it in
+// barter at `worth` cents a fish (dealer.ts unitWorth).
+interface Fish extends ItemBase {
+  category: 'fish'
+  price?: undefined
+  worth: number
+}
+
+// On the rod rack in every Citgo, and of no use but at the pond: a rod
+// better than the tackle box's (fishing.ts RODS holds how much better).
+interface Rod extends ItemBase, Shelf {
+  category: 'rod'
+}
+
 // What a quest gives or asks for (quests.ts), and the keys, which open
 // their locks for whoever carries them (keys.ts): never used up, never
 // dropped and never stowed in the locker; a strike leaves them in the pack
@@ -143,6 +158,8 @@ export type Item =
   | Forage
   | Valuable
   | Material
+  | Fish
+  | Rod
   | KeyItem
 
 export type ItemCategory = Item['category']
@@ -476,6 +493,21 @@ export const ITEMS = [
     category: 'forage',
     start: 0,
   },
+  // Dug out of the mud bank at the firefly pond, a few at a time: the bait
+  // most fish there take (fishing.ts). The berries are the carp's.
+  {
+    id: 'nightcrawlers',
+    category: 'forage',
+    start: 0,
+  },
+  // Caught off a Citgo's lot in Erwin von Dutch's jar before David
+  // Carlsten's bat gets to them (sharedworld.ts rule 36): the shadow
+  // carp's bait, and nothing else's.
+  {
+    id: 'slurm',
+    category: 'forage',
+    start: 0,
+  },
   // Valuables. Not for sale and of no use, but Moab Coldë takes them in
   // trade (cosmetics.ts). One unit is one troy ounce.
   {
@@ -500,6 +532,23 @@ export const ITEMS = [
     category: 'material',
     start: 0,
   },
+  // Fish (Fish above), off the firefly pond (fishing.ts FISH holds each
+  // one's level, size and what it bites on), the smallest first.
+  { id: 'bluegill', category: 'fish', start: 0, worth: 150 },
+  { id: 'pumpkinseed', category: 'fish', start: 0, worth: 200 },
+  { id: 'yellow-perch', category: 'fish', start: 0, worth: 300 },
+  { id: 'black-crappie', category: 'fish', start: 0, worth: 450 },
+  { id: 'bullhead', category: 'fish', start: 0, worth: 500 },
+  { id: 'largemouth-bass', category: 'fish', start: 0, worth: 900 },
+  { id: 'channel-catfish', category: 'fish', start: 0, worth: 1200 },
+  { id: 'common-carp', category: 'fish', start: 0, worth: 1400 },
+  { id: 'ghost-catfish', category: 'fish', start: 0, worth: 9000 },
+  { id: 'shadow-carp', category: 'fish', start: 0, worth: 4000 },
+  // Rods (Rod above), on the rack by the side wall in every Citgo, the
+  // cheapest first.
+  { id: 'zebco-33', category: 'rod', start: 0, price: 5000 },
+  { id: 'ugly-stik', category: 'rod', start: 0, price: 10000 },
+  { id: 'g-loomis', category: 'rod', start: 0, price: 100000 },
   // Key items (KeyItem above).
   {
     id: 'rose',
@@ -508,6 +557,20 @@ export const ITEMS = [
   },
   {
     id: 'vault-key',
+    category: 'key-item',
+    start: 0,
+  },
+  // Out of the tackle box on the firefly pond's landing, one an account
+  // (sharedworld.ts rule 36): nothing bites without it.
+  {
+    id: 'fishing-rod',
+    category: 'key-item',
+    start: 0,
+  },
+  // Erwin von Dutch's jar (dealer.ts): a slurm goes in it alive. Each one
+  // carried holds CONFIG.fishing.jar.holds of them.
+  {
+    id: 'slurm-jar',
     category: 'key-item',
     start: 0,
   },
@@ -568,6 +631,14 @@ export const KEY_ITEM_IDS: readonly string[] = ITEMS.filter(
   (item) => item.category === 'key-item'
 ).map((item) => item.id)
 
+export function isRod(id: string): boolean {
+  return itemById(id)?.category === 'rod'
+}
+
+export function isFish(id: string): boolean {
+  return itemById(id)?.category === 'fish'
+}
+
 export function isMedicine(id: string): boolean {
   return itemById(id)?.category === 'medicine'
 }
@@ -589,6 +660,8 @@ export function isUsable(id: string): boolean {
     case 'forage':
     case 'valuable':
     case 'material':
+    case 'fish':
+    case 'rod':
     case 'key-item':
       return false
   }

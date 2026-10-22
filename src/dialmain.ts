@@ -39,6 +39,7 @@ import { CLOSE } from './protocol.ts'
 import { dealerStep, roseLine, roseProgress } from './quests.ts'
 import { openRecycleDialog } from './recycledialog.ts'
 import { createSettingsStore } from './settingsui.ts'
+import { createSfx } from './sfxrig.ts'
 import { mountAccountStep } from './signin.ts'
 import { SILENT } from './silent.ts'
 import { openStandDialog } from './standdialog.ts'
@@ -46,6 +47,7 @@ import { mountTapBurst } from './tapfeedback.ts'
 import type { DialState, Pending } from './dialstate.ts'
 import type { Geo } from './interfaces.ts'
 import type { ClientMessage } from './protocol.ts'
+import type { SfxId } from './sfx.ts'
 
 // The phone's own name and colours, for adding it to the home screen.
 function brand(): void {
@@ -106,7 +108,18 @@ async function boot(): Promise<void> {
       })
     },
   })
+  // Fishing's sounds (sfx.ts), in the head as the 3D valley hears them, at
+  // the account's sound volume; none on a silent page. The rig wakes on
+  // the first, which a tap has always just armed.
+  const sfx = SILENT ? null : createSfx()
+  const fishSound = (id: SfxId) => {
+    if (!sfx) return
+    sfx.update({ started: true, setting: settings.current.sfx })
+    sfx.play(id)
+  }
   net.on((msg) => {
+    // Rule 36: a fish too big for the skill breaks the line coming in.
+    if (msg.type === 'catch' && msg.outcome === 'snap') fishSound('line-snap')
     if (msg.type === 'welcome') {
       modem.connected()
       // Without the survey a Citgo found goes unnamed in the log.
@@ -120,6 +133,7 @@ async function boot(): Promise<void> {
       // lobby's Recycling Center card and the raider's record (rule 33).
       net.send({ type: 'friends' })
       net.send({ type: 'research' })
+      net.send({ type: 'angler' })
     }
     const next = applyFrame(state, msg, performance.now(), Date.now())
     // A frame that changes nothing the phone shows (a pong, a peer's
@@ -178,6 +192,7 @@ async function boot(): Promise<void> {
               state = { ...state, inspected: befriended(state.inspected) }
             }
           },
+          onCrew: (name) => send({ type: 'crew-invite', name }, { crew: name }),
           onParty: (name) => {
             send({ type: 'invite', name }, { invite: name })
             if (net.online && state.inspected) {
@@ -337,6 +352,8 @@ async function boot(): Promise<void> {
       inspect: (name) => send({ type: 'inspect', name }, { inspect: name }),
       invite: (name) => send({ type: 'invite', name }, { invite: name }),
       leave: () => send({ type: 'party-leave' }, {}),
+      crewJoin: (tag) => send({ type: 'crew-join', tag }, { crew: tag }),
+      crewLeave: () => send({ type: 'crew-leave' }, {}),
     },
     openStand: () => {
       void openStandDialog({
@@ -352,6 +369,19 @@ async function boot(): Promise<void> {
         onCollect: () => send({ type: 'stand-collect' }, { stand: true }),
         onUpgrade: () => send({ type: 'stand-upgrade' }, { stand: true }),
       }).then(() => shell?.render(state))
+    },
+    // Rule 29: dialed in, the firefly pond is wherever the phone is, as the
+    // stand is (rule 36), drawn in the lobby's sheet (dialfish.ts).
+    fish: {
+      tackle: () => send({ type: 'tackle' }, { fish: true }),
+      dig: () => send({ type: 'dig' }, { fish: true }),
+      cast: (bait) => send({ type: 'cast', bait }, { fish: true }),
+      reel: (landed) => send({ type: 'reel', landed }, { fish: true }),
+      sound: fishSound,
+      empty: (said) => {
+        state = { ...state, line: null }
+        say(said)
+      },
     },
     // Rule 29: dialed in, the wreck is wherever the phone is.
     openRecycle: () => {

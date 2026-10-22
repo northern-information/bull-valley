@@ -16,6 +16,7 @@ describe('freshPending', () => {
     before.whisperTo = 'dave'
     before.inspect = 'dave'
     before.invite = 'dave'
+    before.crew = 'dave'
     before.trade = true
     before.collect = true
     before.stand = true
@@ -33,9 +34,12 @@ describe('freshPending', () => {
       showFriends: false,
       inspect: null,
       invite: null,
+      crew: null,
       whisperTo: null,
       stand: false,
       recycle: false,
+      fish: false,
+      jar: false,
     })
     expect(fresh.takes).not.toBe(before.takes)
     expect(before.takes.has(3)).toBe(true)

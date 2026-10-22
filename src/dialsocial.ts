@@ -8,6 +8,7 @@
 
 import { formatStamp } from './chat.ts'
 import { copy } from './copy.ts'
+import { crewLines } from './crews.ts'
 import { el, text } from './dom.ts'
 import { friendLines } from './friends.ts'
 import { CHAT_MAX } from './protocol.ts'
@@ -21,6 +22,8 @@ export interface SocialActions {
   inspect(name: string): void
   invite(name: string): void
   leave(): void
+  crewJoin(tag: string): void
+  crewLeave(): void
 }
 
 export class DialSocial {
@@ -31,6 +34,7 @@ export class DialSocial {
   private friends = el('section', 'bv-dial-friends')
   private online = el('section', 'bv-dial-online')
   private party = el('section', 'bv-dial-party')
+  private crew = el('section', 'bv-dial-crew')
   // The newest line drawn, so the log redraws only when one comes.
   private newest: ChatLine | undefined
   private friendActions: SocialActions
@@ -76,15 +80,21 @@ export class DialSocial {
       this.log.scrollTop = this.log.scrollHeight
     }
     this.renderParty(s)
+    this.renderCrew(s)
     this.renderFriends(s)
     this.online.replaceChildren(
       text('h3', copy('dialup.social.online'), 'bv-dial-social-head'),
       ...[{ ...self, dialup: true }, ...s.peers].map((p) => {
+        // Rule 35: the crew's tag before the name, as on a name tag.
+        const name =
+          'crew' in p && p.crew
+            ? copy('crew.heading_line', { tag: p.crew, crew: p.name })
+            : p.name
         const row = text(
           'button',
           p.dialup
-            ? copy('chat.online_phone', { name: p.name, level: p.level })
-            : copy('chat.online_name', { name: p.name, level: p.level }),
+            ? copy('chat.online_phone', { name, level: p.level })
+            : copy('chat.online_name', { name, level: p.level }),
           'bv-dial-online-name'
         )
         row.type = 'button'
@@ -135,6 +145,45 @@ export class DialSocial {
     }
     this.party.replaceChildren(
       text('h3', copy('party.heading'), 'bv-dial-social-head'),
+      ...rows
+    )
+  }
+
+  // Rule 35: the crew's name and members and a way out, or the invites
+  // waiting with Join, or the way to start one.
+  private renderCrew(s: DialState): void {
+    const { crew, invites } = s.crew
+    const rows: HTMLElement[] = crewLines(s.crew)
+      .slice(0, crew ? 2 : 1)
+      .map((line) => text('p', line, 'bv-dial-crew-line'))
+    if (crew) {
+      const leave = text('button', copy('crew.leave_button'), 'bv-dial-btn')
+      leave.type = 'button'
+      leave.addEventListener('click', () => this.friendActions.crewLeave())
+      rows.push(leave)
+    }
+    for (const invite of crew ? [] : invites) {
+      const row = el('div', 'bv-dial-friend')
+      row.dataset.crewInvite = invite.tag
+      row.append(
+        text(
+          'span',
+          copy('crew.invite_waiting', { tag: invite.tag, crew: invite.name }),
+          'bv-dial-friend-line'
+        )
+      )
+      const join = text('button', copy('crew.join_button'), 'bv-dial-btn')
+      join.type = 'button'
+      // One crew frame at a time: the valley's answer frees them again.
+      join.disabled = s.pending.crew !== null
+      join.addEventListener('click', () =>
+        this.friendActions.crewJoin(invite.tag)
+      )
+      row.append(join)
+      rows.push(row)
+    }
+    this.crew.replaceChildren(
+      text('h3', copy('crew.heading'), 'bv-dial-social-head'),
       ...rows
     )
   }

@@ -236,6 +236,22 @@ const SIGN_DEPTH = 0.04
 // The rack on the +Z wall beside the counter: medicine, at eye height.
 const MED_RACK = { x0: -12.6, x1: -9.6, height: 1.15, depth: 0.3 }
 const MED_RACK_Z = HALF_WIDTH - WALL - MED_RACK.depth / 2
+// The rod rack on the -Z wall, between the back doorway and the beer sign:
+// a floor stand in the counter's wood, a base with a hole a rod, and a
+// rail at `rail` the rods lean in, upright, a kind to a run, `gap` apart
+// and `between` more between kinds (fishing.ts RODS, sharedworld.ts rule
+// 35). Each rod stands on the base, its middle `mid` over it.
+const ROD_RACK = {
+  x0: -12.1,
+  x1: -10.5,
+  depth: 0.28,
+  base: 0.1,
+  rail: 1.25,
+  gap: 0.15,
+  between: 0.12,
+  mid: 0.92,
+}
+const ROD_RACK_Z = -HALF_WIDTH + WALL + ROD_RACK.depth / 2
 
 const BOARD_LENGTH = BOARD.z1 - COOLER_Z0
 const BOARD_Z = (COOLER_Z0 + BOARD.z1) / 2
@@ -765,6 +781,32 @@ function buildBoxes(): StoreBox[] {
       'shelf',
       true
     ),
+    // The rod rack: its base blocks, the rail and the uprights are trim.
+    box(
+      'rod-rack-base',
+      [(ROD_RACK.x0 + ROD_RACK.x1) / 2, FLOOR + ROD_RACK.base / 2, ROD_RACK_Z],
+      [ROD_RACK.x1 - ROD_RACK.x0, ROD_RACK.base, ROD_RACK.depth],
+      'counter',
+      true
+    ),
+    box(
+      'rod-rack-rail',
+      [(ROD_RACK.x0 + ROD_RACK.x1) / 2, ROD_RACK.rail, ROD_RACK_Z],
+      [ROD_RACK.x1 - ROD_RACK.x0, SHELF_BOARD, ROD_RACK.depth],
+      'counter'
+    ),
+    ...[ROD_RACK.x0, ROD_RACK.x1].map((x, i) =>
+      box(
+        `rod-rack-end-${i}`,
+        [
+          x + (i === 0 ? 1 : -1) * (SHELF_BOARD / 2),
+          (FLOOR + ROD_RACK.rail) / 2,
+          ROD_RACK_Z,
+        ],
+        [SHELF_BOARD, ROD_RACK.rail - FLOOR, ROD_RACK.depth],
+        'counter'
+      )
+    ),
   ]
   LIGHT.rows.forEach((x, r) => {
     LIGHT.along.forEach((z, a) => {
@@ -1007,6 +1049,21 @@ function buildFacings(): Facing[] {
       yaw: Math.PI,
     })
   })
+  // The rod rack: the rods in ITEMS order from the back doorway toward
+  // the front, upright, each slot at the middle of its blank (fishmodels.ts
+  // buildRackRod), its reel to the room (+Z).
+  const rods = ITEMS.filter((item) => item.category === 'rod')
+  let x = ROD_RACK.x0 + ROD_RACK.between
+  for (const item of rods) {
+    const slots: Vec3[] = []
+    for (let i = 0; i < unitsOf(item.id); i++) {
+      slots.push([x, FLOOR + ROD_RACK.base + ROD_RACK.mid, ROD_RACK_Z])
+      x += ROD_RACK.gap
+    }
+    x += ROD_RACK.between
+    facings.push({ kind: item.id, slots, yaw: 0 })
+  }
+  if (x - ROD_RACK.gap > ROD_RACK.x1) throw new Error('the rod rack is full')
   return facings
 }
 
