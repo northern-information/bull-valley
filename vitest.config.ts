@@ -95,6 +95,7 @@ const THREE_AND_DOM = [
   'main',
   'mainmenu',
   'mallart',
+  'maskart',
   'mazeart',
   'medart',
   'medicinemodels',
