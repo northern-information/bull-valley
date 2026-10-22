@@ -47,6 +47,7 @@ import { createSfx } from './sfxrig.ts'
 import { ShadowBodies } from './shadowbodies.ts'
 import { ShadowBursts } from './shadowburst.ts'
 import { SILENT } from './silent.ts'
+import { mountTapRipple } from './tapfeedback.ts'
 import { createTargets } from './targets.ts'
 import {
   buildTerrainMesh,
@@ -102,6 +103,8 @@ async function boot() {
   // The raider's settings: the menu's Audio and the pause overlay share
   // them, and the music reads them every frame.
   const settings = createSettingsStore()
+  // Every click on a button presses in, ripples and ticks (tapfeedback.ts).
+  mountTapRipple(() => settings.current.sfx)
   // The valley's music, from the main menu on. A silent page (silent.ts)
   // is never heard.
   const music = SILENT ? null : createMusic()
