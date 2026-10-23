@@ -1007,10 +1007,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     })
   }
 
-  // E on a shelf unit, or at Carlsten behind the counter: the Citgo's
-  // shelves in the trade window, with the pointer free, as at Erwin's and
-  // Moab's (rule 7). The unit looked at is picked.
-  const openShop = (station: number, pick: ShelfSpot | null) => {
+  // E at Carlsten behind the counter: the Citgo's shelves in the trade
+  // window, with the pointer free, as at Erwin's and Moab's (rule 7). E on
+  // a shelf unit skips the window and buys it (rule 13's exception: a
+  // unit in hand is already picked and priced, so jamming E stocks up).
+  const openShop = (station: number) => {
     if (s.talking) return
     s.talking = true
     s.shopSaid = null
@@ -1019,7 +1020,6 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     void openShopDialog({
       name: citgoLabel(station),
       says: npcLine('carlsten', s.npcSaid.carlsten++),
-      pick: pick && { kind: pick.item, unit: pick.unit },
       shelf: () => (s.world ? (s.storeStock[station] ?? null) : null),
       cash: () => s.cash,
       pending: () => s.pending.buys.size > 0,
@@ -1361,7 +1361,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         takePickup(interaction.pickup)
         return
       case 'buy':
-        openShop(interaction.station, interaction)
+        buy(interaction)
         return
       case 'collect':
         collectBerry(interaction.bush, interaction.status)
@@ -1377,7 +1377,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
           interaction.npc === 'carlsten' &&
           interaction.station !== undefined
         ) {
-          openShop(interaction.station, null)
+          openShop(interaction.station)
           return
         }
         speakTo(interaction.npc)

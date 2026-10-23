@@ -1,11 +1,11 @@
 // A Citgo's shelves (sharedworld.ts rules 7 and 29): the trade window
-// (tradewindow.ts), kept by David Carlsten, opened with E on a shelf unit
-// or at him behind the counter, and from Dial-Up's Citgo sheet for any
-// Citgo the account has stood at. The Citgo takes cash, so your side is
-// the wallet; his side is every kind on the shelves (shop.ts shelfRows),
-// each at its shelf price with how many are left today. A trade buys one
-// unit: the one picked in the valley while it is still on the shelf,
-// else the first; the valley settles it.
+// (tradewindow.ts), kept by David Carlsten, opened with E at him behind
+// the counter, and from Dial-Up's Citgo sheet for any Citgo the account
+// has stood at. (E on a shelf unit buys it outright, no window:
+// actions.ts.) The Citgo takes cash, so your side is the wallet; his side
+// is every kind on the shelves (shop.ts shelfRows), each at its shelf
+// price with how many are left today. A trade buys one unit, the first
+// still on the shelf; the valley settles it.
 
 import { copy } from './copy.ts'
 import { itemLabel } from './itemcopy.ts'
@@ -19,9 +19,6 @@ interface ShopDialogOptions {
   // opens.
   name: string
   says: string
-  // The kind picked as it opens, and the unit of it the raider looked
-  // at, or null.
-  pick: { kind: string; unit: number | null } | null
   // Read again every tick: the shelves as the valley last sent them (null
   // with no valley), the wallet, whether a buy is still unanswered, and
   // the last word on one.
@@ -69,19 +66,14 @@ export function openShopDialog(options: ShopDialogOptions): Promise<void> {
     worthOf: () => 0,
     cash: options.cash,
     format: formatCash,
-    pick: options.pick?.kind ?? null,
+    pick: null,
     open: () => options.shelf() !== null,
     pack: () => ({}),
     pending: options.pending,
     said: options.said,
     icon: options.icon,
     onTrade: (kind) => {
-      const shelf = options.shelf()
-      const looked = options.pick?.kind === kind ? options.pick.unit : null
-      const unit =
-        looked !== null && shelf?.[kind]?.[looked]
-          ? looked
-          : (rowOf(kind)?.unit ?? null)
+      const unit = rowOf(kind)?.unit ?? null
       if (unit !== null) options.onBuy(kind, unit)
     },
   })
