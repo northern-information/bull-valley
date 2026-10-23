@@ -1083,8 +1083,9 @@ export const CONFIG = {
       // How close the landing must be for E to open the tackle box.
       reach: 3,
     },
-    // The highest skill, in tenths (100.0).
-    skillCap: 1000,
+    // The skill has no top. Once no fish stands over it, every fish landed
+    // raises it a tenth at this chance.
+    pastTopChance: 0.04,
     // What bites, by how well a fish takes the bait (fishing.ts FISH
     // `bait`, a tier 0 to 3): each tier's weight in the draw, and the
     // weight of nothing biting at all.

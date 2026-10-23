@@ -197,7 +197,7 @@ export function reachOf(skill: number, rod: string): number {
 // --- The angler --------------------------------------------------------
 
 // One account's fishing, kept by the valley (Valley.anglers): its skill in
-// tenths of a level (0 to CONFIG.fishing.skillCap), the Central day its
+// tenths of a level (0 on, without end), the Central day its
 // count belongs to and how many it has taken off the line that day, and
 // when it may next dig the mud bank (valley ms).
 export interface Angler {
@@ -596,10 +596,19 @@ export function landOf(
   return fish.size === 'large' ? 'snap' : 'skill'
 }
 
+// The highest level any fish stands at.
+const TOP_FISH = Math.max(...FISH.filter((f) => !f.junk).map((f) => f.level))
+
 // The chance a landed fish raises the skill: only one over it, and no
 // more than fifty over; most often about eleven over, and never under 4%;
-// a beginner's a little more often.
-export function skillUpChance(level: number, skill: number): number {
+// a beginner's a little more often. Past every fish, any fish landed
+// raises it at CONFIG.fishing.pastTopChance, so it never stops.
+export function skillUpChance(
+  level: number,
+  skill: number,
+  cfg: FishingConfig = CONFIG.fishing
+): number {
+  if (skillLevel(skill) >= TOP_FISH) return cfg.pastTopChance
   const gap = level - skillLevel(skill)
   if (gap <= 0 || gap > 50) return 0
   const bell = 0.6 * Math.exp(-((gap - 11) ** 2) / (2 * 5 ** 2))
@@ -609,7 +618,7 @@ export function skillUpChance(level: number, skill: number): number {
 
 // The skill after landing `kind`, on the valley's two rolls: a tenth up on
 // the first, and, ten levels or more over, up to two tenths more on the
-// second. Junk raises nothing; the cap holds.
+// second. Junk raises nothing; there is no cap.
 export function skillAfter(
   kind: string,
   skill: number,
@@ -619,10 +628,10 @@ export function skillAfter(
 ): number {
   const fish = catchableOf(kind)
   if (!fish || fish.junk) return skill
-  if (roll >= skillUpChance(fish.level, skill)) return skill
+  if (roll >= skillUpChance(fish.level, skill, cfg)) return skill
   const gap = fish.level - skillLevel(skill)
   const more = gap >= 10 ? Math.floor(bonus * 3) : 0
-  return Math.min(cfg.skillCap, skill + 1 + more)
+  return skill + 1 + more
 }
 
 // --- The jar -----------------------------------------------------------

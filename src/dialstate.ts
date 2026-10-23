@@ -25,7 +25,6 @@ import {
   whisperLine,
 } from './chat.ts'
 import { citgoLines, NO_CITGOS } from './citgos.ts'
-import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import {
   cosmeticById,
@@ -941,7 +940,8 @@ export function raiderStats(s: DialState, day: string): RaiderStat[] {
         caught: s.angler.caught,
         limit: s.angler.perDay,
       }),
-      share: s.angler.skill / CONFIG.fishing.skillCap,
+      // The skill has no top: the bar fills toward the next whole level.
+      share: (s.angler.skill % 10) / 10,
     })
   }
   if (worn.length > 0) {

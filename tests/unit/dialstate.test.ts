@@ -178,7 +178,7 @@ describe("Dial-Up's state", () => {
         caught: 1,
         limit: 40,
       }),
-      share: 12 / CONFIG.fishing.skillCap,
+      share: 0.2,
     })
     s = applyFrame(
       asked(s, { fish: true }),
