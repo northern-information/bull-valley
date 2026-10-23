@@ -204,10 +204,7 @@ test('opens the Recycling Center from anywhere, its level on the card', async ({
   await dialIn(page)
   const card = page.locator('.bv-dial-card[data-card="recycling"]')
   await expect(card).toContainText(
-    copy('dialup.lobby.recycling_level', {
-      level: 0,
-      top: CONFIG.recycling.lines.dimes.length,
-    })
+    copy('dialup.lobby.recycling_level', { level: 0 })
   )
   await card.click()
   await expect(page.locator('.bv-recycle')).toBeVisible()

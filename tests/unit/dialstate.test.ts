@@ -179,7 +179,7 @@ describe("Dial-Up's state", () => {
         caught: 1,
         limit: 40,
       }),
-      share: 12 / CONFIG.fishing.skillCap,
+      share: 0.2,
     })
     s = applyFrame(
       asked(s, { fish: true }),
@@ -269,9 +269,8 @@ describe("Dial-Up's state", () => {
       value: copy('dialup.raider.loose_change', {
         pct: Math.round(CONFIG.recycling.lines.dimes[1].chance * 100),
         level: 2,
-        top: CONFIG.recycling.lines.dimes.length,
       }),
-      share: 2 / CONFIG.recycling.lines.dimes.length,
+      share: CONFIG.recycling.lines.dimes[1].chance,
     })
     s = applyFrame(
       asked(s, { recycle: true }),
@@ -424,7 +423,7 @@ describe("the raider's record", () => {
     expect(record(s, 'e').task.share).toBe(0)
   })
 
-  it('says Done for what is paid, the top level, and what is worn', () => {
+  it('says Done for what is paid, and what is worn', () => {
     const s: DialState = {
       ...DIALED,
       xp: Number.MAX_SAFE_INTEGER,
@@ -433,10 +432,8 @@ describe("the raider's record", () => {
       cosmetics: ['flaming-halo'],
     }
     const r = record(s)
-    expect(r.xp).toMatchObject({
-      value: copy('dialup.raider.xp_max'),
-      share: 1,
-    })
+    // The raider's level has no top: far up, the bar still fills to a next.
+    expect(r.xp.share).toBeLessThan(1)
     expect(r.season.value).toBe(copy('dialup.raider.done'))
     expect(r.season.share).toBe(1)
     expect(r.task.value).toBe(copy('dialup.raider.done'))

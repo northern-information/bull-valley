@@ -4,7 +4,8 @@
 // rate for its level (the share of the table filled), banking on the
 // valley's clock until it reaches its cap; come back and collect it into
 // the wallet. Upgrades, paid in cash and goods, raise the table, the rate
-// and the cap, and dress the stand (assets.ts buildStandDressing).
+// and the cap without end, and dress the stand (assets.ts
+// buildStandDressing).
 // sharedworld.ts runs these for the shared valley (rule 23), and the
 // ledger is kept in D1 beside the wallet. No three.js, no DOM.
 
@@ -47,19 +48,34 @@ export const FRESH_STAND: StandLedger = {
 
 const HOUR_MS = 60 * 60 * 1000
 
-function levels(cfg = CONFIG): readonly StandLevel[] {
-  return cfg.stand.levels
-}
-
-export function topLevel(cfg = CONFIG): number {
-  return levels(cfg).length
+// Level `level` (1 on): CONFIG.stand.levels while it lists them, and past
+// its last, CONFIG.stand.beyond on top of that last for each level more.
+function tierOf(level: number, cfg = CONFIG): StandLevel {
+  const all: readonly StandLevel[] = cfg.stand.levels
+  const n = Math.max(Math.floor(level), 1)
+  if (n <= all.length) return all[n - 1]
+  const last = all[all.length - 1]
+  const past = n - all.length
+  const { beyond } = cfg.stand
+  const from = last.price ?? { cash: 0, items: {} }
+  const items: Inventory = {}
+  for (const kind of cfg.stand.goods) {
+    items[kind] = (from.items[kind] || 0) + past * (beyond.items[kind] || 0)
+  }
+  return {
+    shelf: last.shelf + past * beyond.shelf,
+    rate: last.rate + past * beyond.rate,
+    capHours: last.capHours,
+    price: {
+      cash: Math.round((from.cash * beyond.cash ** past) / 100) * 100,
+      items,
+    },
+  }
 }
 
 // The level `ledger` stands at, its table, rate and cap.
 export function levelOf(ledger: StandLedger, cfg = CONFIG): StandLevel {
-  const all = levels(cfg)
-  const i = Math.min(Math.max(Math.floor(ledger.level), 1), all.length) - 1
-  return all[i]
+  return tierOf(ledger.level, cfg)
 }
 
 // Whether `kind` goes out on the table.
@@ -182,13 +198,9 @@ export function standXp(cents: number, cfg = CONFIG): number {
   return Math.max(0, Math.floor(cents / cfg.stand.xpCents))
 }
 
-// What the next level costs, or null at the top.
-export function upgradePrice(
-  ledger: StandLedger,
-  cfg = CONFIG
-): StandPrice | null {
-  if (ledger.level >= topLevel(cfg)) return null
-  return levels(cfg)[ledger.level].price
+// What the next level costs. There is always a next.
+export function upgradePrice(ledger: StandLedger, cfg = CONFIG): StandPrice {
+  return tierOf(ledger.level + 1, cfg).price ?? { cash: 0, items: {} }
 }
 
 // Whether `cash` (cents) and `pack` cover the next level.
@@ -199,7 +211,6 @@ export function affordsUpgrade(
   cfg = CONFIG
 ): boolean {
   const price = upgradePrice(ledger, cfg)
-  if (!price) return false
   if (cash < price.cash) return false
   return Object.entries(price.items).every(
     ([kind, count]) => (pack[kind] || 0) >= count
@@ -208,7 +219,7 @@ export function affordsUpgrade(
 
 // The first thing `cash` (cents) and `pack` fall short of for the next
 // level, and by how much (`kind` 'cash' for the cents): the cash, then each
-// good in the price's order; null when they cover it, or at the top level.
+// good in the price's order; null when they cover it.
 export function upgradeShortfall(
   ledger: StandLedger,
   cash: number,
@@ -216,7 +227,6 @@ export function upgradeShortfall(
   cfg = CONFIG
 ): { kind: string; count: number } | null {
   const price = upgradePrice(ledger, cfg)
-  if (!price) return null
   if (cash < price.cash) return { kind: 'cash', count: price.cash - cash }
   for (const [kind, count] of Object.entries(price.items)) {
     const held = pack[kind] || 0
@@ -225,14 +235,13 @@ export function upgradeShortfall(
   return null
 }
 
-// The stand a level up at `now`, what it earned so far banked first, or
-// null at the top. Whether the raider can pay is the caller's to check.
+// The stand a level up at `now`, what it earned so far banked first.
+// Whether the raider can pay is the caller's to check.
 export function upgrade(
   ledger: StandLedger,
   now: number,
   cfg = CONFIG
-): StandLedger | null {
-  if (ledger.level >= topLevel(cfg)) return null
+): StandLedger {
   return { ...settle(ledger, now, cfg), level: ledger.level + 1 }
 }
 
@@ -247,7 +256,7 @@ export function atStand(
   return Math.hypot(at.x - stand.x, at.z - stand.z) <= cfg.stand.tendReach
 }
 
-// A ledger as D1 or the wire holds it, checked: a level in range, goods
+// A ledger as D1 or the wire holds it, checked: a level of 1 or more, goods
 // only, whole non-negative counts, finite non-negative cents.
 export function isStandLedger(
   value: unknown,
@@ -260,8 +269,8 @@ export function isStandLedger(
     banked,
     since,
   } = value as Record<string, unknown>
-  if (typeof level !== 'number' || !Number.isInteger(level)) return false
-  if (level < 1 || level > topLevel(cfg)) return false
+  if (typeof level !== 'number' || !Number.isSafeInteger(level)) return false
+  if (level < 1) return false
   if (typeof banked !== 'number' || !Number.isFinite(banked) || banked < 0) {
     return false
   }
@@ -293,8 +302,6 @@ export function refusalLine(reason: string): string {
       return copy('log.stand_full')
     case 'empty':
       return copy('log.stand_empty')
-    case 'top':
-      return copy('log.stand_top')
     case 'not-in-valley':
       return copy('log.stand_offline')
     default:

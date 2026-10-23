@@ -750,6 +750,16 @@ export const CONFIG = {
         price: { cash: 6000, items: { cabbage: 12, berries: 8 } },
       },
     ],
+    // Past the last of those the stand goes up without end: each level
+    // after holds `shelf` more and earns `rate` more an hour full, banks as
+    // many hours as the last, and costs `cash` times the level before it
+    // (to the whole dollar) and `items` more of each good.
+    beyond: {
+      shelf: 8,
+      rate: 60,
+      cash: 1.5,
+      items: { cabbage: 4, berries: 4 } as Record<string, number>,
+    },
   },
   // Castle Entropy and its moat (moat.ts, castle.ts, castlesite.ts):
   // straight out the spawn Citgo's front door, across Lake Avenue past the
@@ -1038,6 +1048,13 @@ export const CONFIG = {
         },
       ] as { chance: number; price: Record<string, number> }[],
     },
+    // Past a line's last level it goes up without end: each level after
+    // closes `closes` of what the chance still lacks of certain, so it
+    // never reaches it, and costs `price` times the empties of the level
+    // before it, rounded up.
+    beyond: {
+      dimes: { closes: 0.15, price: 1.4 },
+    },
   },
   // Fishing at the firefly pond (fishing.ts, sharedworld.ts rule 36),
   // after Final Fantasy XI's: bait on the hook, a wait, a bite, and a
@@ -1069,8 +1086,9 @@ export const CONFIG = {
       // How close the landing must be for E to open the tackle box.
       reach: 3,
     },
-    // The highest skill, in tenths (100.0).
-    skillCap: 1000,
+    // The skill has no top. Once no fish stands over it, every fish landed
+    // raises it a tenth at this chance.
+    pastTopChance: 0.04,
     // What bites, by how well a fish takes the bait (fishing.ts FISH
     // `bait`, a tier 0 to 3): each tier's weight in the draw, and the
     // weight of nothing biting at all.
@@ -1507,12 +1525,10 @@ export const CONFIG = {
   },
   // The raider's level (progression.ts): one XP bar for the account, fed
   // by everything. Reaching level L takes base * (L - 1) ^ power XP in all,
-  // so each level asks a little more than the last; uncapped by the
-  // season, and never past maxLevel.
+  // so each level asks a little more than the last, without end.
   progression: {
     base: 100,
     power: 1.5,
-    maxLevel: 99,
   },
   // Finding places pays (sharedworld.ts rule 28 and rule 20), once an
   // account, in cents: every Citgo the first time it stands on the

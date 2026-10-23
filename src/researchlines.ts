@@ -53,8 +53,6 @@ export function recycleRefusal(reason: string): string {
       return copy('log.recycle_far')
     case 'short':
       return copy('log.recycle_short')
-    case 'top':
-      return copy('log.recycle_top')
     case 'not-in-valley':
       return copy('log.recycle_offline')
     default:
