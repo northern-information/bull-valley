@@ -167,6 +167,7 @@ export class DialShell {
     this.social = new DialSocial(options.social)
     this.fish = new DialFish(options.fish, options.now)
     this.fish.onLine = (line) => this.pond?.setLine(line)
+    this.fish.onHoist = (kind) => this.pond?.hoist(kind)
     this.portrait = el('div', 'bv-dial-portrait')
     this.avatarCanvas = document.createElement('canvas')
     this.avatarCanvas.className = 'bv-dial-portrait-canvas'

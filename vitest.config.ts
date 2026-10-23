@@ -29,6 +29,7 @@ const THREE_AND_DOM = [
   'cabbagestandmodel',
   'canart',
   'canvas',
+  'catchburst',
   'caretakermodel',
   'caretakerrig',
   'castlemodel',

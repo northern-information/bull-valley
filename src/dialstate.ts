@@ -13,6 +13,7 @@
 
 import { BOOK, foundLines } from './book.ts'
 import { isLevels } from './buffs.ts'
+import { fanfareOf } from './catchfanfare.ts'
 import {
   CHAT_COPY,
   chatCommand,
@@ -90,6 +91,7 @@ import { buyRefusal, shelfRows } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
 import { AXES, dose, levelsAt } from './wardlevels.ts'
+import type { Fanfare } from './catchfanfare.ts'
 import type { ChatLine } from './chat.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -150,6 +152,9 @@ export interface DialState {
   // the water, as cast (fishing.ts LineOut).
   angler: AnglerWire | null
   line: LineOut | null
+  // The fish last landed, made a big deal of (catchfanfare.ts), and when
+  // it came in (performance.now()); null before one has.
+  landed: (Fanfare & { at: number }) | null
   health: number
   healthMax: number
   // The wards as the valley last said them, at local `wardsAt` ms; they
@@ -256,6 +261,7 @@ export const DIALED: DialState = {
   research: null,
   angler: null,
   line: null,
+  landed: null,
   health: BASE_GEOMETRIE,
   healthMax: BASE_GEOMETRIE,
   wards: NO_WARDS,
@@ -507,9 +513,11 @@ export function applyFrame(
       }
     // Rule 36: how the line came out.
     case 'catch': {
+      const fanfare = fanfareOf(msg)
       const done = {
         ...s,
         line: null,
+        landed: fanfare ? { ...fanfare, at: now } : s.landed,
         pending: { ...s.pending, fish: false },
       }
       const caught = news(done, catchLine(msg), now, wall)

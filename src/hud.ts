@@ -7,6 +7,7 @@
 import { PACK_IN_MENU, WORLD } from './bindings.ts'
 import { BookHud } from './bookhud.ts'
 import { BuffHud } from './buffhud.ts'
+import { burst } from './catchburst.ts'
 import { ChatHud } from './chathud.ts'
 import { CitgoMap } from './citgomap.ts'
 import { CompassHud } from './compasshud.ts'
@@ -21,6 +22,7 @@ import { TaskHud } from './taskhud.ts'
 import { VitalsHud } from './vitalshud.ts'
 import type { AvatarLook } from './avatarview.ts'
 import type { Buff } from './buffbar.ts'
+import type { Fanfare } from './catchfanfare.ts'
 import type { ChatLine } from './chat.ts'
 import type { PackItem, WardAxis } from './interfaces.ts'
 import type { BagTab } from './packgrid.ts'
@@ -392,6 +394,13 @@ export class Hud {
   }
 
   // --- The chat log (chathud.ts) ------------------------------------------
+
+  // A fish landed made a big deal of (catchfanfare.ts): its banner swept
+  // across the view, and fireflies bursting over it (catchburst.ts).
+  celebrateCatch(fanfare: Fanfare): void {
+    this.season.announce(fanfare)
+    burst(this.ui, fanfare)
+  }
 
   // A line the game says to the player alone, in the chat log; an alert
   // stands out in red.

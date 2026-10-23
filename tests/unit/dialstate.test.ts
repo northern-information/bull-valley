@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { BOOK, foundLines } from '../../src/book.ts'
+import { fanfareOf } from '../../src/catchfanfare.ts'
 import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
 import { tradeRefusal } from '../../src/cosmetics.ts'
@@ -219,6 +220,16 @@ describe("Dial-Up's state", () => {
       catchLine({ outcome: 'landed', kind: 'bluegill' })
     )
     expect(s.chat.at(-1)?.text).toBe(skillUpLine(13))
+    // A fish landed is made a big deal of, from when it came in.
+    expect(s.landed).toEqual({
+      ...fanfareOf({
+        outcome: 'landed',
+        kind: 'bluegill',
+        skill: 13,
+        up: true,
+      }),
+      at: 5,
+    })
     s = applyFrame(
       { ...asked(s, { fish: true }), line: { hook: null, bitesAt: 9 } },
       { type: 'nack', re: 'reel', reason: 'no-line' },
