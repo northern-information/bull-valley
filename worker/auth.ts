@@ -415,6 +415,26 @@ class AuthHandler {
     return this.tokens.verifyAccess(this.cookies[COOKIE.token])
   }
 
+  // Runs a route that needs the raider signed in, sliding a lapsed access
+  // cookie on the refresh cookie first as /me does: the valley's socket
+  // outlives the access cookie, and a hotbar or look saved after that is
+  // no less the raider's. The slid cookies go first, so a route that
+  // reissues its own (a rename) has the last word.
+  private async signedIn(
+    run: (claims: AccessClaims) => Promise<Response>
+  ): Promise<Response> {
+    const [claims, slid] = await this.session()
+    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401, slid)
+    const res = await run(claims)
+    if (slid.length === 0) return res
+    const out = new Response(res.body, res)
+    out.headers.delete('Set-Cookie')
+    for (const cookie of [...slid, ...res.headers.getSetCookie()]) {
+      out.headers.append('Set-Cookie', cookie)
+    }
+    return out
+  }
+
   // The access claims, sliding the session on the refresh cookie when the
   // access cookie has lapsed (and the refresh cookie reissued with it).
   // The second value is the cookies to set.
@@ -763,103 +783,103 @@ class AuthHandler {
 
   // POST chooses the first username, once; PUT (`rename`, from Gron)
   // changes it, any time.
-  private async setUsername(rename = false): Promise<Response> {
-    const claims = await this.access()
-    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
-    const body = await this.body()
-    const username = body?.username
-    if (!isValidUsername(username)) {
-      return json({ error: copy('auth.username_rule') }, 400)
-    }
-    const result = rename
-      ? await this.store.renameUsername(claims.accountId, username)
-      : await this.store.setUsername(claims.accountId, username)
-    switch (result) {
-      case 'ok': {
-        // The access cookie carries the username; reissue it.
-        const account = await this.store.get(claims.accountId)
-        return json(
-          { username },
-          200,
-          account ? await this.sessionCookies(account) : []
-        )
+  private setUsername(rename = false): Promise<Response> {
+    return this.signedIn(async (claims) => {
+      const body = await this.body()
+      const username = body?.username
+      if (!isValidUsername(username)) {
+        return json({ error: copy('auth.username_rule') }, 400)
       }
-      case 'taken':
-        return json({ error: copy('auth.username_taken') }, 409)
-      case 'already-set':
-        return json({ error: copy('auth.username_set') }, 400)
-      case 'missing':
+      const result = rename
+        ? await this.store.renameUsername(claims.accountId, username)
+        : await this.store.setUsername(claims.accountId, username)
+      switch (result) {
+        case 'ok': {
+          // The access cookie carries the username; reissue it.
+          const account = await this.store.get(claims.accountId)
+          return json(
+            { username },
+            200,
+            account ? await this.sessionCookies(account) : []
+          )
+        }
+        case 'taken':
+          return json({ error: copy('auth.username_taken') }, 409)
+        case 'already-set':
+          return json({ error: copy('auth.username_set') }, 400)
+        case 'missing':
+          return json(
+            { error: copy('auth.account_not_found') },
+            401,
+            this.clearSession()
+          )
+      }
+    })
+  }
+
+  // The character and guitar finish chosen at the select or at Gron.
+  private setLook(): Promise<Response> {
+    return this.signedIn(async (claims) => {
+      const body = await this.body()
+      const outfit = body?.outfit
+      const finish = body?.finish
+      if (!isSelectable(outfit) || !isFinish(finish)) {
+        return json({ error: copy('auth.look_rule') }, 400)
+      }
+      // A character Moab trades for, only once the account has traded for it.
+      const cosmetics = await this.store.cosmeticsOf(claims.accountId)
+      if (!mayRaidAs(outfit, cosmetics)) {
+        return json({ error: copy('auth.look_locked') }, 403)
+      }
+      if (!(await this.store.setLook(claims.accountId, { outfit, finish }))) {
         return json(
           { error: copy('auth.account_not_found') },
           401,
           this.clearSession()
         )
-    }
-  }
-
-  // The character and guitar finish chosen at the select or at Gron.
-  private async setLook(): Promise<Response> {
-    const claims = await this.access()
-    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
-    const body = await this.body()
-    const outfit = body?.outfit
-    const finish = body?.finish
-    if (!isSelectable(outfit) || !isFinish(finish)) {
-      return json({ error: copy('auth.look_rule') }, 400)
-    }
-    // A character Moab trades for, only once the account has traded for it.
-    const cosmetics = await this.store.cosmeticsOf(claims.accountId)
-    if (!mayRaidAs(outfit, cosmetics)) {
-      return json({ error: copy('auth.look_locked') }, 403)
-    }
-    if (!(await this.store.setLook(claims.accountId, { outfit, finish }))) {
-      return json(
-        { error: copy('auth.account_not_found') },
-        401,
-        this.clearSession()
-      )
-    }
-    return json({ look: { outfit, finish } })
+      }
+      return json({ look: { outfit, finish } })
+    })
   }
 
   // The item on each number key, assigned in the Tab pack.
-  private async setHotbar(): Promise<Response> {
-    const claims = await this.access()
-    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
-    const body = await this.body()
-    const hotbar = body?.hotbar
-    if (!isHotbar(hotbar)) {
-      return json({ error: copy('auth.hotbar_rule') }, 400)
-    }
-    if (!(await this.store.setHotbar(claims.accountId, hotbar))) {
-      return json(
-        { error: copy('auth.account_not_found') },
-        401,
-        this.clearSession()
-      )
-    }
-    return json({ hotbar })
+  private setHotbar(): Promise<Response> {
+    return this.signedIn(async (claims) => {
+      const body = await this.body()
+      const hotbar = body?.hotbar
+      if (!isHotbar(hotbar)) {
+        return json({ error: copy('auth.hotbar_rule') }, 400)
+      }
+      if (!(await this.store.setHotbar(claims.accountId, hotbar))) {
+        return json(
+          { error: copy('auth.account_not_found') },
+          401,
+          this.clearSession()
+        )
+      }
+      return json({ hotbar })
+    })
   }
 
   // The raider's settings, from the main menu or the pause overlay.
-  private async setSettings(): Promise<Response> {
-    const claims = await this.access()
-    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
-    const body = await this.body()
-    const settings = body?.settings
-    if (!isSettings(settings)) {
-      return json({ error: copy('auth.settings_rule') }, 400)
-    }
-    // Only the volumes, the sounds' read as their default when missing.
-    const kept = toSettings({ music: settings.music, sfx: settings.sfx })
-    if (!(await this.store.setSettings(claims.accountId, kept))) {
-      return json(
-        { error: copy('auth.account_not_found') },
-        401,
-        this.clearSession()
-      )
-    }
-    return json({ settings: kept })
+  private setSettings(): Promise<Response> {
+    return this.signedIn(async (claims) => {
+      const body = await this.body()
+      const settings = body?.settings
+      if (!isSettings(settings)) {
+        return json({ error: copy('auth.settings_rule') }, 400)
+      }
+      // Only the volumes, the sounds' read as their default when missing.
+      const kept = toSettings({ music: settings.music, sfx: settings.sfx })
+      if (!(await this.store.setSettings(claims.accountId, kept))) {
+        return json(
+          { error: copy('auth.account_not_found') },
+          401,
+          this.clearSession()
+        )
+      }
+      return json({ settings: kept })
+    })
   }
 
   private async available(username: string): Promise<Response> {
@@ -870,38 +890,38 @@ class AuthHandler {
     return json(available ? { available } : { available, reason: 'taken' })
   }
 
-  private async linkLogin(provider: string): Promise<Response> {
-    const claims = await this.access()
-    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
-    if (this.dev && provider === 'dev') return this.devLink(claims)
-    if (!isOAuthProvider(provider)) return json({ error: 'Not found' }, 404)
-    const res = await this.login(provider)
-    if (res.status !== 302) return res
-    return withCookies(res, [
-      this.cookie(COOKIE.link, claims.accountId, ROUND_TRIP_TTL),
-    ])
+  private linkLogin(provider: string): Promise<Response> {
+    return this.signedIn(async (claims) => {
+      if (this.dev && provider === 'dev') return this.devLink(claims)
+      if (!isOAuthProvider(provider)) return json({ error: 'Not found' }, 404)
+      const res = await this.login(provider)
+      if (res.status !== 302) return res
+      return withCookies(res, [
+        this.cookie(COOKIE.link, claims.accountId, ROUND_TRIP_TTL),
+      ])
+    })
   }
 
-  private async unlink(provider: string): Promise<Response> {
-    const claims = await this.access()
-    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
-    if (!isProvider(provider)) return json({ error: 'Not found' }, 404)
-    const result = await this.store.unlinkProvider(claims.accountId, provider)
-    switch (result) {
-      case 'ok':
-        return json({ ok: true })
-      case 'last-provider':
-        return json({ error: copy('auth.unlink_last') }, 400)
-      case 'not-linked':
-        return json(
-          {
-            error: copy('auth.not_linked', {
-              provider: PROVIDER_LABELS[provider],
-            }),
-          },
-          404
-        )
-    }
+  private unlink(provider: string): Promise<Response> {
+    return this.signedIn(async (claims) => {
+      if (!isProvider(provider)) return json({ error: 'Not found' }, 404)
+      const result = await this.store.unlinkProvider(claims.accountId, provider)
+      switch (result) {
+        case 'ok':
+          return json({ ok: true })
+        case 'last-provider':
+          return json({ error: copy('auth.unlink_last') }, 400)
+        case 'not-linked':
+          return json(
+            {
+              error: copy('auth.not_linked', {
+                provider: PROVIDER_LABELS[provider],
+              }),
+            },
+            404
+          )
+      }
+    })
   }
 
   // --- Coach -----------------------------------------------------------------
@@ -940,35 +960,35 @@ class AuthHandler {
 
   // A Coach key for an account signed in another way: one more way in, or
   // the only one once the others are unlinked. One key to an account.
-  private async coachLink(): Promise<Response> {
-    const claims = await this.access()
-    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
-    const providers = await this.store.providersOf(claims.accountId)
-    if (providers.some((p) => p.provider === 'coach')) {
-      return json(
-        {
-          error: copy('auth.already_linked', {
-            provider: PROVIDER_LABELS.coach,
-          }),
-        },
-        409
+  private coachLink(): Promise<Response> {
+    return this.signedIn(async (claims) => {
+      const providers = await this.store.providersOf(claims.accountId)
+      if (providers.some((p) => p.provider === 'coach')) {
+        return json(
+          {
+            error: copy('auth.already_linked', {
+              provider: PROVIDER_LABELS.coach,
+            }),
+          },
+          409
+        )
+      }
+      const key = newCoachKey()
+      const result = await this.store.linkProvider(
+        this.linked(claims.accountId, 'coach', await coachProfile(key))
       )
-    }
-    const key = newCoachKey()
-    const result = await this.store.linkProvider(
-      this.linked(claims.accountId, 'coach', await coachProfile(key))
-    )
-    if (result !== 'ok') {
-      return json(
-        {
-          error: copy('auth.linked_elsewhere', {
-            provider: PROVIDER_LABELS.coach,
-          }),
-        },
-        409
-      )
-    }
-    return json({ key } satisfies CoachKeyResponse)
+      if (result !== 'ok') {
+        return json(
+          {
+            error: copy('auth.linked_elsewhere', {
+              provider: PROVIDER_LABELS.coach,
+            }),
+          },
+          409
+        )
+      }
+      return json({ key } satisfies CoachKeyResponse)
+    })
   }
 
   // --- Dev provider ------------------------------------------------------------

@@ -96,22 +96,26 @@ export function xpToReach(
   return Math.round(cfg.base * (level - 1) ** cfg.power)
 }
 
-// The level `xp` in all reaches, 1 to maxLevel.
+// The level `xp` in all reaches, 1 on and without end: the curve turned
+// round, then stepped to the level xpToReach's rounding puts it at.
 export function levelOf(
   xp: number,
   cfg: ProgressionConfig = CONFIG.progression
 ): number {
-  let level = 1
-  while (level < cfg.maxLevel && xpToReach(level + 1, cfg) <= xp) level++
+  if (!(xp > 0)) return 1
+  const all = Math.min(xp, Number.MAX_SAFE_INTEGER)
+  let level = 1 + Math.floor((all / cfg.base) ** (1 / cfg.power))
+  while (level > 1 && xpToReach(level, cfg) > all) level--
+  while (xpToReach(level + 1, cfg) <= all) level++
   return level
 }
 
 // Where `xp` in all stands on the bar: the level, the XP into it, and the
-// XP the whole level takes (null at maxLevel, where the bar is full).
+// XP the whole level takes.
 interface LevelBar {
   level: number
   into: number
-  span: number | null
+  span: number
 }
 
 export function barOf(
@@ -123,7 +127,7 @@ export function barOf(
   return {
     level,
     into: xp - from,
-    span: level >= cfg.maxLevel ? null : xpToReach(level + 1, cfg) - from,
+    span: xpToReach(level + 1, cfg) - from,
   }
 }
 

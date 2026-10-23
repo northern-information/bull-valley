@@ -40,14 +40,11 @@ export class LevelHud {
     if (xp === null) return
     const { level, into, span } = barOf(xp)
     this.title.textContent = copy('level.title', { level })
-    this.count.textContent =
-      span === null ? copy('level.max') : copy('level.progress', { into, span })
-    this.fill.style.width = `${span === null ? 100 : (100 * into) / span}%`
+    this.count.textContent = copy('level.progress', { into, span })
+    this.fill.style.width = `${(100 * into) / span}%`
     this.row.setAttribute(
       'aria-label',
-      span === null
-        ? copy('level.tracker_label_max', { level })
-        : copy('level.tracker_label', { level, into, span })
+      copy('level.tracker_label', { level, into, span })
     )
   }
 }

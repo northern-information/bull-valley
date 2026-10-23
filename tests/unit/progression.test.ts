@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest'
-import { CONFIG } from '../../src/config.ts'
 import {
   barOf,
   levelOf,
@@ -8,8 +7,6 @@ import {
   XP,
   xpToReach,
 } from '../../src/progression.ts'
-
-const CFG = CONFIG.progression
 
 describe('the XP curve', () => {
   it('starts every raider at level 1 with no XP', () => {
@@ -20,7 +17,7 @@ describe('the XP curve', () => {
 
   it('asks a little more for each level than the last', () => {
     let step = 0
-    for (let level = 2; level <= CFG.maxLevel; level++) {
+    for (let level = 2; level <= 500; level++) {
       const next = xpToReach(level) - xpToReach(level - 1)
       expect(next).toBeGreaterThanOrEqual(step)
       step = next
@@ -34,15 +31,22 @@ describe('the XP curve', () => {
     }
   })
 
-  it('turns over at the last XP point before each level, the top included', () => {
-    expect(levelOf(xpToReach(CFG.maxLevel) - 1)).toBe(CFG.maxLevel - 1)
-    expect(levelOf(xpToReach(CFG.maxLevel))).toBe(CFG.maxLevel)
-    expect(levelOf(xpToReach(2) - 1)).toBe(1)
+  it('turns over at the last XP point before each level, far up included', () => {
+    for (let level = 2; level <= 2000; level++) {
+      expect(levelOf(xpToReach(level) - 1)).toBe(level - 1)
+      expect(levelOf(xpToReach(level))).toBe(level)
+    }
+    expect(levelOf(10_000, { base: 1, power: 1 })).toBe(10_001)
   })
 
-  it('never goes past the highest level', () => {
-    expect(levelOf(Number.MAX_SAFE_INTEGER)).toBe(CFG.maxLevel)
-    expect(levelOf(10_000, { base: 1, power: 1, maxLevel: 5 })).toBe(5)
+  it('goes up without end', () => {
+    expect(levelOf(xpToReach(1000))).toBe(1000)
+    const far = levelOf(Number.MAX_SAFE_INTEGER)
+    expect(far).toBeGreaterThan(1000)
+    expect(xpToReach(far)).toBeLessThanOrEqual(Number.MAX_SAFE_INTEGER)
+    expect(levelOf(Infinity)).toBe(far)
+    expect(levelOf(NaN)).toBe(1)
+    expect(levelOf(-5)).toBe(1)
   })
 
   it('makes level 5 a few evenings of burning, not one', () => {
@@ -60,11 +64,12 @@ describe('the bar', () => {
     expect(barOf(0)).toEqual({ level: 1, into: 0, span: xpToReach(2) })
   })
 
-  it('is full at the highest level', () => {
-    expect(barOf(xpToReach(CFG.maxLevel) + 5)).toEqual({
-      level: CFG.maxLevel,
+  it('always has a next level to fill toward', () => {
+    const start = xpToReach(99)
+    expect(barOf(start + 5)).toEqual({
+      level: 99,
       into: 5,
-      span: null,
+      span: xpToReach(100) - start,
     })
   })
 })

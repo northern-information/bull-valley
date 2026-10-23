@@ -97,8 +97,8 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The tackle box on the firefly pond's landing: E opens it to fish
   // (rule 36).
   | { kind: 'fish' }
-  // A slurm crawling on a Citgo's lot, the jar in hand: the click catches
-  // it (rule 36).
+  // A slurm crawling on a Citgo's lot, a jar with room carried: E or the
+  // click brings the jar to hand and catches it (rule 36).
   | { kind: 'jar-slurm'; station: number; slot: number; index: number }
   // At a firefly pond with the rod in hand and no line out: the click
   // casts, with the bait it would cast with (null with none).
@@ -271,7 +271,7 @@ export interface InteractionInput<P extends PickupSpot> {
   wreck?: XZ | null
   // The tackle box on the firefly pond's landing, or null.
   tackle?: XZ | null
-  // The slurms crawling on the lot, while this raider holds a jar with
+  // The slurms crawling on the lot, while this raider carries a jar with
   // room in it; none otherwise.
   slurms?: readonly SlurmSpot[]
   // With the rod in hand, no line out, at a firefly pond: the bait it
@@ -300,7 +300,8 @@ export interface InteractionInput<P extends PickupSpot> {
 
 // The first match wins, in this order: hop out while riding; the nearest
 // hallucination in its reach (it stands where you walked up to it, so it
-// answers before whatever stands behind it); speak to the
+// answers before whatever stands behind it); scoop the nearest slurm in
+// reach into the jar; speak to the
 // nearest NPC in his reach, unless a shelf unit is in view; climb into the
 // truck standing still beside you, when it is yours to climb into; buy off
 // a shelf; take your things back off your nearest body; open the lockers;
@@ -336,6 +337,22 @@ export function resolveInteraction<P extends PickupSpot>(
           item: seen.item,
         }
   }
+  // The nearest slurm in reach, in view: small and gone in moments, it
+  // answers before anyone standing over it.
+  let slurm: SlurmSpot | null = null
+  let slurmD: number = CONFIG.fishing.jar.reach
+  for (const spot of input.slurms ?? []) {
+    const d = Math.hypot(spot.x - player.x, spot.z - player.z)
+    if (d < slurmD && sees(spot, SIGHTS.slurm)) {
+      slurm = spot
+      slurmD = d
+    }
+  }
+  if (slurm) {
+    const { station, slot, index } = slurm
+    return { kind: 'jar-slurm', station, slot, index }
+  }
+
   // Marx reads by the tailgate, in boarding range: beside him E talks, a
   // step away it boards. Carlsten stands behind the counter of goods, so
   // the facing in view sells first.
@@ -413,21 +430,6 @@ export function resolveInteraction<P extends PickupSpot>(
     sees(wreck, SIGHTS.wreck)
   ) {
     return { kind: 'recycle' }
-  }
-
-  // The nearest slurm in reach, in view.
-  let slurm: SlurmSpot | null = null
-  let slurmD: number = CONFIG.fishing.jar.reach
-  for (const spot of input.slurms ?? []) {
-    const d = Math.hypot(spot.x - player.x, spot.z - player.z)
-    if (d < slurmD && sees(spot, SIGHTS.slurm)) {
-      slurm = spot
-      slurmD = d
-    }
-  }
-  if (slurm) {
-    const { station, slot, index } = slurm
-    return { kind: 'jar-slurm', station, slot, index }
   }
 
   const tackle = input.tackle

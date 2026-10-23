@@ -509,13 +509,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         line !== null,
         line?.hook != null && performance.now() >= line.bitesAt
       )
-      // The fish landed, up out of the water before the raider.
+      // The fish landed, up out of the water before the raider's eyes.
       const hoist = s.hoist && inPond([pond.place], player.pos) ? s.hoist : null
-      pond.setHoist(
-        hoist?.kind ?? null,
-        time - (hoist?.at ?? 0),
-        camera.position
-      )
+      pond.setHoist(hoist?.kind ?? null, time - (hoist?.at ?? 0), camera)
       pond.update(time, net.clock.serverNow(now) / 1000)
     }
     if (s.hoist && !hoistPose(time - s.hoist.at)) s.hoist = null
@@ -835,10 +831,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       wreck: world.wreck
         ? { x: world.wreck.group.position.x, z: world.wreck.group.position.z }
         : null,
-      slurms:
-        s.held === 'jar' && jarRoom(s.inventory)
-          ? world.shelves.crawlingSlurms()
-          : [],
+      // A jar with room anywhere in the pack: E or the click scoops,
+      // bringing it to hand (actions.ts jarSlurm).
+      slurms: jarRoom(s.inventory) ? world.shelves.crawlingSlurms() : [],
       tackle: nearestLanding(
         world.ponds.map((pond) => pond.place),
         player.pos

@@ -10,7 +10,6 @@ import {
   FRESH_RESEARCH,
   isResearchLine,
   priceOf,
-  topLevel,
   toResearch,
 } from '../../src/recycling.ts'
 
@@ -44,29 +43,32 @@ describe('recycling', () => {
 describe('research', () => {
   const lines = CONFIG.recycling.lines
 
-  it('reads only known lines, each a whole level from 0 to its top', () => {
+  it('reads only known lines, each a whole level from 0 up', () => {
     expect(toResearch(null)).toEqual(FRESH_RESEARCH)
     expect(toResearch({ dimes: 2.7, beam: 3 })).toEqual({ dimes: 2 })
     expect(toResearch({ dimes: -4 })).toEqual({ dimes: 0 })
-    expect(toResearch({ dimes: 99 })).toEqual({ dimes: topLevel('dimes') })
+    expect(toResearch({ dimes: 99 })).toEqual({ dimes: 99 })
+    expect(toResearch({ dimes: Infinity })).toEqual({ dimes: 0 })
     expect(toResearch({ dimes: 'lots' })).toEqual({ dimes: 0 })
     expect(isResearchLine('dimes')).toBe(true)
     expect(isResearchLine('beam')).toBe(false)
   })
 
-  it('prices each next level, more than the last, and none past the top', () => {
+  it('prices each next level, more than the last, without end', () => {
     let last = 0
-    for (let level = 0; level < topLevel('dimes'); level++) {
+    for (let level = 0; level < lines.dimes.length + 20; level++) {
       const price = priceOf({ dimes: level }, 'dimes')
-      expect(price).not.toBeNull()
-      const total = Object.values(price ?? {}).reduce((a, b) => a + b, 0)
+      if (level < lines.dimes.length) {
+        expect(price).toEqual(lines.dimes[level].price)
+      }
+      const total = Object.values(price).reduce((a, b) => a + b, 0)
       expect(total).toBeGreaterThan(last)
       last = total
-      for (const kind of Object.keys(price ?? {})) {
+      for (const [kind, n] of Object.entries(price)) {
         expect(itemById(kind)?.category).toBe('material')
+        expect(Number.isInteger(n)).toBe(true)
       }
     }
-    expect(priceOf({ dimes: topLevel('dimes') }, 'dimes')).toBeNull()
   })
 
   it('affords a price only with every empty it asks for', () => {
@@ -84,11 +86,13 @@ describe('research', () => {
     expect(dimesChance(FRESH_RESEARCH)).toBe(0)
     expect(extraDimes(FRESH_RESEARCH, 5, 0)).toBe(0)
     let last = 0
-    for (let level = 1; level <= topLevel('dimes'); level++) {
+    for (let level = 1; level <= lines.dimes.length + 40; level++) {
       const chance = dimesChance({ dimes: level })
-      expect(chance).toBe(lines.dimes[level - 1].chance)
+      if (level <= lines.dimes.length) {
+        expect(chance).toBe(lines.dimes[level - 1].chance)
+      }
       expect(chance).toBeGreaterThan(last)
-      expect(chance).toBeLessThanOrEqual(0.5)
+      expect(chance).toBeLessThan(1)
       last = chance
       expect(extraDimes({ dimes: level }, 5, chance - 0.01)).toBe(5)
       expect(extraDimes({ dimes: level }, 5, chance)).toBe(0)

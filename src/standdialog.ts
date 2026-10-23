@@ -12,13 +12,7 @@
 import { copy } from './copy.ts'
 import { el, finder } from './dom.ts'
 import { itemLabel } from './itemcopy.ts'
-import {
-  closesDialog,
-  npcFooter,
-  npcHeader,
-  sectionHead,
-  setPips,
-} from './npcdialog.ts'
+import { closesDialog, npcFooter, npcHeader, sectionHead } from './npcdialog.ts'
 import {
   accruedAt,
   affordsUpgrade,
@@ -29,7 +23,6 @@ import {
   ratePerHour,
   shelfRoom,
   stocked,
-  topLevel,
   upgradePrice,
   upgradeShortfall,
 } from './stand.ts'
@@ -53,6 +46,10 @@ interface StandDialogOptions {
   onCollect: () => void
   onUpgrade: () => void
 }
+
+// The most slots the table's strip shows in a row before it wraps: the
+// listed levels' largest table (CONFIG.stand.levels) fits on one.
+const SLOTS_A_ROW = 24
 
 // How often the readout is redrawn.
 const TICK_MS = 250
@@ -110,7 +107,7 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
         title: copy('stand.title'),
         eyebrow: copy('stand.eyebrow'),
         where: copy('stand.where'),
-        status: `<span class="bv-npc-eyebrow" data-bv="stand-level"></span><span class="bv-npc-pips" data-bv="stand-pips"></span>`,
+        status: `<span class="bv-npc-eyebrow" data-bv="stand-level"></span>`,
         speech: false,
       })}
       <section class="bv-npc-section">
@@ -175,7 +172,6 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
     copy('stand.says')
   const text = (name: string) => find<HTMLElement>(`[data-bv="${name}"]`)
   const level = text('stand-level')
-  const pips = text('stand-pips')
   const cap = text('stand-cap')
   const banked = text('stand-banked')
   const earning = text('stand-earning')
@@ -189,7 +185,6 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
   const tableFull = text('stand-table-full')
   const nextName = text('stand-next-name')
   const nextMeta = text('stand-next')
-  const nextBody = text('stand-next-body')
   const costs = text('stand-costs')
   const short = text('stand-short')
   const collectBtn = find<HTMLButtonElement>('[data-bv="stand-collect"]')
@@ -219,6 +214,10 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
   // empty ones after.
   const drawStrip = (ledger: StandLedger, shelf: number) => {
     if (strip.childElementCount !== shelf) {
+      strip.style.setProperty(
+        '--bv-slots',
+        String(Math.min(shelf, SLOTS_A_ROW))
+      )
       strip.replaceChildren(
         ...Array.from({ length: shelf }, () => el('span', 'bv-npc-slot'))
       )
@@ -276,11 +275,7 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
     const pack = options.pack()
     const cash = options.cash()
     const { shelf } = levelOf(ledger)
-    level.textContent = copy('stand.level', {
-      level: ledger.level,
-      top: topLevel(),
-    })
-    setPips(pips, ledger.level, topLevel())
+    level.textContent = copy('stand.level', { level: ledger.level })
 
     // 01, the till: what is banked, what it earns, when it fills.
     const rate = ratePerHour(ledger)
@@ -331,19 +326,8 @@ export function openStandDialog(options: StandDialogOptions): Promise<void> {
       row.all.disabled = busy || all < 1
     }
 
-    // 03, the next level, or the top.
+    // 03, the next level: there is always one.
     const price = upgradePrice(ledger)
-    nextBody.hidden = price === null
-    if (!price) {
-      nextName.textContent = copy('stand.top')
-      nextMeta.textContent = copy('stand.top_meta', {
-        shelf,
-        rate: formatCash(levelOf(ledger).rate),
-        hours: levelOf(ledger).capHours,
-      })
-      upgradeBtn.disabled = true
-      return
-    }
     const here = levelOf(ledger)
     const up = levelOf({ ...ledger, level: ledger.level + 1 })
     nextName.textContent = copy('stand.next', { level: ledger.level + 1 })

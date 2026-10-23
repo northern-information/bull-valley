@@ -574,6 +574,11 @@ describe('resolveInteraction: bodies and lockers', () => {
       index: 0,
     })
     expect(resolveInteraction(input({ slurms: [far] }))).toBeNull()
+    // Before Moab, standing in his reach over it.
+    const moab = { id: 'moab' as const, x: 252, z: 250, station: 1 }
+    expect(
+      resolveInteraction(input({ slurms: [nearer], npcs: [moab] }))
+    ).toMatchObject({ kind: 'jar-slurm' })
     expect(
       interactionPrompt({ kind: 'jar-slurm', station: 1, slot: 7, index: 0 })
     ).toBe(copy('prompts.jar_slurm'))

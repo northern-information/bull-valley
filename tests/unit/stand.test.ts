@@ -22,7 +22,6 @@ import {
   standXp,
   stock,
   stocked,
-  topLevel,
   upgrade,
   upgradePrice,
   upgradeShortfall,
@@ -118,7 +117,7 @@ describe('the Cabbage Stand', () => {
     expect(accruedAt(up, up.since + HOUR)).toBeGreaterThan(up.banked)
   })
 
-  it('levels up for its price, banking first, until the top', () => {
+  it('levels up for its price, banking first, without end', () => {
     expect(upgradePrice(FRESH_STAND)).toEqual(two.price)
     const price = two.price
     if (!price) throw new Error('priced')
@@ -130,10 +129,6 @@ describe('the Cabbage Stand', () => {
     expect(up?.banked).toBeCloseTo(one.rate)
     expect(up && levelOf(up)).toBe(two)
     expect(up && shelfRoom(up)).toBe(two.shelf - one.shelf)
-    const top = { ...FRESH_STAND, level: topLevel() }
-    expect(upgradePrice(top)).toBeNull()
-    expect(upgrade(top, 0)).toBeNull()
-    expect(affordsUpgrade(top, 1e9, { cabbage: 1e9, berries: 1e9 })).toBe(false)
     // What falls short, the cash first, then each good in the price.
     expect(upgradeShortfall(FRESH_STAND, price.cash, price.items)).toBeNull()
     expect(upgradeShortfall(FRESH_STAND, price.cash - 5, {})).toEqual({
@@ -144,11 +139,32 @@ describe('the Cabbage Stand', () => {
       kind: 'cabbage',
       count: (price.items.cabbage ?? 0) - 1,
     })
-    expect(upgradeShortfall(top, 0, {})).toBeNull()
-    // A level out of range reads as the nearest there is.
-    expect(levelOf({ ...FRESH_STAND, level: 99 }).shelf).toBe(
-      CONFIG.stand.levels[topLevel() - 1].shelf
-    )
+  })
+
+  it('goes on past the last listed level, each one bigger and dearer', () => {
+    const listed = CONFIG.stand.levels
+    const last = listed[listed.length - 1]
+    let was = { ...FRESH_STAND, level: listed.length }
+    expect(levelOf(was)).toBe(last)
+    for (let i = 0; i < 30; i++) {
+      const price = upgradePrice(was)
+      const before = upgradePrice({ ...was, level: was.level - 1 })
+      expect(price.cash).toBeGreaterThan(before.cash)
+      expect(price.cash % 100).toBe(0)
+      for (const kind of CONFIG.stand.goods) {
+        expect(price.items[kind]).toBeGreaterThanOrEqual(
+          before.items[kind] ?? 0
+        )
+      }
+      expect(affordsUpgrade(was, price.cash, price.items)).toBe(true)
+      const up = upgrade(was, 0)
+      expect(up.level).toBe(was.level + 1)
+      expect(levelOf(up).shelf).toBeGreaterThan(levelOf(was).shelf)
+      expect(levelOf(up).rate).toBeGreaterThan(levelOf(was).rate)
+      expect(levelOf(up).capHours).toBe(last.capHours)
+      expect(isStandLedger(up)).toBe(true)
+      was = up
+    }
   })
 
   it('is tended only close to where it stands', () => {
@@ -167,7 +183,8 @@ describe('the Cabbage Stand', () => {
     expect(isStandLedger(null)).toBe(false)
     expect(isStandLedger({ ...FRESH_STAND, level: 0 })).toBe(false)
     expect(isStandLedger({ ...FRESH_STAND, level: 1.5 })).toBe(false)
-    expect(isStandLedger({ ...FRESH_STAND, level: topLevel() + 1 })).toBe(false)
+    expect(isStandLedger({ ...FRESH_STAND, level: 500 })).toBe(true)
+    expect(isStandLedger({ ...FRESH_STAND, level: Infinity })).toBe(false)
     expect(isStandLedger({ ...FRESH_STAND, banked: -1 })).toBe(false)
     expect(isStandLedger({ ...FRESH_STAND, banked: Infinity })).toBe(false)
     expect(isStandLedger({ ...FRESH_STAND, since: 'now' })).toBe(false)
@@ -187,7 +204,6 @@ describe('the stand refused', () => {
       'none-left',
       'no-room',
       'empty',
-      'top',
       'not-in-valley',
       'too-fast',
     ]

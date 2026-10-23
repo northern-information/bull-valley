@@ -26,7 +26,6 @@ import {
   whisperLine,
 } from './chat.ts'
 import { citgoLines, NO_CITGOS } from './citgos.ts'
-import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import {
   cosmeticById,
@@ -73,7 +72,7 @@ import {
   stepRefusal,
   toQuests,
 } from './quests.ts'
-import { dimesChance, topLevel, toResearch } from './recycling.ts'
+import { dimesChance, toResearch } from './recycling.ts'
 import {
   foundLine,
   lineName,
@@ -893,11 +892,8 @@ export function raiderStats(s: DialState, day: string): RaiderStat[] {
     {
       id: 'xp',
       label: copy('dialup.raider.xp'),
-      value:
-        bar.span === null
-          ? copy('dialup.raider.xp_max')
-          : copy('dialup.raider.of', { done: bar.into, goal: bar.span }),
-      share: bar.span === null ? 1 : bar.into / Math.max(1, bar.span),
+      value: copy('dialup.raider.of', { done: bar.into, goal: bar.span }),
+      share: bar.into / Math.max(1, bar.span),
     },
     {
       id: 'season',
@@ -931,17 +927,15 @@ export function raiderStats(s: DialState, day: string): RaiderStat[] {
   ]
   // Rule 33: loose change, once the valley has said the research.
   if (s.research) {
-    const level = s.research.dimes
-    const top = topLevel('dimes')
+    const chance = dimesChance(s.research)
     stats.push({
       id: 'loose-change',
       label: lineName('dimes'),
       value: copy('dialup.raider.loose_change', {
-        pct: Math.round(dimesChance(s.research) * 100),
-        level,
-        top,
+        pct: Math.round(chance * 100),
+        level: s.research.dimes,
       }),
-      share: level / top,
+      share: chance,
     })
   }
   // Rule 36: the fishing skill, once the valley has said the angler.
@@ -954,7 +948,8 @@ export function raiderStats(s: DialState, day: string): RaiderStat[] {
         caught: s.angler.caught,
         limit: s.angler.perDay,
       }),
-      share: s.angler.skill / CONFIG.fishing.skillCap,
+      // The skill has no top: the bar fills toward the next whole level.
+      share: (s.angler.skill % 10) / 10,
     })
   }
   if (worn.length > 0) {
