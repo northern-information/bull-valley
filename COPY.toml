@@ -594,7 +594,7 @@ laptop = { text = "E — Use the Laptop", by = "ai" }
 stand = { text = "E — Tend Your Stand", by = "ai" }
 recycle = { text = "E — Recycling Center", by = "ai" }
 fish = { text = "E — Tackle Box", by = "ai" }
-jar_slurm = { text = "Click — Catch the Slurm", by = "ai" }
+jar_slurm = { text = "E — Catch the Slurm", by = "ai" }
 cast = { text = "Click — Cast with {bait}", by = "ai" }
 cast_no_bait = { text = "No Bait — Dig at the Tackle Box", by = "ai" }
 locked = { text = "E — Locked", by = "ai" }
@@ -1197,6 +1197,11 @@ lost_skill = { text = "You lost your catch due to your lack of skill.", by = "ai
 snap = { text = "Your line snaps!", by = "ai" }
 gave_up = { text = "You give up and reel in your line.", by = "ai" }
 skill_up = { text = "Your fishing skill rises to {skill}.", by = "ai" }
+fanfare_fish = { text = "Fish on the bank!", by = "ai" }
+fanfare_big = { text = "A big one!", by = "ai" }
+fanfare_legend = { text = "The legend of the pond!", by = "ai" }
+fanfare_legend_detail = { text = "Nobody at the Citgo will believe you.", by = "ai" }
+fanfare_skill = { text = "Fishing skill {skill}", by = "ai" }
 
 # Guitar finishes on the character select. Keys match src/finishes.ts.
 

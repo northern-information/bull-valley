@@ -9,10 +9,11 @@
 
 import * as THREE from 'three'
 import { lambert } from './assetkit.ts'
+import { hoistPose } from './catchfanfare.ts'
 import { applyPose, attachCosmetics, buildFigure, gripWith } from './figure.ts'
 import { finishById } from './finishes.ts'
 import { buildFireflies } from './fireflyrig.ts'
-import { buildBobber, buildFishingRod } from './fishmodels.ts'
+import { buildBobber, buildFishingRod, buildFishLevel } from './fishmodels.ts'
 import { castPose } from './held.ts'
 import { samplePose } from './poses.ts'
 import { createPS1Renderer } from './ps1.ts'
@@ -36,6 +37,10 @@ const POND = {
 const CAST_ARC = 1.2
 // How much thicker than life the rod is drawn.
 const ROD_THICKEN = 4
+// The fish landed: how far under the rod's tip it hangs on the line,
+// metres, how high it arcs coming up out of the water, and how much
+// bigger than life it is drawn, for the phone's few pixels.
+const HOIST = { below: 0.7, arc: 0.8, thicken: 2.5 }
 // How the bobber bobs, plunges on a bite and swings to a fish's pull.
 const BOB = { metres: 0.012, hz: 0.7, plunge: 0.04, hz2: 5, pull: 0.5 }
 
@@ -51,6 +56,9 @@ export interface PondView {
   // until stop(); a second show() redresses them.
   show(look: AvatarLook, rod: string | null): void
   setLine(line: PondLine): void
+  // A fish landed (`kind`): up out of the water on the line, thrashing,
+  // and hung off the rod's tip a moment (catchfanfare.ts hoistPose).
+  hoist(kind: string): void
   stop(): void
 }
 
@@ -61,6 +69,8 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
   // When the line last went out, performance.now() seconds: the rod's cast
   // plays from then (held.ts castPose).
   let castAt = -Infinity
+  // The fish last landed and when, performance.now() seconds.
+  let hoisted: { kind: string; at: number } | null = null
 
   function show(look: AvatarLook, rod: string | null): void {
     stop()
@@ -204,6 +214,20 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
     camera.position.set(1.6, 2.1, 2.6)
     camera.lookAt(-0.4, 0.4, POND.cast.z)
 
+    // The fish landed, each kind built as it is first caught.
+    const catches = new Map<string, THREE.Group>()
+    const hang = new THREE.Vector3()
+    const catchOf = (kind: string) => {
+      let fish = catches.get(kind)
+      if (!fish) {
+        fish = buildFishLevel(kind)
+        fish.visible = false
+        catches.set(kind, fish)
+        scene.add(fish)
+      }
+      return fish
+    }
+
     let pullX = 0
     drawing.setAnimationLoop(() => {
       const t = performance.now() / 1000
@@ -242,12 +266,43 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
         linePoints.set([end.x, end.y + 0.03, end.z], 6)
         lineGeometry.attributes.position.needsUpdate = true
       }
+      // A fish landed: up out of the water at the bobber, arcing to hang
+      // off the tip, thrashing and turning on the line, then into the pack.
+      for (const fish of catches.values()) fish.visible = false
+      const pose = hoisted && held ? hoistPose(t - hoisted.at) : null
+      if (hoisted && pose && !out) {
+        const fish = catchOf(hoisted.kind)
+        hang.copy(tip)
+        hang.y -= HOIST.below
+        fish.visible = true
+        fish.position.lerpVectors(cast, hang, pose.rise)
+        fish.position.y += Math.sin(pose.rise * Math.PI) * HOIST.arc
+        fish.rotation.set(
+          pose.thrash,
+          Math.PI / 2 + pose.turn,
+          Math.PI / 2,
+          'YXZ'
+        )
+        fish.scale.setScalar(pose.scale * HOIST.thicken)
+        const end = fish.position
+        linePoints.set([tip.x, tip.y, tip.z, end.x, end.y, end.z])
+        linePoints.set([end.x, end.y, end.z], 6)
+        lineGeometry.attributes.position.needsUpdate = true
+        fishingLine.visible = pose.scale > 0.5
+      }
       drawing.render(scene, camera)
     })
     stopRunning = () => {
       drawing.setAnimationLoop(null)
       worn.dispose()
       for (const g of owned) g.dispose()
+      for (const fish of catches.values()) {
+        fish.traverse((part) => {
+          if (part instanceof THREE.Mesh) {
+            ;(part.geometry as THREE.BufferGeometry).dispose()
+          }
+        })
+      }
     }
   }
 
@@ -258,6 +313,9 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
 
   return {
     show,
+    hoist(kind) {
+      hoisted = { kind, at: performance.now() / 1000 }
+    },
     setLine(next) {
       if (next.out && !line.out) castAt = performance.now() / 1000
       line = next

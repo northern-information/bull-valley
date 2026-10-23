@@ -6,6 +6,7 @@
 
 import { knownOf, toFound } from './book.ts'
 import { isLevels } from './buffs.ts'
+import { fanfareOf } from './catchfanfare.ts'
 import {
   CHAT_COPY,
   crewChatLine,
@@ -683,6 +684,13 @@ export function wireValley(game: Game, actions: Actions): void {
       if (msg.outcome === 'snap') game.sfx?.play('line-snap')
       hud.tell(s.fishSaid)
       if (msg.up) hud.tell(skillUpLine(msg.skill))
+      // A fish landed is a big deal: the banner, the fireflies, the
+      // fanfare, and the fish up out of the water on the line.
+      const fanfare = fanfareOf(msg)
+      if (!fanfare) return
+      hud.celebrateCatch(fanfare)
+      game.sfx?.play('fish-fanfare')
+      s.hoist = { kind: fanfare.kind, at: s.time }
     } else if (msg.type === 'task') {
       // Rule 16: credited with a burn. A reward's pack frame follows.
       if (!applyTask(msg.task)) return

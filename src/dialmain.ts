@@ -328,7 +328,6 @@ async function boot(): Promise<void> {
         void openShopDialog({
           name,
           says: npcLine('carlsten', carlstenSaid++),
-          pick: null,
           shelf: () => state.world?.shelves[station] ?? null,
           cash: () => state.cash,
           pending: () => state.pending.buy !== null,

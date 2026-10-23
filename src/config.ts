@@ -811,9 +811,11 @@ export const CONFIG = {
     // from one level to the next only hurts), none nearer the floor than
     // `floorClear`. Each level is broken into runs `length` long with
     // `gap`s between, each run `rows` metres further out from the wall
-    // than the first row, a share `missing`; a run on the lowest level
-    // turns down to the floor at its end by the chance `toFloor`. Ranges
-    // are [least, most].
+    // than the first row, a share `missing` (on the levels under the
+    // first, `sparse`: the first catches a raider who walks off the rim,
+    // the rest are only glimpsed); a run on the lowest level turns down to
+    // the floor at its end by the chance `toFloor`. Ranges are [least,
+    // most].
     pipes: {
       seed: 0x91be5,
       under: [2.5, 3.5] as const,
@@ -823,6 +825,7 @@ export const CONFIG = {
       gap: [0.6, 3] as const,
       rows: [0, 1.3, 2.6],
       missing: 0.1,
+      sparse: 0.75,
       toFloor: 0.3,
       radius: [0.15, 0.4] as const,
     },

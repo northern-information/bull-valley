@@ -176,19 +176,10 @@ base.describe('one visit', { tag: '@raid' }, () => {
         stands: true,
       })
     const unit = await glowShelfUnit()
-    // E opens the Citgo's trade window, the drink looked at picked.
+    // E buys the drink looked at outright: no window opens.
     await page.keyboard.press('KeyE')
-    const shop = page.locator('.bv-citgo')
-    await expect(shop.locator('[data-good="pbr"]')).toHaveAttribute(
-      'aria-checked',
-      'true'
-    )
-    await expect(shop.locator('[data-bv="trade-wallet"]')).toHaveText('$40.00')
-    await shop.locator('[data-bv="trade-go"]').click()
     await expect.poll(cash).toBe(4000 - 99)
-    await expect(shop.locator('[data-bv="trade-wallet"]')).toHaveText('$39.01')
-    await page.keyboard.press('KeyE')
-    await expect(shop).toBeHidden()
+    await expect(page.locator('.bv-citgo')).toHaveCount(0)
     await expect
       .poll(() => shelfUnit('pbr', 0))
       .toEqual({
