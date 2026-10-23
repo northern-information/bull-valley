@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   authReturnOf,
+  COACH_KEY_LENGTH,
+  coachKeyOf,
   devSignInUrl,
   isOAuthProvider,
   isProvider,
@@ -99,15 +101,37 @@ describe('providers', () => {
     }
     expect(isOAuthProvider('dev')).toBe(false)
     expect(isProvider('dev')).toBe(true)
+    expect(isOAuthProvider('coach')).toBe(false)
+    expect(isProvider('coach')).toBe(true)
     expect(isProvider('facebook')).toBe(false)
     expect(isProvider(3)).toBe(false)
   })
 
   it('has a label and a color for each', () => {
-    for (const id of [...OAUTH_PROVIDERS, 'dev'] as const) {
+    for (const id of [...OAUTH_PROVIDERS, 'dev', 'coach'] as const) {
       expect(PROVIDER_LABELS[id]).toBeTruthy()
       expect(PROVIDER_COLORS[id]).toMatch(/^#[0-9a-f]{6}$/)
     }
+  })
+})
+
+describe('coachKeyOf', () => {
+  const key = 'a1'.repeat(COACH_KEY_LENGTH / 2)
+
+  it('reads a key as pasted: spaces, line breaks and case forgiven', () => {
+    expect(COACH_KEY_LENGTH).toBe(256)
+    expect(coachKeyOf(key)).toBe(key)
+    const pasted = `  ${key.slice(0, 100).toUpperCase()}\n${key.slice(100)}\t`
+    expect(coachKeyOf(pasted)).toBe(key)
+  })
+
+  it('refuses anything that is not 256 hex characters', () => {
+    expect(coachKeyOf(key.slice(1))).toBeNull()
+    expect(coachKeyOf(`${key}0`)).toBeNull()
+    expect(coachKeyOf(`g${key.slice(1)}`)).toBeNull()
+    expect(coachKeyOf('')).toBeNull()
+    expect(coachKeyOf(null)).toBeNull()
+    expect(coachKeyOf(7)).toBeNull()
   })
 })
 

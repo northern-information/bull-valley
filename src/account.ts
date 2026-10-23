@@ -11,16 +11,30 @@ import type { OutfitId } from './outfits.ts'
 
 // The sign-in providers a raider may use. `dev` exists only on a dev
 // server, where it stands in for a real provider so nothing needs a secret.
+// `coach` is no provider at all: the account's whole way in is one key
+// (COACH_KEY_LENGTH characters) that the valley shows once, at creation,
+// and keeps only as a digest. No email, no password, no recovery.
 export const OAUTH_PROVIDERS = ['google', 'discord', 'github'] as const
 export type OAuthProvider = (typeof OAUTH_PROVIDERS)[number]
-export type Provider = OAuthProvider | 'dev'
+export type Provider = OAuthProvider | 'dev' | 'coach'
 
 export function isOAuthProvider(value: unknown): value is OAuthProvider {
   return typeof value === 'string' && OAUTH_PROVIDERS.some((id) => id === value)
 }
 
 export function isProvider(value: unknown): value is Provider {
-  return value === 'dev' || isOAuthProvider(value)
+  return value === 'dev' || value === 'coach' || isOAuthProvider(value)
+}
+
+// A Coach key: lowercase hex, 128 random bytes. `coachKeyOf` reads one as
+// typed or pasted (spaces, line breaks and case forgiven), or null.
+export const COACH_KEY_LENGTH = 256
+const COACH_KEY_RE = new RegExp(`^[0-9a-f]{${COACH_KEY_LENGTH}}$`)
+
+export function coachKeyOf(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const key = value.replace(/\s+/g, '').toLowerCase()
+  return COACH_KEY_RE.test(key) ? key : null
 }
 
 // How each provider shows on the sign-in card.
@@ -29,6 +43,7 @@ export const PROVIDER_LABELS: Record<Provider, string> = {
   discord: 'Discord',
   github: 'GitHub',
   dev: 'Dev',
+  coach: 'Coach',
 }
 
 export const PROVIDER_COLORS: Record<Provider, string> = {
@@ -36,6 +51,8 @@ export const PROVIDER_COLORS: Record<Provider, string> = {
   discord: '#5865f2',
   github: '#f0f0f0',
   dev: '#ffaa00',
+  // The whistle's chrome.
+  coach: '#b8c4cc',
 }
 
 // A username is the account's public handle, unique across the valley
@@ -131,6 +148,12 @@ export interface AvailableResponse {
   reason?: 'invalid' | 'taken' | 'limited'
 }
 
+// POST /auth/coach/create and POST /auth/link/coach: the new Coach key,
+// the one time the valley ever says it.
+export interface CoachKeyResponse {
+  key: string
+}
+
 // POST /auth/refresh. Always 200; `ok` false means there is no session.
 export interface RefreshResponse {
   ok: boolean
@@ -208,8 +231,12 @@ export function stripAuthQuery(search: string): string {
 }
 
 // Where a provider button sends the browser. The redirect brings the round
-// trip back to this page, query and all.
-export function signInUrl(provider: Provider, redirect: string): string {
+// trip back to this page, query and all. Coach makes no round trip: its
+// key is posted from the page (auth.ts coachSignIn).
+export function signInUrl(
+  provider: Exclude<Provider, 'coach'>,
+  redirect: string
+): string {
   const query = new URLSearchParams({ redirect })
   return provider === 'dev'
     ? `${AUTH_PATH}/dev/form?${query.toString()}`
@@ -250,7 +277,7 @@ export const LINK_MESSAGE = 'bv-auth'
 // redirect). The dev provider links a fresh dev identity each time, named
 // by `devUserId`.
 export function linkUrl(
-  provider: Provider,
+  provider: Exclude<Provider, 'coach'>,
   devUserId?: string,
   redirect: string = LINK_DONE_PATH
 ): string {

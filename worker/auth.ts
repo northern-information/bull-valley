@@ -19,10 +19,14 @@
 // POST /auth/logout                         clear the session
 // GET  /auth/link/:provider/login           link another provider (popup)
 // DELETE /auth/providers/:provider          unlink one; never the last
+// POST /auth/coach/create                   a new Coach key, held as a pending signup
+// POST /auth/coach/login                    sign in with a Coach key
+// POST /auth/link/coach                     a new Coach key on the signed-in account
 // GET  /auth/dev/form, /auth/dev/login      dev server only: no secrets needed
 
 import {
   AUTH_PATH,
+  coachKeyOf,
   isOAuthProvider,
   isProvider,
   isValidUsername,
@@ -45,9 +49,11 @@ import { isSettings, toSettings } from '../src/settings.ts'
 import { appOrigin, isDevHost, jwtSecret, magicWord } from './env.ts'
 import {
   authorizeUrl,
+  coachProfile,
   credentials,
   exchangeCode,
   fetchProfile,
+  newCoachKey,
   pkceChallenge,
   providerKey,
   randomToken,
@@ -63,7 +69,9 @@ import { ACCESS_TTL, PENDING_TTL, REFRESH_TTL, Tokens } from './tokens.ts'
 import type {
   AccountWire,
   AuthReturn,
+  CoachKeyResponse,
   MeResponse,
+  OAuthProvider,
   Provider,
   ProvidersResponse,
 } from '../src/account.ts'
@@ -223,6 +231,9 @@ class AuthHandler {
       path: ['providers', ':provider'],
       run: (a, [provider]) => a.unlink(provider),
     },
+    { method: 'POST', path: ['coach', 'create'], run: (a) => a.coachCreate() },
+    { method: 'POST', path: ['coach', 'login'], run: (a) => a.coachLogin() },
+    { method: 'POST', path: ['link', 'coach'], run: (a) => a.coachLink() },
     {
       method: 'GET',
       path: ['dev', 'form'],
@@ -472,6 +483,8 @@ class AuthHandler {
       (provider) => credentials(this.env, provider) !== null
     )
     if (this.dev) offered.unshift('dev')
+    // Coach needs no secret of the Worker's: every server offers it.
+    offered.push('coach')
     return json({ providers: offered } satisfies ProvidersResponse)
   }
 
@@ -525,7 +538,7 @@ class AuthHandler {
     ])
   }
 
-  private async login(provider: Exclude<Provider, 'dev'>): Promise<Response> {
+  private async login(provider: OAuthProvider): Promise<Response> {
     const creds = credentials(this.env, provider)
     if (!creds) {
       return json(
@@ -554,9 +567,7 @@ class AuthHandler {
     ])
   }
 
-  private async callback(
-    provider: Exclude<Provider, 'dev'>
-  ): Promise<Response> {
+  private async callback(provider: OAuthProvider): Promise<Response> {
     const query = this.url.searchParams
     const error = query.get('error')
     if (error) return this.landing({ error })
@@ -891,6 +902,73 @@ class AuthHandler {
           404
         )
     }
+  }
+
+  // --- Coach -----------------------------------------------------------------
+
+  // A new Coach key. The account is not made yet: the key's digest is held
+  // as a pending signup, like any new raider's profile, until the magic
+  // word. The key goes back in the body this once and is never kept.
+  private async coachCreate(): Promise<Response> {
+    const key = newCoachKey()
+    const pending = await this.tokens.signPending({
+      provider: 'coach',
+      profile: await coachProfile(key),
+    })
+    return json({ key } satisfies CoachKeyResponse, 200, [
+      this.cookie(COOKIE.pending, pending, PENDING_TTL),
+    ])
+  }
+
+  // Sign in with a Coach key. A key no account has is told so, and nothing
+  // else: there is no recovery to offer.
+  private async coachLogin(): Promise<Response> {
+    const key = coachKeyOf((await this.body())?.key)
+    if (!key) return json({ error: copy('auth.coach_key_rule') }, 400)
+    const profile = await coachProfile(key)
+    const linked = await this.store.findByProvider(
+      providerKey('coach', profile.id)
+    )
+    const account = linked ? await this.store.get(linked.accountId) : null
+    if (!account) return json({ error: copy('auth.coach_key_unknown') }, 401)
+    await this.store.touchLogin(account.accountId, this.now())
+    return json({ account: await this.accountWire(account) }, 200, [
+      ...(await this.sessionCookies(account)),
+      this.clear(COOKIE.pending),
+    ])
+  }
+
+  // A Coach key for an account signed in another way: one more way in, or
+  // the only one once the others are unlinked. One key to an account.
+  private async coachLink(): Promise<Response> {
+    const claims = await this.access()
+    if (!claims) return json({ error: copy('auth.sign_in_first') }, 401)
+    const providers = await this.store.providersOf(claims.accountId)
+    if (providers.some((p) => p.provider === 'coach')) {
+      return json(
+        {
+          error: copy('auth.already_linked', {
+            provider: PROVIDER_LABELS.coach,
+          }),
+        },
+        409
+      )
+    }
+    const key = newCoachKey()
+    const result = await this.store.linkProvider(
+      this.linked(claims.accountId, 'coach', await coachProfile(key))
+    )
+    if (result !== 'ok') {
+      return json(
+        {
+          error: copy('auth.linked_elsewhere', {
+            provider: PROVIDER_LABELS.coach,
+          }),
+        },
+        409
+      )
+    }
+    return json({ key } satisfies CoachKeyResponse)
   }
 
   // --- Dev provider ------------------------------------------------------------

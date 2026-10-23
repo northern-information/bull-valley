@@ -144,13 +144,16 @@ const me = async (jar: Jar, s = store) =>
 describe('providers', () => {
   it('offers the configured providers, and dev on a dev server', async () => {
     const { res } = await call('/auth/providers')
-    expect(await res.json()).toEqual({ providers: ['github'] })
+    expect(await res.json()).toEqual({ providers: ['github', 'coach'] })
     const dev = await call('/auth/providers', { origin: DEV })
-    expect(await dev.res.json()).toEqual({ providers: ['dev', 'github'] })
+    expect(await dev.res.json()).toEqual({
+      providers: ['dev', 'github', 'coach'],
+    })
+    // Coach needs no secret, so it is always offered.
     const none = await call('/auth/providers', {
       env: env({ GITHUB_CLIENT_ID: undefined }),
     })
-    expect(await none.res.json()).toEqual({ providers: [] })
+    expect(await none.res.json()).toEqual({ providers: ['coach'] })
   })
 
   it('refuses to serve accounts in production without a secret', async () => {
@@ -1022,6 +1025,147 @@ describe('linking', () => {
     const who = await me(jar, s)
     expect(who.account?.providers.map((p) => p.provider)).toEqual(['dev'])
     expect(who.account?.displayName).toBe('Dev Raider 2')
+  })
+})
+
+describe('coach', () => {
+  const create = (jar: Jar, s: MemoryAccountStore, limit?: Limiter) =>
+    call('/auth/coach/create', { method: 'POST', jar, store: s, limit })
+  const login = (jar: Jar, s: MemoryAccountStore, key: unknown) =>
+    call('/auth/coach/login', { method: 'POST', jar, store: s, body: { key } })
+
+  it('makes a key, holds it as a pending signup, and signs in by it alone', async () => {
+    const s = new MemoryAccountStore()
+    const jar = new Jar()
+    const made = await create(jar, s)
+    expect(made.res.status).toBe(200)
+    const { key } = await made.res.json<{ key: string }>()
+    expect(key).toMatch(/^[0-9a-f]{256}$/)
+    // No account until the magic word; the cookie holds the digest, not the key.
+    expect(s.accounts.size).toBe(0)
+    expect(jar.cookies[COOKIE.pending]).toBeDefined()
+    expect(jar.cookies[COOKIE.pending]).not.toContain(key)
+    expect((await me(jar, s)).pending?.provider).toBe('coach')
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+    })
+    await call('/auth/username', {
+      method: 'POST',
+      jar,
+      store: s,
+      body: { username: 'Coach_K' },
+    })
+    const who = await me(jar, s)
+    expect(who.account?.username).toBe('Coach_K')
+    expect(who.account?.providers.map((p) => p.provider)).toEqual(['coach'])
+    // The valley keeps the key's digest, never the key.
+    const [linked] = [...s.providers.values()]
+    expect(linked.providerKey).toMatch(/^coach:[0-9a-f]{64}$/)
+    expect(JSON.stringify(linked)).not.toContain(key)
+
+    // Another browser, the key alone: signed in, username and all.
+    const elsewhere = new Jar()
+    const back = await login(elsewhere, s, `${key.toUpperCase()}\n`)
+    expect(back.res.status).toBe(200)
+    expect((await me(elsewhere, s)).account?.username).toBe('Coach_K')
+    const ws = new Request(`${PROD}/ws`, {
+      headers: { Cookie: elsewhere.header() },
+    })
+    expect(await identityFor(ws, env(), () => T0)).toEqual({
+      account: who.account?.accountId,
+      name: 'Coach_K',
+    })
+  })
+
+  it('refuses a malformed key and one no account has, and makes nothing', async () => {
+    const s = new MemoryAccountStore()
+    const bad = await login(new Jar(), s, 'password123')
+    expect(bad.res.status).toBe(400)
+    expect(await bad.res.json()).toEqual({
+      error: copy('auth.coach_key_rule'),
+    })
+    const unknown = await login(new Jar(), s, 'a'.repeat(256))
+    expect(unknown.res.status).toBe(401)
+    expect(await unknown.res.json()).toEqual({
+      error: copy('auth.coach_key_unknown'),
+    })
+    expect(unknown.jar.cookies[COOKIE.token]).toBeUndefined()
+    // A key whose signup was never confirmed is no account either.
+    const jar = new Jar()
+    const { key } = await (await create(jar, s)).res.json<{ key: string }>()
+    expect((await login(new Jar(), s, key)).res.status).toBe(401)
+    expect(s.accounts.size).toBe(0)
+  })
+
+  it('links one key to an account signed in another way', async () => {
+    const s = new MemoryAccountStore()
+    expect(
+      (await call('/auth/link/coach', { method: 'POST', store: s })).res.status
+    ).toBe(401)
+    const jar = new Jar()
+    await signIn(jar, { id: 40, login: 'forty' }, s)
+    await call('/auth/confirm-signup', {
+      body: WORD,
+      method: 'POST',
+      jar,
+      store: s,
+    })
+    const linked = await call('/auth/link/coach', {
+      method: 'POST',
+      jar,
+      store: s,
+    })
+    expect(linked.res.status).toBe(200)
+    const { key } = await linked.res.json<{ key: string }>()
+    const who = await me(jar, s)
+    expect(who.account?.providers.map((p) => p.provider)).toEqual([
+      'github',
+      'coach',
+    ])
+    // One key to an account.
+    const again = await call('/auth/link/coach', {
+      method: 'POST',
+      jar,
+      store: s,
+    })
+    expect(again.res.status).toBe(409)
+    // The key signs in to the same account; unlinking GitHub leaves it the
+    // only way in, and unlinking it then is refused.
+    const elsewhere = new Jar()
+    await login(elsewhere, s, key)
+    expect((await me(elsewhere, s)).account?.accountId).toBe(
+      who.account?.accountId
+    )
+    for (const [provider, status] of [
+      ['github', 200],
+      ['coach', 400],
+    ] as const) {
+      const res = await call(`/auth/providers/${provider}`, {
+        method: 'DELETE',
+        jar,
+        store: s,
+      })
+      expect(res.res.status).toBe(status)
+    }
+  })
+
+  it('holds making a key and signing in with one to the strict limit', async () => {
+    const { limit, asked } = (() => {
+      const seen: { tier: Tier; key: string }[] = []
+      const fn: Limiter = (tier, key) => {
+        seen.push({ tier, key })
+        return Promise.resolve(false)
+      }
+      return { limit: fn, asked: seen }
+    })()
+    const s = new MemoryAccountStore()
+    const res = await create(new Jar(), s, limit)
+    expect(res.res.status).toBe(429)
+    expect(asked).toEqual([{ tier: 'strict', key: 'ip:unknown' }])
+    expect(s.accounts.size).toBe(0)
   })
 })
 

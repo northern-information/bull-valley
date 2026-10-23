@@ -52,6 +52,10 @@ export function tierFor(method: string, parts: readonly string[]): Tier | null {
   if (parts.length === 2) {
     if (method === 'GET' && second === 'login') return 'strict'
     if (method === 'DELETE' && first === 'providers') return 'strict'
+    // A Coach key made, signed in with, or linked.
+    if (method === 'POST' && (first === 'coach' || first === 'link')) {
+      return 'strict'
+    }
     return null
   }
   if (parts.length === 3) {

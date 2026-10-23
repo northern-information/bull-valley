@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
   availabilityOf,
+  coachSignIn,
   confirmSignup,
   fetchMe,
   fetchProviders,
+  newCoachKey,
   refreshSession,
   renameUsername,
   saveHotbar,
@@ -112,6 +114,55 @@ describe('confirmSignup', () => {
     expect(seen[0].url).toBe('/auth/confirm-signup')
     expect(JSON.parse(seen[0].init?.body as string)).toEqual({
       magicWord: 'cabbages',
+    })
+  })
+})
+
+describe('newCoachKey', () => {
+  it('asks for a new account or a link, and hands back the key', async () => {
+    const key = 'f'.repeat(256)
+    const made = answer(200, { key })
+    expect(await newCoachKey('create', made.impl)).toEqual({ ok: true, key })
+    expect(await newCoachKey('link', made.impl)).toEqual({ ok: true, key })
+    expect(made.seen.map((call) => [call.url, call.init?.method])).toEqual([
+      ['/auth/coach/create', 'POST'],
+      ['/auth/link/coach', 'POST'],
+    ])
+  })
+
+  it('reports a refusal, a rate limit, and an unreachable valley', async () => {
+    expect(await newCoachKey('link', answer(409, {}).impl)).toEqual({
+      ok: false,
+      error: copy('auth.coach_failed'),
+      limited: false,
+    })
+    expect(
+      await newCoachKey('create', answer(429, { error: 'Wait.' }).impl)
+    ).toEqual({ ok: false, error: 'Wait.', limited: true })
+    expect(await newCoachKey('create', down)).toEqual({
+      ok: false,
+      error: copy('auth.unreachable'),
+    })
+  })
+})
+
+describe('coachSignIn', () => {
+  it('posts the key and reports the outcome', async () => {
+    const { impl, seen } = answer(200)
+    expect(await coachSignIn('abc', impl)).toEqual({ ok: true })
+    expect(seen[0].url).toBe('/auth/coach/login')
+    expect(JSON.parse(seen[0].init?.body as string)).toEqual({ key: 'abc' })
+    expect(
+      await coachSignIn('abc', answer(401, { error: 'No such key' }).impl)
+    ).toEqual({ ok: false, error: 'No such key', limited: false })
+    expect(await coachSignIn('abc', answer(429).impl)).toEqual({
+      ok: false,
+      error: copy('auth.sign_in_failed'),
+      limited: true,
+    })
+    expect(await coachSignIn('abc', down)).toEqual({
+      ok: false,
+      error: copy('auth.unreachable'),
     })
   })
 })

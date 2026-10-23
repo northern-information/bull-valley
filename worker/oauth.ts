@@ -1,8 +1,10 @@
 // The OAuth 2.0 authorization-code flow with PKCE against each provider:
 // the authorize URL, the code exchange, the profile fetch, and what of the
-// profile the valley keeps. Pure apart from the `fetch` the caller hands in,
-// so the tests run against canned provider answers.
+// profile the valley keeps; and the Coach key, which stands in for all of
+// it. Pure apart from the `fetch` the caller hands in, so the tests run
+// against canned provider answers.
 
+import { COACH_KEY_LENGTH } from '../src/account.ts'
 import { copy } from '../src/copy.ts'
 import type { OAuthProvider } from '../src/account.ts'
 import type { AuthSecrets } from './env.ts'
@@ -111,6 +113,28 @@ function base64url(bytes: Uint8Array): string {
 // 32 random bytes, URL-safe: a CSRF state or a PKCE verifier.
 export function randomToken(): string {
   return base64url(crypto.getRandomValues(new Uint8Array(32)))
+}
+
+const hex = (bytes: Uint8Array) =>
+  Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
+
+// A new Coach key (account.ts COACH_KEY_LENGTH hex characters): the whole
+// of a Coach account's way in, said once and never kept.
+export function newCoachKey(): string {
+  return hex(crypto.getRandomValues(new Uint8Array(COACH_KEY_LENGTH / 2)))
+}
+
+// The identity a Coach key signs in as: the key's SHA-256, the only trace
+// of it the valley keeps. The key is random, so a plain digest is enough;
+// a slow hash buys nothing against 1024 bits. The display name is the
+// digest's first few characters, so two Coach accounts read apart.
+export async function coachProfile(key: string): Promise<Profile> {
+  const digest = await crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(key)
+  )
+  const id = hex(new Uint8Array(digest))
+  return { id, displayName: id.slice(0, 8), avatarUrl: null }
 }
 
 // The S256 challenge for a PKCE verifier.

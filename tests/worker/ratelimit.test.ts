@@ -9,6 +9,9 @@ describe('tierFor', () => {
     expect(tierFor('POST', ['username'])).toBe('strict')
     expect(tierFor('PUT', ['username'])).toBe('strict')
     expect(tierFor('DELETE', ['providers', 'github'])).toBe('strict')
+    expect(tierFor('POST', ['coach', 'create'])).toBe('strict')
+    expect(tierFor('POST', ['coach', 'login'])).toBe('strict')
+    expect(tierFor('POST', ['link', 'coach'])).toBe('strict')
   })
 
   it('holds what a page calls as it goes to loose', () => {
