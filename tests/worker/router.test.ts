@@ -150,7 +150,7 @@ describe('router', () => {
       e
     )
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ providers: [] })
+    expect(await res.json()).toEqual({ providers: ['coach'] })
     const missing = await worker.fetch(
       new Request('https://bvsw.net/auth/nothing'),
       e

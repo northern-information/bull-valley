@@ -107,6 +107,86 @@ test('a new raider signs in, says the magic word, and chooses a username', async
   await toSignIn(page)
 })
 
+test('a Coach account is one key, shown once, and the key alone signs back in', async ({
+  page,
+  context,
+  errors,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  await page.goto(`/?valley=${freshValley('coach')}`)
+  await toSignIn(page)
+  await page
+    .getByRole('button', {
+      name: copy('signin.provider', { provider: 'Coach' }),
+    })
+    .click()
+  const face = page.locator('[data-face="coach"]')
+  await expect(face).toBeVisible()
+  const keyIn = page.locator('[data-bv="coach-key-in"]')
+  const signInBtn = page.locator('[data-bv="coach-sign-in"]')
+  await expect(keyIn).toBeFocused()
+  await expect(signInBtn).toBeDisabled()
+
+  // A new key, under the warning that it will never be seen again.
+  await page.getByRole('button', { name: copy('coach.create') }).click()
+  const reveal = page.locator('[data-face="coach-key"]')
+  await expect(reveal).toContainText(copy('coach.reveal_once'))
+  await expect(reveal).toContainText(copy('coach.reveal_warn'))
+  const key = await reveal.locator('[data-bv="coach-key"]').inputValue()
+  expect(key).toMatch(/^[0-9a-f]{256}$/)
+  await reveal.getByRole('button', { name: copy('coach.copy') }).click()
+  await expect(reveal.locator('[data-bv="coach-status"]')).toHaveText(
+    copy('coach.copied')
+  )
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(key)
+  // Escape never dismisses it, and Continue waits on the raider's word.
+  await page.keyboard.press('Escape')
+  await expect(reveal).toBeVisible()
+  const onward = reveal.getByRole('button', { name: copy('coach.continue') })
+  await expect(onward).toBeDisabled()
+  await reveal.getByLabel(copy('coach.saved')).check()
+  await onward.click()
+
+  // On like any new raider: the magic word and a username.
+  await expect(page.locator('[data-face="username"]')).toBeVisible()
+  const mine = freshRaider('Coach').username
+  await page.locator('[data-bv="account-username"]').fill(mine)
+  await expect(page.locator('.bv-account-status')).toHaveText(
+    copy('username.available')
+  )
+  await page.getByLabel(copy('username.magic_word')).fill('berries')
+  await page.locator('[data-bv="account-confirm"]').click()
+  await expect(page.locator('.bv-account')).toHaveCount(0)
+  await menuButton(page, 'menu.die').click()
+  await expect(page.locator('[data-bv="select-username"]')).toHaveText(mine)
+  await Promise.all([
+    page.waitForEvent('load'),
+    page.locator('[data-bv="select-sign-out"]').click(),
+  ])
+
+  // Signed out: a wrong key is refused, the right one signs straight in.
+  await toSignIn(page)
+  await page
+    .getByRole('button', {
+      name: copy('signin.provider', { provider: 'Coach' }),
+    })
+    .click()
+  await keyIn.fill('f'.repeat(256))
+  await keyIn.press('Enter')
+  await expect(face.locator('.bv-account-error')).toHaveText(
+    copy('auth.coach_key_unknown')
+  )
+  expect(errors).toEqual([
+    expect.stringMatching(/^401 .*\/auth\/coach\/login$/),
+  ])
+  errors.length = 0
+  await keyIn.fill(key.toUpperCase())
+  await signInBtn.click()
+  await expect(page.locator('.bv-account')).toHaveCount(0)
+  await menuButton(page, 'menu.die').click()
+  await expect(page.locator('[data-bv="select-username"]')).toHaveText(mine)
+})
+
 test('the music volume is kept on the account', async ({ page }) => {
   await signIn(page)
   await page.goto('/')

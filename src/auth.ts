@@ -1,12 +1,14 @@
 // The game's side of the /auth routes (worker/auth.ts): who is signed in,
-// keeping the session fresh, confirming a new account, choosing a username,
-// saving the character, unlinking a provider, signing out. Same origin, so the session cookies ride along on every call
+// keeping the session fresh, confirming a new account, the Coach key,
+// choosing a username, saving the character, unlinking a provider, signing
+// out. Same origin, so the session cookies ride along on every call
 // and the page never sees a token. The shapes are account.ts's.
 
 import { AUTH_PATH } from './account.ts'
 import { copy } from './copy.ts'
 import type {
   AvailableResponse,
+  CoachKeyResponse,
   HotbarWire,
   LookWire,
   MeResponse,
@@ -119,6 +121,54 @@ export async function confirmSignup(
     return {
       ok: false,
       error: await errorOf(res, copy('auth.expired')),
+    }
+  } catch {
+    return { ok: false, error: copy('auth.unreachable') }
+  }
+}
+
+// A new Coach key: `create` holds it as a pending signup, the magic word
+// still to say; `link` puts it on the signed-in account. Either way the key
+// is in this answer and nowhere else, ever.
+type KeyOutcome =
+  { ok: true; key: string } | { ok: false; error: string; limited?: boolean }
+
+export async function newCoachKey(
+  how: 'create' | 'link',
+  fetchImpl: Fetch = fetch
+): Promise<KeyOutcome> {
+  try {
+    const res = await post(
+      fetchImpl,
+      how === 'create' ? '/coach/create' : '/link/coach'
+    )
+    if (res.ok) {
+      const { key } = (await res.json()) as CoachKeyResponse
+      return { ok: true, key }
+    }
+    return {
+      ok: false,
+      error: await errorOf(res, copy('auth.coach_failed')),
+      limited: res.status === TOO_MANY,
+    }
+  } catch {
+    return { ok: false, error: copy('auth.unreachable') }
+  }
+}
+
+// Sign in with a Coach key: the account is signed in, or the server says
+// why not (a malformed key, or one no account has).
+export async function coachSignIn(
+  key: string,
+  fetchImpl: Fetch = fetch
+): Promise<Outcome> {
+  try {
+    const res = await post(fetchImpl, '/coach/login', { key })
+    if (res.ok) return { ok: true }
+    return {
+      ok: false,
+      error: await errorOf(res, copy('auth.sign_in_failed')),
+      limited: res.status === TOO_MANY,
     }
   } catch {
     return { ok: false, error: copy('auth.unreachable') }

@@ -39,6 +39,7 @@ const THREE_AND_DOM = [
   'chathud',
   'citgo',
   'citgomap',
+  'coachkey',
   'compasshud',
   'constellationrig',
   'cornmaze',

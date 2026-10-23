@@ -13,7 +13,7 @@
 #
 # Not in this file: the popup landing page
 # (public/auth-done.html), the link-preview tags in index.html, the
-# provider names (Google, Discord, GitHub), the Akashic dev page, and the
+# provider names (Google, Discord, GitHub, Coach), the Akashic dev page, and the
 # words painted on packs, cans, medicine and the Citgo signs.
 
 # The intro card, which is also the menu on Esc (src/hud.ts): one face at
@@ -138,6 +138,26 @@ provider = { text = "Sign In with {provider}", by = "tyler" }
 unavailable = { text = "Sign-in is not available right now. Try again soon.", by = "tyler" }
 unreachable = { text = "The valley cannot be reached. Try again soon.", by = "tyler" }
 rules = { text = "3 to 16 letters, digits, or underscores.", by = "tyler" }
+
+# The Coach login (src/signin.ts, src/coachkey.ts): an account that is one
+# 256-character key and nothing else, shown once.
+
+[coach]
+title = { text = "Coach", by = "ai" }
+lede = { text = "No email. No password. No username to sign in with. A Coach account is one key, 256 characters long, and that key is all of it.", by = "ai" }
+key_field = { text = "Coach Key", by = "ai" }
+sign_in = { text = "Sign In", by = "ai" }
+create = { text = "Create Coach Account", by = "ai" }
+reveal_title = { text = "Your Coach Key", by = "ai" }
+reveal_once = { text = "YOU WILL SEE THIS ONCE.", by = "ai" }
+reveal_warn = { text = "This key is the whole account. There is no email, no password reset, no recovery, no support line. Close this without saving it and the account is gone for good. Nobody can get it back for you. Not us. Not anyone.", by = "ai" }
+reveal_save = { text = "Copy it. Write it down. Put it somewhere safe. Then put it somewhere else safe.", by = "ai" }
+copy = { text = "Copy Key", by = "ai" }
+copied = { text = "Copied. Now paste it somewhere you will not lose.", by = "ai" }
+copy_failed = { text = "Copy it by hand: select the key and copy it.", by = "ai" }
+saved = { text = "I saved my key. I know it will never be shown again.", by = "ai" }
+continue = { text = "Continue", by = "ai" }
+hint = { text = "Enter Sign In · Escape Back", by = "ai" }
 
 # Choose Your Username, with the magic word for a new raider
 # (src/signin.ts).
@@ -929,6 +949,9 @@ limited = { text = "Too many tries. Wait a minute and try again.", by = "ai" }
 limited_short = { text = "Too many tries. Wait a minute.", by = "ai" }
 unnamed = { text = "Raider", by = "ai" }
 magic_word_wrong = { text = "That is not the magic word", by = "ai" }
+coach_key_rule = { text = "A Coach key is 256 characters, 0 to 9 and a to f", by = "ai" }
+coach_key_unknown = { text = "No account has that Coach key", by = "ai" }
+coach_failed = { text = "The Coach key could not be made", by = "ai" }
 
 # The name over the item E would act on: a pickup, a shelf unit, or the
 # berry bush (src/interactions.ts itemLabel).

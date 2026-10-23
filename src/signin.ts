@@ -9,9 +9,14 @@
 // Choose Your Username takes the handle, checks it as you type, and, for a
 // raider who has just arrived (a pending signup), asks for the magic word:
 // the game is private, and the server creates the account only for the
-// right one. The rules and the routes are account.ts's and auth.ts's.
+// right one. Coach makes no round trip: its face takes a Coach key to sign
+// in with, or makes a new one, shown once (coachkey.ts) before the raider
+// goes on to Choose Your Username like any new raider. The rules and the
+// routes are account.ts's and auth.ts's.
 
 import {
+  COACH_KEY_LENGTH,
+  coachKeyOf,
   isValidUsername,
   PROVIDER_COLORS,
   PROVIDER_LABELS,
@@ -20,12 +25,16 @@ import {
 } from './account.ts'
 import {
   availabilityOf,
+  coachSignIn,
   confirmSignup,
+  fetchMe,
   fetchProviders,
+  newCoachKey,
   setUsername,
   signOut,
   usernameAvailable,
 } from './auth.ts'
+import { revealCoachKey } from './coachkey.ts'
 import { copy } from './copy.ts'
 import { finder, setStatus } from './dom.ts'
 import type { MeResponse, Provider } from './account.ts'
@@ -80,7 +89,23 @@ export function mountAccountStep(): AccountStep {
         <button type="submit" class="bv-btn bv-btn--primary" data-bv="account-confirm" disabled>${copy('username.confirm')}</button>
       </div>
       <p class="bv-select-hint">${copy('username.hint')}</p>
-    </form>`
+    </form>
+    <form class="bv-account-ui" data-face="coach" hidden novalidate>
+      <h2>${copy('coach.title')}</h2>
+      <p class="bv-account-lede">${copy('coach.lede')}</p>
+      <label class="bv-field">
+        <span>${copy('coach.key_field')}</span>
+        <textarea class="bv-coach-key" data-bv="coach-key-in" rows="5" maxlength="${COACH_KEY_LENGTH * 2}" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+      </label>
+      <p class="bv-account-error" role="alert" hidden></p>
+      <div class="bv-select-actions">
+        <button type="button" class="bv-btn" data-bv="coach-back">${copy('menu.back')}</button>
+        <button type="submit" class="bv-btn bv-btn--primary" data-bv="coach-sign-in" disabled>${copy('coach.sign_in')}</button>
+      </div>
+      <button type="button" class="bv-btn bv-provider" data-bv="coach-create">${copy('coach.create')}</button>
+      <p class="bv-select-hint">${copy('coach.hint')}</p>
+    </form>
+    <div class="bv-account-ui" data-face="coach-key" hidden></div>`
   document.body.appendChild(root)
 
   const find = finder(root)
@@ -101,6 +126,19 @@ export function mountAccountStep(): AccountStep {
   const cancelBtn = find<HTMLButtonElement>('[data-bv="account-cancel"]')
   const confirmBtn = find<HTMLButtonElement>('[data-bv="account-confirm"]')
   const backBtn = find<HTMLButtonElement>('[data-bv="account-back"]')
+  const coachFace = find<HTMLFormElement>('[data-face="coach"]')
+  const coachKeyFace = find<HTMLDivElement>('[data-face="coach-key"]')
+  const coachInput = find<HTMLTextAreaElement>('[data-bv="coach-key-in"]')
+  const coachError = find<HTMLParagraphElement>(
+    '[data-face="coach"] .bv-account-error'
+  )
+  const coachBack = find<HTMLButtonElement>('[data-bv="coach-back"]')
+  const coachSignInBtn = find<HTMLButtonElement>('[data-bv="coach-sign-in"]')
+  const coachCreate = find<HTMLButtonElement>('[data-bv="coach-create"]')
+  coachFace.style.setProperty('--provider', PROVIDER_COLORS.coach)
+
+  // What the Coach button does: set by run(), which owns the faces.
+  let openCoach = () => {}
 
   const showError = (el: HTMLElement, message: string | null) => {
     el.textContent = message ?? ''
@@ -112,6 +150,8 @@ export function mountAccountStep(): AccountStep {
 
   async function showSignIn(error: string | null): Promise<void> {
     usernameFace.hidden = true
+    coachFace.hidden = true
+    coachKeyFace.hidden = true
     signInFace.hidden = false
     showError(signInError, error)
     const providers = await fetchProviders()
@@ -132,7 +172,8 @@ export function mountAccountStep(): AccountStep {
       provider: PROVIDER_LABELS[provider],
     })
     button.addEventListener('click', () => {
-      window.location.assign(signInUrl(provider, here()))
+      if (provider === 'coach') openCoach()
+      else window.location.assign(signInUrl(provider, here()))
     })
     return button
   }
@@ -196,6 +237,8 @@ export function mountAccountStep(): AccountStep {
 
       const showUsername = () => {
         signInFace.hidden = true
+        coachFace.hidden = true
+        coachKeyFace.hidden = true
         usernameFace.hidden = false
         magic.hidden = !pending
         const who = me?.account?.displayName ?? me?.pending?.displayName
@@ -281,10 +324,107 @@ export function mountAccountStep(): AccountStep {
         void confirm()
       }
 
+      // --- Coach ---------------------------------------------------------
+
+      const coachReady = () => !submitting && coachKeyOf(coachInput.value)
+
+      const coachRefresh = () => {
+        coachSignInBtn.disabled = !coachReady()
+        coachCreate.disabled = submitting
+        coachBack.disabled = submitting
+      }
+
+      const showCoach = () => {
+        signInFace.hidden = true
+        coachFace.hidden = false
+        showError(coachError, null)
+        coachInput.value = ''
+        coachRefresh()
+        coachInput.focus()
+      }
+      openCoach = showCoach
+
+      const onCoachInput = () => {
+        showError(coachError, null)
+        coachRefresh()
+      }
+
+      // Enter signs in, as in a one-line field; a pasted key's own line
+      // breaks are forgiven (coachKeyOf).
+      const onCoachEnter = (e: KeyboardEvent) => {
+        if (e.key !== 'Enter' || e.shiftKey) return
+        e.preventDefault()
+        coachFace.requestSubmit()
+      }
+
+      // Signed in by the key: straight through with a username, or on to
+      // choose one for an account that has none yet.
+      const coachSubmit = async (e: Event) => {
+        e.preventDefault()
+        const key = coachKeyOf(coachInput.value)
+        if (!key || submitting) return
+        submitting = true
+        coachRefresh()
+        const signed = await coachSignIn(key)
+        const after = signed.ok ? await fetchMe() : null
+        submitting = false
+        coachRefresh()
+        if (!signed.ok || !after?.account) {
+          showError(
+            coachError,
+            signed.ok ? copy('auth.sign_in_failed') : signed.error
+          )
+          coachInput.select()
+          return
+        }
+        coachInput.value = ''
+        if (after.account.username) {
+          finish(after.account.username)
+          return
+        }
+        me = after
+        pending = false
+        showUsername()
+      }
+
+      // A new key, held as a pending signup: shown once, then the magic
+      // word and a username like any new raider.
+      const coachNew = async () => {
+        if (submitting) return
+        submitting = true
+        coachRefresh()
+        const made = await newCoachKey('create')
+        submitting = false
+        coachRefresh()
+        if (!made.ok) {
+          showError(coachError, made.error)
+          return
+        }
+        coachInput.value = ''
+        coachFace.hidden = true
+        coachKeyFace.hidden = false
+        await revealCoachKey(coachKeyFace, made.key)
+        me = await fetchMe()
+        pending = me !== null && me.account === null && me.pending !== null
+        if (me?.account || pending) showUsername()
+        else await showSignIn(copy('auth.expired'))
+      }
+
+      const onCoachBack = () => {
+        if (submitting) return
+        coachFace.hidden = true
+        void showSignIn(null)
+      }
+
+      const onCoachCreate = () => void coachNew()
+      const onCoachSubmit = (e: Event) => void coachSubmit(e)
+
       const onKey = (e: KeyboardEvent) => {
         if (e.code !== 'Escape') return
         e.preventDefault()
         if (!usernameFace.hidden) void cancel()
+        else if (!coachFace.hidden) onCoachBack()
+        // The key's one showing is never dismissed by a stray Escape.
         else if (!signInFace.hidden) back()
       }
 
@@ -303,6 +443,12 @@ export function mountAccountStep(): AccountStep {
         cancelBtn.removeEventListener('click', onCancel)
         backBtn.removeEventListener('click', back)
         document.removeEventListener('keydown', onKey)
+        coachInput.removeEventListener('input', onCoachInput)
+        coachInput.removeEventListener('keydown', onCoachEnter)
+        coachFace.removeEventListener('submit', onCoachSubmit)
+        coachBack.removeEventListener('click', onCoachBack)
+        coachCreate.removeEventListener('click', onCoachCreate)
+        openCoach = () => {}
       }
 
       input.addEventListener('input', check)
@@ -311,6 +457,11 @@ export function mountAccountStep(): AccountStep {
       cancelBtn.addEventListener('click', onCancel)
       backBtn.addEventListener('click', back)
       document.addEventListener('keydown', onKey)
+      coachInput.addEventListener('input', onCoachInput)
+      coachInput.addEventListener('keydown', onCoachEnter)
+      coachFace.addEventListener('submit', onCoachSubmit)
+      coachBack.addEventListener('click', onCoachBack)
+      coachCreate.addEventListener('click', onCoachCreate)
 
       if (me?.account?.username) {
         finish(me.account.username)

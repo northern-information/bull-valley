@@ -2,9 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { copy } from '../../src/copy.ts'
 import {
   authorizeUrl,
+  coachProfile,
   credentials,
   exchangeCode,
   fetchProfile,
+  newCoachKey,
   OAUTH,
   pkceChallenge,
   providerKey,
@@ -80,6 +82,33 @@ describe('tokens and PKCE', () => {
 
   it('keys a provider identity', () => {
     expect(providerKey('github', '12345')).toBe('github:12345')
+  })
+})
+
+describe('the Coach key', () => {
+  it('is 256 random hex characters', () => {
+    const a = newCoachKey()
+    expect(a).toMatch(/^[0-9a-f]{256}$/)
+    expect(newCoachKey()).not.toBe(a)
+  })
+
+  it('signs in as its SHA-256, never as itself', async () => {
+    const key = '0'.repeat(256)
+    const profile = await coachProfile(key)
+    const digest = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(key)
+    )
+    const hex = Array.from(new Uint8Array(digest), (b) =>
+      b.toString(16).padStart(2, '0')
+    ).join('')
+    expect(profile).toEqual({
+      id: hex,
+      displayName: hex.slice(0, 8),
+      avatarUrl: null,
+    })
+    expect(JSON.stringify(profile)).not.toContain(key)
+    expect(await coachProfile(key)).toEqual(profile)
   })
 })
 

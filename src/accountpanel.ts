@@ -7,8 +7,11 @@
 // popup walks the provider round trip and lands on auth-done.html, which
 // posts the ?auth= result here (LINK_MESSAGE) and closes. The panel then
 // reads the account again. A blocked popup falls back to a full-page round
-// trip that lands back on the game. Unlinking is refused for the last
-// provider, so there is always a way back in. The routes are worker/auth.ts.
+// trip that lands back on the game. Coach makes no round trip: Link Coach
+// asks the valley for a new key and shows it here, once (coachkey.ts), the
+// panel's own face set aside until it is saved. Unlinking is refused for
+// the last provider, so there is always a way back in. The routes are
+// worker/auth.ts.
 
 import {
   authReturnOf,
@@ -18,7 +21,8 @@ import {
   PROVIDER_COLORS,
   PROVIDER_LABELS,
 } from './account.ts'
-import { fetchMe, fetchProviders, unlinkProvider } from './auth.ts'
+import { fetchMe, fetchProviders, newCoachKey, unlinkProvider } from './auth.ts'
+import { revealCoachKey } from './coachkey.ts'
 import { copy } from './copy.ts'
 import { finder, setStatus } from './dom.ts'
 import type { AccountWire, Provider, ProviderWire } from './account.ts'
@@ -58,10 +62,13 @@ export function openAccountPanel({
         <button type="button" class="bv-btn" data-bv="panel-sign-out">${copy('panel.sign_out')}</button>
         <button type="button" class="bv-btn bv-btn--primary" data-bv="panel-close">${copy('panel.close')}</button>
       </div>
-    </div>`
+    </div>
+    <div class="bv-account-ui" data-bv="panel-coach" hidden></div>`
   document.body.appendChild(root)
 
   const find = finder(root)
+  const face = find<HTMLDivElement>('.bv-account-ui')
+  const coachFace = find<HTMLDivElement>('[data-bv="panel-coach"]')
   const avatar = find<HTMLImageElement>('.bv-avatar')
   const usernameEl = find<HTMLParagraphElement>('[data-bv="panel-username"]')
   const linkedList = find<HTMLUListElement>('[data-bv="panel-linked"]')
@@ -79,6 +86,8 @@ export function openAccountPanel({
     let offered: Provider[] = []
     let busy = false
     let popupTimer: ReturnType<typeof setInterval> | null = null
+    // While a new Coach key is up: nothing closes the panel under it.
+    let revealing = false
 
     // Whether the status is a wait ("Linking…") that a closed popup with no
     // word should clear.
@@ -194,8 +203,32 @@ export function openAccountPanel({
       closeBtn.focus()
     }
 
+    async function linkCoach(): Promise<void> {
+      setBusy(true)
+      say(copy('panel.linking', { provider: PROVIDER_LABELS.coach }))
+      const made = await newCoachKey('link')
+      setBusy(false)
+      if (!made.ok) {
+        say(made.error, 'bad')
+        return
+      }
+      revealing = true
+      face.hidden = true
+      coachFace.hidden = false
+      await revealCoachKey(coachFace, made.key)
+      coachFace.hidden = true
+      face.hidden = false
+      revealing = false
+      if (await reload()) say(copy('panel.linked_ok'), 'ok')
+      closeBtn.focus()
+    }
+
     function link(provider: Provider): void {
       if (busy) return
+      if (provider === 'coach') {
+        void linkCoach()
+        return
+      }
       const devUserId =
         provider === 'dev'
           ? `dev-${Math.random().toString(36).slice(2, 10)}`
@@ -249,7 +282,7 @@ export function openAccountPanel({
     // open, its keys are the panel's alone. Buttons still activate.
     const onKey = (e: KeyboardEvent) => {
       e.stopPropagation()
-      if (e.code === 'Escape') {
+      if (e.code === 'Escape' && !revealing) {
         e.preventDefault()
         close()
       }

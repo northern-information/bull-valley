@@ -2593,6 +2593,53 @@ canvas {
   color: #ff6b5b;
 }
 
+/* The Coach key (signin.ts, coachkey.ts): 256 characters set in a block
+   to copy, broken anywhere, under a warning that shouts. */
+.bv-coach-key {
+  box-sizing: border-box;
+
+  /* Its own width: a field's label shrinks to what it holds. */
+  width: min(34rem, calc(100vw - 96px));
+  font: inherit;
+  font-size: 0.8em;
+  line-height: 1.4;
+  letter-spacing: 0.04em;
+  word-break: break-all;
+  text-align: left;
+  text-transform: none;
+  resize: none;
+  color: var(--bv-eggshell);
+  background: var(--fi-surface);
+  border: 1px solid var(--fi-paper-light);
+  border-left: 6px solid var(--provider, var(--fi-paper-light));
+  box-shadow: 4px 4px 0 var(--fi-black-shadow);
+  padding: 0.6rem 0.7rem;
+}
+
+.bv-coach-once {
+  margin: 0;
+  color: #ff6b5b;
+  font-size: 1.4em;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-shadow: 4px 4px 0 var(--fi-black-shadow);
+}
+
+.bv-coach-saved {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bv-coach-saved > input[type='checkbox'] {
+  width: 1.2rem;
+  height: 1.2rem;
+  margin: 0;
+  accent-color: var(--bv-citgo);
+}
+
 /* The account panel (accountpanel.ts): the account step's look, over the
    character select. Mounted after it, so DOM order stacks it on top. */
 .bv-panel {
