@@ -342,22 +342,29 @@ test('a raider up on a pipe walks along it', async ({ page }) => {
   await heardWhere(page)
   const feet = () => page.evaluate(() => window.__bv?.player.groundY ?? 0)
   await expect.poll(feet).toBeCloseTo(run.top, 1)
-  // Walked a few metres along it, still up on it.
+  // Walked a few metres along it, still up on it. The feet are read in the
+  // page on the frame the raider crosses the mark, not after W comes up:
+  // a slow runner lets go late, and the raider walks on off the stretch's
+  // end onto a lower pipe.
+  const mark = Math.min(4, run.len - 1.5)
   await page.keyboard.down('KeyW')
-  await expect
-    .poll(() =>
-      page.evaluate(
-        ({ a }) =>
-          Math.hypot(
-            (window.__bv?.player.pos.x ?? 0) - a.x,
-            (window.__bv?.player.pos.z ?? 0) - a.z
-          ),
-        run
-      )
-    )
-    .toBeGreaterThan(Math.min(4, run.len - 1))
+  const along = await page.evaluate(
+    ({ a, mark }) =>
+      new Promise<number>((resolve) => {
+        const step = () => {
+          const player = window.__bv?.player
+          const walked = player
+            ? Math.hypot(player.pos.x - a.x, player.pos.z - a.z)
+            : 0
+          if (player && walked > mark) resolve(player.groundY)
+          else requestAnimationFrame(step)
+        }
+        step()
+      }),
+    { a: run.a, mark }
+  )
   await page.keyboard.up('KeyW')
-  expect(await feet()).toBeCloseTo(run.top, 1)
+  expect(along).toBeCloseTo(run.top, 1)
 })
 
 test('a raider who walks off the rim lands on a pipe, hurt', async ({
