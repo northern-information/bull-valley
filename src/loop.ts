@@ -509,13 +509,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         line !== null,
         line?.hook != null && performance.now() >= line.bitesAt
       )
-      // The fish landed, up out of the water before the raider.
+      // The fish landed, up out of the water before the raider's eyes.
       const hoist = s.hoist && inPond([pond.place], player.pos) ? s.hoist : null
-      pond.setHoist(
-        hoist?.kind ?? null,
-        time - (hoist?.at ?? 0),
-        camera.position
-      )
+      pond.setHoist(hoist?.kind ?? null, time - (hoist?.at ?? 0), camera)
       pond.update(time, net.clock.serverNow(now) / 1000)
     }
     if (s.hoist && !hoistPose(time - s.hoist.at)) s.hoist = null

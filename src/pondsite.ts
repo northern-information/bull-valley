@@ -36,8 +36,9 @@ export interface PondRig {
   setLine(out: boolean, bite: boolean): void
   // The fish last landed (`kind`, null for none), `since` seconds after
   // the reel in, up out of the water at the bobber and hanging on the
-  // line before the raider's `eye` (catchfanfare.ts hoistPose).
-  setHoist(kind: string | null, since: number, eye: THREE.Vector3): void
+  // line in front of the raider's `view`, wherever they look, as off the
+  // rod in their hand (catchfanfare.ts hoistPose).
+  setHoist(kind: string | null, since: number, view: THREE.Camera): void
   // `t` game seconds, for what moves on its own; `valley` the valley's
   // clock in seconds, for the fish that leap, the same for everyone.
   update(t: number, valley: number): void
@@ -46,8 +47,7 @@ export interface PondRig {
 // How far out from the landing the bobber lands, and how it bobs.
 const CAST_OUT = 9
 const BOB = { metres: 0.015, hz: 0.7, plunge: 0.05, plungeHz: 6 }
-// The fish landed hangs this far out toward the water from the raider's
-// eye and this far below it, on a line up to where the rod's tip would
+// The fish landed hangs this far out ahead of the raider's eye and this far below it, on a line up to where the rod's tip would
 // be, and arcs this high over the straight way up to it.
 const HOIST = { out: 1.7, below: 0.3, tip: { out: 1.3, over: 0.75 }, arc: 0.6 }
 // The table blocks this far either side of its length: past the benches.
@@ -179,12 +179,14 @@ export function placePond(pond: Pond, ground: Ground, walls: Walls): PondRig {
   group.add(hoistLine)
   const hangAt = new THREE.Vector3()
   const tipAt = new THREE.Vector3()
+  const eyeAt = new THREE.Vector3()
+  const ahead = new THREE.Vector3()
 
   return {
     group,
     place: pond,
     landing,
-    setHoist(kind, since, eye) {
+    setHoist(kind, since, view) {
       for (const fish of hoisted.values()) fish.visible = false
       hoistLine.visible = false
       const pose = kind ? hoistPose(since) : null
@@ -195,12 +197,12 @@ export function placePond(pond: Pond, ground: Ground, walls: Walls): PondRig {
         hoisted.set(kind, fish)
         group.add(fish)
       }
-      // From the bobber up to hang before the raider, toward the water.
-      const dx = bobber.position.x - eye.x
-      const dz = bobber.position.z - eye.z
-      const d = Math.hypot(dx, dz) || 1
-      const ux = dx / d
-      const uz = dz / d
+      // From the bobber up to hang before the raider, the way they look.
+      const eye = view.getWorldPosition(eyeAt)
+      view.getWorldDirection(ahead)
+      const d = Math.hypot(ahead.x, ahead.z) || 1
+      const ux = ahead.x / d
+      const uz = ahead.z / d
       hangAt.set(
         eye.x + ux * HOIST.out,
         eye.y - HOIST.below,
@@ -213,7 +215,7 @@ export function placePond(pond: Pond, ground: Ground, walls: Walls): PondRig {
       // Hanging nose up off the hook, thrashing, turning on the line.
       fish.rotation.set(
         pose.thrash,
-        Math.atan2(-dz, dx) + pose.turn,
+        Math.atan2(-uz, ux) + pose.turn,
         Math.PI / 2,
         'YXZ'
       )
