@@ -343,7 +343,7 @@ describe('fishing', () => {
     expect(skillUpChance(11, 0)).toBeCloseTo(0.7)
   })
 
-  it('raises the skill a tenth, more ten levels up, and holds the cap', () => {
+  it('raises the skill a tenth, more ten levels up, without end', () => {
     expect(skillAfter('bluegill', 0, 1, 0)).toBe(0)
     expect(skillAfter('pumpkinseed', 0, 0, 0.99)).toBe(1)
     expect(skillAfter('yellow-perch', 0, 0, 0.99)).toBe(3)
@@ -351,8 +351,12 @@ describe('fishing', () => {
     expect(skillAfter('empty-can', 0, 0, 0.99)).toBe(0)
     expect(skillAfter('nope', 5, 0, 0)).toBe(5)
     expect(skillAfter('ghost-catfish', 940, 0, 0)).toBe(941)
-    const capped = { ...CONFIG.fishing, skillCap: 940 }
-    expect(skillAfter('ghost-catfish', 940, 0, 0, capped)).toBe(940)
+    // Past every fish, any fish landed raises it now and then, forever.
+    const { pastTopChance } = CONFIG.fishing
+    expect(skillAfter('ghost-catfish', 950, 0, 0)).toBe(951)
+    expect(skillAfter('bluegill', 4000, pastTopChance - 0.01, 0.99)).toBe(4001)
+    expect(skillAfter('bluegill', 4000, pastTopChance, 0)).toBe(4000)
+    expect(skillAfter('empty-can', 4000, 0, 0)).toBe(4000)
   })
 
   it('counts the day and tires at its limit', () => {
