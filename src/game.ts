@@ -303,6 +303,10 @@ export interface GameState {
   // When the rod was last cast, on `time` (held.ts castPose); null once
   // the cast is over.
   castAt: number | null
+  // The fish last landed, hoisted out of the water off the pond the
+  // raider stands at (catchfanfare.ts hoistPose), and when, on `time`;
+  // null once it is in the pack.
+  hoist: { kind: string; at: number } | null
   // When the jar last scooped, on `time` (held.ts scoopPose); null once
   // the scoop is over.
   scoopAt: number | null
@@ -413,6 +417,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     bait: null,
     inFireflies: null,
     castAt: null,
+    hoist: null,
     scoopAt: null,
     citgos: NO_CITGOS,
     portals: [],

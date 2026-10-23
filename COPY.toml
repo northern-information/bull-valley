@@ -1204,6 +1204,11 @@ lost_skill = { text = "You lost your catch due to your lack of skill.", by = "ai
 snap = { text = "Your line snaps!", by = "ai" }
 gave_up = { text = "You give up and reel in your line.", by = "ai" }
 skill_up = { text = "Your fishing skill rises to {skill}.", by = "ai" }
+fanfare_fish = { text = "Fish on the bank!", by = "ai" }
+fanfare_big = { text = "A big one!", by = "ai" }
+fanfare_legend = { text = "The legend of the pond!", by = "ai" }
+fanfare_legend_detail = { text = "Nobody at the Citgo will believe you.", by = "ai" }
+fanfare_skill = { text = "Fishing skill {skill}", by = "ai" }
 
 # Guitar finishes on the character select. Keys match src/finishes.ts.
 

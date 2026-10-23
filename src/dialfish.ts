@@ -11,6 +11,8 @@
 // The fight is the 3D valley's own (fishplay.ts), stepped here on its own
 // clock while the sheet is open.
 
+import { burst } from './catchburst.ts'
+import { FANFARE } from './catchfanfare.ts'
 import { copy } from './copy.ts'
 import { el, text } from './dom.ts'
 import { BAITS, rodIn, skillText, warned } from './fishing.ts'
@@ -40,6 +42,8 @@ const TICK_MS = 50
 export class DialFish {
   readonly root = el('div', 'bv-dial-fish')
   readonly canvas = document.createElement('canvas')
+  private scene = el('div', 'bv-dial-pond')
+  private banner = el('div', 'bv-banner')
   private call = el('p', 'bv-dial-pond-call')
   private arrow = el('div', 'bv-dial-pond-arrow')
   private angler = el('p', 'bv-dial-note bv-dial-fish-angler')
@@ -60,8 +64,12 @@ export class DialFish {
   // has landed yet.
   private outAt: number | null = null
   private landed = false
-  // Told what the line is doing every tick, for the pond view.
+  // The fish landed last made a big deal of.
+  private celebrated: DialState['landed'] = null
+  // Told what the line is doing every tick, for the pond view, and of a
+  // fish landed, to hoist it out of the water on the line.
   onLine: (line: PondLine) => void = () => {}
+  onHoist: (kind: string) => void = () => {}
 
   constructor(actions: FishActions, serverNow: () => number) {
     this.actions = actions
@@ -74,8 +82,13 @@ export class DialFish {
     this.canvas.className = 'bv-dial-pond-canvas'
     this.canvas.setAttribute('role', 'img')
     this.canvas.setAttribute('aria-label', copy('dialup.fish.scene'))
-    const scene = el('div', 'bv-dial-pond')
-    scene.append(this.canvas, this.arrow, this.call)
+    const scene = this.scene
+    this.banner.setAttribute('role', 'status')
+    this.banner.hidden = true
+    this.banner.addEventListener('animationend', () => {
+      this.banner.hidden = true
+    })
+    scene.append(this.canvas, this.arrow, this.call, this.banner)
     this.bars.append(
       text('span', copy('fishing.stamina'), 'bv-dial-stat-label'),
       this.stamina,
@@ -113,6 +126,7 @@ export class DialFish {
     const hook = s.line?.hook ?? null
     const rod = rodIn(s.pack)
     const a = s.angler
+    this.celebrate(s.landed, now)
 
     this.angler.textContent = a
       ? copy('dialup.fish.angler', {
@@ -181,6 +195,32 @@ export class DialFish {
     }
 
     this.drawActions(s, phase === 'done' ? 'none' : phase, rod)
+  }
+
+  // A fish landed is a big deal, as in the 3D valley (catchfanfare.ts):
+  // the valley's banner across the pond, fireflies bursting over it, the
+  // fanfare, the phone buzzing, and the fish up out of the water on the
+  // line. Once for each fish, and only while it is still coming in.
+  private celebrate(landed: DialState['landed'], now: number): void {
+    if (!landed || landed === this.celebrated) return
+    this.celebrated = landed
+    if (now - landed.at > FANFARE.seconds * 1000) return
+    const b = this.banner
+    b.replaceChildren(
+      el('p', 'bv-banner-kicker', landed.kicker),
+      el('p', 'bv-banner-headline', landed.headline)
+    )
+    if (landed.detail) b.append(el('p', 'bv-banner-detail', landed.detail))
+    b.classList.toggle('bv-banner--gold', landed.gold)
+    b.hidden = false
+    // Restart the sweep, for a second fish before the first's is done.
+    b.classList.remove('bv-banner--on')
+    void b.offsetWidth
+    b.classList.add('bv-banner--on')
+    burst(this.scene, landed)
+    this.actions.sound('fish-fanfare')
+    if ('vibrate' in navigator) navigator.vibrate(FANFARE.buzz[landed.tier])
+    this.onHoist(landed.kind)
   }
 
   // The one row of what can be done now, drawn again only when it changes.
