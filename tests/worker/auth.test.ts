@@ -717,6 +717,50 @@ describe('session', () => {
     expect(await stale.verifyAccess(jar.cookies[COOKIE.token])).not.toBeNull()
   })
 
+  it('slides a lapsed access cookie on a save, too', async () => {
+    const { jar, s } = await signedIn()
+    const later = T0 + (ACCESS_TTL + 60) * 1000
+    const stale = new Tokens(SECRET, () => later)
+    const bar = assign(EMPTY_HOTBAR, 0, 'camel')
+    const { res } = await call('/auth/hotbar', {
+      method: 'PUT',
+      jar,
+      store: s,
+      now: later,
+      body: { hotbar: bar },
+    })
+    expect(res.status).toBe(200)
+    expect(await stale.verifyAccess(jar.cookies[COOKIE.token])).not.toBeNull()
+    expect((await me(jar, s)).account?.hotbar).toEqual(bar)
+    // A route that reissues its own cookies has the last word.
+    await call('/auth/username', {
+      method: 'POST',
+      jar,
+      store: s,
+      now: later,
+      body: { username: 'sixer' },
+    })
+    const even = T0 + (2 * ACCESS_TTL + 120) * 1000
+    await call('/auth/username', {
+      method: 'PUT',
+      jar,
+      store: s,
+      now: even,
+      body: { username: 'sixth' },
+    })
+    const claims = await new Tokens(SECRET, () => even).verifyAccess(
+      jar.cookies[COOKIE.token]
+    )
+    expect(claims?.username).toBe('sixth')
+    // No refresh cookie, no save.
+    const none = await call('/auth/hotbar', {
+      method: 'PUT',
+      now: later,
+      body: { hotbar: bar },
+    })
+    expect(none.res.status).toBe(401)
+  })
+
   it('refreshes on request and says so when it cannot', async () => {
     const { jar, s } = await signedIn()
     delete jar.cookies[COOKIE.token]
