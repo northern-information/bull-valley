@@ -49,7 +49,13 @@ import { burstHeight, burstScale } from './tunnelrig.ts'
 import { levelsAt } from './wardlevels.ts'
 import { wardView } from './wardview.ts'
 import { crawlingSlurms } from './world.ts'
-import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
+import {
+  boardable,
+  clockText,
+  countdown,
+  myBodies,
+  seatOf,
+} from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { Game } from './game.ts'
@@ -584,7 +590,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   }
 
   // The map, while it is open: where you stand, your Citgos and payphones,
-  // your party, and your waypoints.
+  // your party, your waypoints, and your bodies.
   const drawMap = () => {
     if (s.mapOpen) {
       hud.map?.draw({
@@ -593,6 +599,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         here: travelFrom(),
         party: peers.placed(partyMates()),
         marks: s.waypoints,
+        bodies: myBodies(s.corpses, s.myCorpses, s.pending.loots),
       })
     }
   }
@@ -823,9 +830,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       gron: world.gron,
       npcs: targets.npcSpots(inStore),
       moabOffer: s.pending.trade ? null : moabOffer(s.inventory, s.cosmetics),
-      corpses: s.corpses.filter(
-        (c) => s.myCorpses.includes(c.id) && !s.pending.loots.has(c.id)
-      ),
+      corpses: myBodies(s.corpses, s.myCorpses, s.pending.loots),
       lockers: targets.lockerSpots(inStore),
       laptops: targets.laptopSpots(inStore),
       stand: world.stand?.at ?? null,

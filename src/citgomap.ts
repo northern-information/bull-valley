@@ -3,7 +3,9 @@
 // the phone's portal goes) ringed and named, every payphone the account
 // has found a pale blue dot (one not found is not shown), with the raider
 // an arrow among them, and each of their party (sharedworld.ts rule 34) a
-// named arrow of its own. Clicking a visited Citgo or a found payphone fast
+// named arrow of its own, and each of the raider's own bodies a bone-white
+// cross where it lies until they take their things back (corpses.ts,
+// sharedworld.ts rule 18). Clicking a visited Citgo or a found payphone fast
 // travels there (actions.ts, citgos.ts fastTravel). Opened for a charter
 // (the first one into Marx's bed, marx.ts charter), a click anywhere picks
 // where he drives instead. Otherwise a click anywhere else pins a waypoint
@@ -32,13 +34,14 @@ interface MapCitgo extends XZ {
 // What one frame of the open map shows: where the raider stands and faces,
 // their Citgos and payphones, the one they stand at and may fast travel
 // from (null: out in the valley), where each of their party placed in the
-// valley stands and faces, and their waypoints.
+// valley stands and faces, their waypoints, and where their own bodies lie.
 interface MapFrame {
   me: Facing
   log: CitgoLog
   here: Stop | null
   party?: readonly (Facing & { name: string })[]
   marks?: Waypoints
+  bodies?: readonly (XZ & { id: number })[]
 }
 
 // The canvas, square, in its own pixels; CSS sizes it.
@@ -50,6 +53,7 @@ const PAYPHONE = '#9ec5ff'
 const RAIDER = '#60a5fa'
 const PARTY = '#22d3ee'
 const PIN = '#f0ead6'
+const BODY = '#e7e5e4'
 const ROAD = 'rgba(240, 234, 214, 0.22)'
 const UNVISITED = 'rgba(240, 234, 214, 0.45)'
 // How near a Citgo a point is still called after it.
@@ -306,7 +310,7 @@ export class CitgoMap {
     ctx.restore()
   }
 
-  draw({ me, log, here, party = [], marks = [] }: MapFrame): void {
+  draw({ me, log, here, party = [], marks = [], bodies = [] }: MapFrame): void {
     this.marks = marks
     if (this.hoveredPin !== null && this.hoveredPin >= marks.length) {
       this.hoveredPin = null
@@ -376,6 +380,22 @@ export class CitgoMap {
       )
     })
     this.canvas.dataset.pins = String(marks.length)
+    // The raider's bodies: each a cross where it lies, always named, so a
+    // corpse run knows where to run.
+    for (const body of bodies) {
+      const { x, y } = this.toCanvas(body)
+      ctx.strokeStyle = BODY
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.moveTo(x, y - 8)
+      ctx.lineTo(x, y + 8)
+      ctx.moveTo(x - 6, y - 3)
+      ctx.lineTo(x + 6, y - 3)
+      ctx.stroke()
+      ctx.fillStyle = BODY
+      ctx.fillText(copy('map.body'), x, y - 11)
+    }
+    this.canvas.dataset.bodies = bodies.map((body) => body.id).join(',')
     // The party, each named, under the raider's own arrow.
     for (const mate of party) {
       const at = this.toCanvas(mate)

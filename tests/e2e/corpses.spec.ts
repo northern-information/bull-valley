@@ -104,6 +104,16 @@ test('a strike leaves the pack on your body, and E takes it back', async ({
     .toBe(cash - spilled)
   const [body] = await page.evaluate(() => window.__bv?.corpses ?? [])
   expect(body).toBeDefined()
+  // The map marks where it lies.
+  await page.keyboard.press('KeyM')
+  await expect(page.locator('canvas[data-bodies]')).toHaveAttribute(
+    'data-bodies',
+    String(body.id)
+  )
+  await page.keyboard.press('KeyM')
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.player.locked))
+    .toBe(true)
 
   // The run back: E over the body takes it all back.
   await page.evaluate(([x, z]) => window.__bv?.player.relocate(x, z + 1, 0), [
