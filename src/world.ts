@@ -33,7 +33,7 @@ import {
   placeDishes,
   placeGron,
   placeMoabs,
-  placeRecycler,
+  placeRecyclers,
   placeSpunkysGrave,
   placeStand,
   placeTyler,
@@ -215,10 +215,10 @@ export interface World {
   // where its middle is, the stand itself for the glow, and setLevel to
   // dress it for the raider's own level. Null without a spawn station.
   stand: StandRig | null
-  // The recycling vending machine on the spawn station's lot
-  // (sharedworld.ts rule 33): where its middle is, and the machine itself
-  // for the glow. Null without a spawn station.
-  recycler: RecyclerRig | null
+  // The recycling vending machine on every station's lot (sharedworld.ts
+  // rule 33), indexed like fuelPoints: where its middle is, and the
+  // machine itself for the glow.
+  recyclers: RecyclerRig[]
   // The green BMW in a tree by the spawn station, update(t) for its smoke
   // and hazards; null without a spawn station.
   wreck: Wreck | null
@@ -560,11 +560,11 @@ export function buildWorld(
   const { bushes, mazePlace } = plantBushes(group, ground, walls, spawnStation)
   const { gron, gronRig } = placeGron(group, ground, walls, spawnStation)
   const standRig = placeStand(group, ground, walls, spawnStation)
-  const recycler = placeRecycler(group, ground, walls, spawnStation)
   const wreck = placeWreck(group, ground, walls, spawnStation, wreckAt)
   const dishes = placeDishes(group, ground, walls, dishSpots)
   placeSpunkysGrave(group, ground, walls, spawnStation, pine)
   const { moabs, moabRigs } = placeMoabs(group, ground, walls, fuel.points)
+  const recyclers = placeRecyclers(group, ground, walls, fuel.points)
   const { tyler, tylerRig } = placeTyler(group, ground, walls, spawnStation)
   const castle = moatAt
     ? buildCastleSite(moatAt.place, raw, moatAt.floor, ground, walls)
@@ -600,7 +600,7 @@ export function buildWorld(
       return { x, z }
     }),
     stand: standRig,
-    recycler,
+    recyclers,
     wreck,
     dishes,
     plaza: plaza ? plaza.rig : null,

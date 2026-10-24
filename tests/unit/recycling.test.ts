@@ -100,12 +100,16 @@ describe('research', () => {
     expect(extraDimes({ dimes: 5 }, 0, 0)).toBe(0)
   })
 
-  it('takes empties only beside the recycling machine', () => {
-    const recycler = { x: 10, z: 10 }
+  it("takes empties only beside a recycling machine, any Citgo's", () => {
+    const recyclers = [
+      { x: 10, z: 10 },
+      { x: 500, z: 10 },
+    ]
     const reach = CONFIG.recycling.tendReach
-    expect(atRecycler({ x: 10 + reach, z: 10 }, recycler)).toBe(true)
-    expect(atRecycler({ x: 10 + reach + 0.1, z: 10 }, recycler)).toBe(false)
-    expect(atRecycler(null, recycler)).toBe(false)
-    expect(atRecycler({ x: 10, z: 10 }, null)).toBe(false)
+    expect(atRecycler({ x: 10 + reach, z: 10 }, recyclers)).toBe(true)
+    expect(atRecycler({ x: 500 - reach, z: 10 }, recyclers)).toBe(true)
+    expect(atRecycler({ x: 10 + reach + 0.1, z: 10 }, recyclers)).toBe(false)
+    expect(atRecycler(null, recyclers)).toBe(false)
+    expect(atRecycler({ x: 10, z: 10 }, [])).toBe(false)
   })
 })

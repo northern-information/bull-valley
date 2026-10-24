@@ -117,7 +117,7 @@ const MAZE = { x: 3000, z: 3000, yaw: 0 }
 const ROUTES = { home: { x: 10, z: 10 }, joyrideMs: 600_000 }
 // Where the Cabbage Stand stands (rule 23).
 const STAND = { x: 5, z: -20 }
-const RECYCLER_SPOT = { x: 30, z: 40 }
+const RECYCLERS = HAVENS.map(({ x, z }) => ({ x: x + 30, z: z + 40 }))
 const DEALER = { x: -30, z: -60 }
 // The firefly ponds (rule 36), away from every station.
 const POND = { x: 800, z: 0, radius: 100, landing: { x: 720, z: 0 } }
@@ -219,7 +219,7 @@ const join = (id: string): ValleyAction => ({
   maze: null,
   routes: ROUTES,
   stand: STAND,
-  recycler: RECYCLER_SPOT,
+  recyclers: RECYCLERS,
   ponds: [POND, FAR_POND],
   bushes: BUSH_SPOTS,
   dealer: DEALER,
@@ -385,7 +385,7 @@ describe('rule 1: the world is persistent', () => {
     expect(world.truck.riders).toEqual([])
     expect(world.portals).toEqual([])
     expect(world.dealerStock).toEqual(freshDealerStock())
-    expect(world.recycler).toEqual(RECYCLER_SPOT)
+    expect(world.recyclers).toEqual(RECYCLERS)
     expect(world.pickups).toEqual(PICKUPS)
     expect(valley.carried).toBeNull()
     expect(toWire(valley)?.graves).toHaveLength(2)
@@ -2066,7 +2066,9 @@ describe('rule 31: the laptop', () => {
 })
 
 describe('rule 33: the Recycling Center at the recycling machine', () => {
-  const beside = { x: RECYCLER_SPOT.x + 1, z: RECYCLER_SPOT.z }
+  const beside = { x: RECYCLERS[0].x + 1, z: RECYCLERS[0].z }
+  // Any Citgo's machine takes them.
+  const besideThird = { x: RECYCLERS[2].x, z: RECYCLERS[2].z - 1 }
   const [first, second] = CONFIG.recycling.lines.dimes
   const recycle = (
     valley: Valley,
@@ -2081,8 +2083,8 @@ describe('rule 33: the Recycling Center at the recycling machine', () => {
     })
   const empties = { 'empty-can': 100, 'empty-pack': 100, 'empty-bottle': 100 }
 
-  it('keeps where the recycling machine stands with the world', () => {
-    expect(valleyWith(join('a')).valley.world?.recycler).toEqual(RECYCLER_SPOT)
+  it('keeps where each recycling machine stands with the world', () => {
+    expect(valleyWith(join('a')).valley.world?.recyclers).toEqual(RECYCLERS)
   })
 
   it("buys a line's next level with its empties, beside the recycling machine", () => {
@@ -2112,6 +2114,11 @@ describe('rule 33: the Recycling Center at the recycling machine', () => {
       level: listed + 1,
       items: price,
     })
+    // At another Citgo's machine the same.
+    expect(
+      recycle(v.valley, { ...action, at: besideThird }, FRESH_RESEARCH, empties)
+        .research
+    ).toMatchObject({ level: 1 })
   })
 
   it('refuses away from the recycling machine, short of empties, or unread', () => {

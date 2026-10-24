@@ -287,27 +287,29 @@ export function placeWreck(
   return wreck
 }
 
-// The recycling vending machine on the spawn station's lot
-// (CONFIG.recycler, station-local), its back to the storefront and its
-// face to the pumps, blocking like a post. Its middle in the world, for E
-// and the valley (sharedworld.ts rule 33), with the machine for the glow.
-export function placeRecycler(
+// The recycling vending machine on every station's lot (CONFIG.recycler,
+// station-local), its back to the storefront and its face to the pumps,
+// blocking like a post: its middle in the world, for E and the valley
+// (sharedworld.ts rule 33), and the machine for the glow, indexed like the
+// stations.
+export function placeRecyclers(
   group: THREE.Group,
   ground: Ground,
   walls: Walls,
-  spawnStation: FuelPoint | null
-): RecyclerRig | null {
-  if (!spawnStation) return null
+  stations: readonly FuelPoint[]
+): RecyclerRig[] {
   const { at, radius } = CONFIG.recycler
-  const [x, , z] = toWorld(spawnStation, [at.x, 0, at.z])
-  const machine = buildRecycler()
-  machine.position.set(x, ground.at(x, z), z)
-  // The machine faces +X; the station turns local +X to (cos, sin), and
-  // rotation.y turns it to (cos, -sin).
-  machine.rotation.y = -spawnStation.yaw
-  group.add(machine)
-  walls.addWall({ x, z }, { x, z }, radius)
-  return { at: { x, z }, group: machine }
+  return stations.map((station) => {
+    const [x, , z] = toWorld(station, [at.x, 0, at.z])
+    const machine = buildRecycler()
+    machine.position.set(x, ground.at(x, z), z)
+    // The machine faces +X; the station turns local +X to (cos, sin), and
+    // rotation.y turns it to (cos, -sin).
+    machine.rotation.y = -station.yaw
+    group.add(machine)
+    walls.addWall({ x, z }, { x, z }, radius)
+    return { at: { x, z }, group: machine }
+  })
 }
 
 // The dish array behind the spawn station (CONFIG.dishes), every dish on

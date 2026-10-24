@@ -834,7 +834,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       lockers: targets.lockerSpots(inStore),
       laptops: targets.laptopSpots(inStore),
       stand: world.stand?.at ?? null,
-      recycler: world.recycler?.at ?? null,
+      recyclers: world.recyclers.map(({ at }, station) => ({ ...at, station })),
       // The jar in hand with room in the pack: E or the click scoops
       // (actions.ts jarSlurm).
       slurms:

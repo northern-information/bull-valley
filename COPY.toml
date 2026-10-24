@@ -1127,7 +1127,7 @@ short_cash = { text = "Need {amount} more", by = "ai" }
 short_item = { text = "Need {count} more {item}", by = "ai" }
 close = { text = "Close", by = "ai" }
 
-# The Recycling Center at the recycling machine on the spawn Citgo's lot
+# The Recycling Center at the recycling machine on every Citgo's lot
 # (src/recycledialog.ts, both apps):
 # empties in, research out (src/recycling.ts).
 

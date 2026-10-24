@@ -121,10 +121,10 @@ interface BvHook {
   readonly stand: StandLedger | null
   readonly standAt: XZ | null
   // Rule 33: the account's research as the valley last said (null before
-  // the Recycling Center first opens), and where the recycling machine
-  // stands.
+  // the Recycling Center first opens), and where each station's recycling
+  // machine stands, indexed like the stations.
   readonly research: Research | null
-  readonly recyclerAt: XZ | null
+  readonly recyclers: XZ[]
   // Rule 36: the account's angler as the valley last said (null before the
   // tackle box first opens), the line in the water, and the firefly ponds:
   // each one's middle, its haven's reach and its tackle box's landing.
@@ -337,8 +337,8 @@ export function installDevHook(game: Game, actions: Actions): void {
     get research() {
       return s.research
     },
-    get recyclerAt() {
-      return game.world.recycler?.at ?? null
+    get recyclers() {
+      return game.world.recyclers.map(({ at }) => at)
     },
     get angler() {
       return s.angler

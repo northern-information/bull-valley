@@ -92,8 +92,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'laptop'; station: number }
   // The Cabbage Stand: E opens this raider's own (rule 23).
   | { kind: 'stand' }
-  // The recycling machine: E opens the Recycling Center (rule 33).
-  | { kind: 'recycle' }
+  // The recycling machine on the lot of station `station`: E opens the
+  // Recycling Center (rule 33).
+  | { kind: 'recycle'; station: number }
   // The tackle box on the firefly pond's landing: E opens it to fish
   // (rule 36).
   | { kind: 'fish' }
@@ -217,8 +218,8 @@ export interface HallucinationSpot extends XZ {
   item?: string
 }
 
-// A locker bank as the resolver sees it: where E opens it, and its
-// station.
+// A locker bank, a laptop or a recycling machine as the resolver sees it:
+// where E opens it, and its station.
 export interface LockerSpot extends XZ {
   station: number
 }
@@ -268,8 +269,8 @@ export interface InteractionInput<P extends PickupSpot> {
   laptops?: readonly LockerSpot[]
   // The Cabbage Stand's middle, or null.
   stand?: XZ | null
-  // The recycling machine's middle, or null.
-  recycler?: XZ | null
+  // Each station's recycling machine.
+  recyclers?: readonly LockerSpot[]
   // The tackle box on the firefly pond's landing, or null.
   tackle?: XZ | null
   // The slurms crawling on the lot, while this raider holds a jar with
@@ -423,14 +424,11 @@ export function resolveInteraction<P extends PickupSpot>(
     return { kind: 'stand' }
   }
 
-  const recycler = input.recycler
-  if (
-    recycler &&
-    Math.hypot(recycler.x - player.x, recycler.z - player.z) <
-      CONFIG.recycling.reach &&
-    sees(recycler, SIGHTS.recycler)
-  ) {
-    return { kind: 'recycle' }
+  for (const recycler of input.recyclers ?? []) {
+    const d = Math.hypot(recycler.x - player.x, recycler.z - player.z)
+    if (d < CONFIG.recycling.reach && sees(recycler, SIGHTS.recycler)) {
+      return { kind: 'recycle', station: recycler.station }
+    }
   }
 
   const tackle = input.tackle

@@ -1,9 +1,10 @@
 // The Recycling Center (#127), pure: what using an item leaves behind in
 // the pack, and the research every account buys with it. A drink leaves
 // its can or its bottle; the last cigarette out of a pack leaves the pack
-// (sharedworld.ts rule 32). Fed into the recycling machine on the spawn
-// Citgo's lot, the empties buy levels on research lines (rule 33), each the account's own: nothing here
-// touches the shared world, the shadows or the flashlight. The first line
+// (sharedworld.ts rule 32). Fed into the recycling machine on any Citgo's
+// lot, the empties buy levels on research lines (rule 33), each the
+// account's own: nothing here touches the shared world, the shadows or the
+// flashlight. The first line
 // is loose change: a chance that a burst shadow's dimes come with as many
 // again, into the taker's wallet alone. Levels live in D1 beside the
 // wallet. No three.js, no DOM.
@@ -115,15 +116,15 @@ export function extraDimes(
   return taken > 0 && roll < dimesChance(research, cfg) ? taken : 0
 }
 
-// Whether a raider whose last state frame put them `at` is beside the
-// recycling machine, for the valley to take their empties.
+// Whether a raider whose last state frame put them `at` is beside one of
+// the Citgos' recycling machines, for the valley to take their empties.
 export function atRecycler(
   at: XZ | null,
-  recycler: XZ | null,
+  recyclers: readonly XZ[],
   cfg = CONFIG
 ): boolean {
-  if (!at || !recycler) return false
-  return (
-    Math.hypot(at.x - recycler.x, at.z - recycler.z) <= cfg.recycling.tendReach
+  if (!at) return false
+  return recyclers.some(
+    (r) => Math.hypot(at.x - r.x, at.z - r.z) <= cfg.recycling.tendReach
   )
 }

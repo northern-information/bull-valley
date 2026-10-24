@@ -277,10 +277,10 @@ export interface HelloMessage {
   // Where the Cabbage Stand stands, or null: the valley tends each
   // account's stand only for a raider beside it (rule 23).
   stand: XZ | null
-  // Where the recycling machine stands, or null: the valley takes each
-  // account's
-  // empties only from a raider beside it (rule 33).
-  recycler: XZ | null
+  // Where each station's recycling machine stands, indexed like the
+  // stations: the valley takes each account's empties only from a raider
+  // beside one (rule 33).
+  recyclers: XZ[]
   // Where each berry bush stands, in sharedworld.ts bush order (the spawn
   // Citgo's, then the maze's ring): a berry only for a raider in reach
   // (rule 8).
@@ -1667,7 +1667,7 @@ type HelloPlaces = Pick<
   | 'maze'
   | 'truck'
   | 'stand'
-  | 'recycler'
+  | 'recyclers'
   | 'ponds'
   | 'bushes'
   | 'dealer'
@@ -1686,7 +1686,7 @@ const NO_PLACES: HelloPlaces = {
   maze: null,
   truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
   stand: null,
-  recycler: null,
+  recyclers: [],
   ponds: [],
   bushes: [],
   dealer: null,
@@ -1713,15 +1713,15 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const truck = parseRoutes(value.truck)
   const bushes = parseSpots(value.bushes, BUSHES_MAX)
   const rings = parseHavens(value.rings, stations)
+  const recyclers = parseHavens(value.recyclers, stations)
   if (!havens || !metres || !lairs || !truck || !bushes || !rings) return null
+  if (!recyclers) return null
   const maze = nullable(value.maze, parseMazePlace)
   const stand = nullable(value.stand, parseXZ)
-  const recycler = nullable(value.recycler, parseXZ)
   const dealer = nullable(value.dealer, parseXZ)
   const undercroft = nullable(value.undercroft, parseMazePlace)
   const moat = nullable(value.moat, parseMazePlace)
   if (maze === undefined || stand === undefined) return null
-  if (recycler === undefined) return null
   const ponds = parsePonds(value.ponds)
   if (!ponds) return null
   const payphones = parseSpots(value.payphones, PAYPHONES_MAX)
@@ -1729,7 +1729,7 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   if (dealer === undefined || undercroft === undefined) return null
   if (moat === undefined) return null
   const places = { havens, metres, lairs, maze, truck, stand, bushes, dealer }
-  return { ...places, recycler, ponds, undercroft, moat, rings, payphones }
+  return { ...places, recyclers, ponds, undercroft, moat, rings, payphones }
 }
 
 // A hello. The outfit is checked by the server (characters.ts

@@ -290,9 +290,9 @@
 //    same.
 // 33. The Recycling Center at the recycling machine (recycling.ts): every
 //    account keeps its own research, a level on each line, in D1. A raider
-//    out of the bed whose last state frame put them beside the machine (the
-//    world was opened with where it stands, SharedWorld.recycler), or
-//    dialed in from anywhere, buys a line's next level (a line never ends)
+//    out of the bed whose last state frame put them beside any Citgo's
+//    machine (the world was opened with where each stands,
+//    SharedWorld.recyclers), or dialed in from anywhere, buys a line's next level (a line never ends)
 //    with the empties it costs (ValleyContext.research in,
 //    Reduced.research out); the valley writes the level and takes the
 //    empties out of the pack together, or neither. Research is the
@@ -581,8 +581,9 @@ interface SharedWorld {
   routes: TruckRoutes
   // Where the Cabbage Stand stands, or null (rule 23).
   stand: XZ | null
-  // Where the recycling machine stands, or null (rule 33).
-  recycler: XZ | null
+  // Where each station's recycling machine stands, indexed like the
+  // stations (rule 33).
+  recyclers: XZ[]
   // The firefly ponds (rule 36).
   ponds: PondPlace[]
   // Where each berry bush stands, in bush order (rule 8).
@@ -708,7 +709,7 @@ export type ValleyAction =
       maze: MazePlace | null
       routes: TruckRoutes
       stand: XZ | null
-      recycler: XZ | null
+      recyclers: XZ[]
       ponds: PondPlace[]
       bushes: XZ[]
       dealer: XZ | null
@@ -1699,7 +1700,7 @@ function onJoin(
         maze: action.maze,
         routes: action.routes,
         stand: action.stand,
-        recycler: action.recycler,
+        recyclers: action.recyclers,
         ponds: action.ponds,
         bushes: action.bushes,
         dealer: action.dealer,
@@ -2882,7 +2883,7 @@ function onRecycle(
   if (!member.dialup) {
     if (!world) return refuse('not-in-valley')
     if (isAboard(world.truck, action.id)) return refuse('aboard')
-    if (!atRecycler(action.at, world.recycler)) return refuse('no-recycler')
+    if (!atRecycler(action.at, world.recyclers)) return refuse('no-recycler')
   }
   if (!research?.pack) return refuse('unavailable')
   const { levels, pack } = research

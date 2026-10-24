@@ -10,7 +10,7 @@ import {
 } from './assetkit.ts'
 import { canvas } from './canvas.ts'
 
-// The recycling vending machine against the spawn Citgo's storefront
+// The recycling vending machine against every Citgo's storefront
 // (CONFIG.recycler places it; the Recycling Center, sharedworld.ts rule
 // 33): a reverse vending machine as the supermarkets had them, a tall
 // off-white cabinet gone grubby, a lit green header with the chasing

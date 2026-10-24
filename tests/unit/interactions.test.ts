@@ -612,16 +612,18 @@ describe('resolveInteraction: bodies and lockers', () => {
     expect(interactionPrompt({ kind: 'fish' })).toBe(copy('prompts.fish'))
   })
 
-  it('opens the Recycling Center at the recycling machine, within its reach', () => {
-    expect(resolveInteraction(input({ recycler: { x: 252, z: 250 } }))).toEqual(
-      {
-        kind: 'recycle',
-      }
-    )
-    const far = { x: 250 + CONFIG.recycling.reach + 0.1, z: 250 }
-    expect(resolveInteraction(input({ recycler: far }))).toBeNull()
-    expect(resolveInteraction(input({ recycler: null }))).toBeNull()
-    expect(interactionPrompt({ kind: 'recycle' })).toBe(copy('prompts.recycle'))
+  it("opens the Recycling Center at any Citgo's recycling machine, within its reach", () => {
+    const at = (x: number, z: number, station: number) => ({ x, z, station })
+    expect(
+      resolveInteraction(
+        input({ recyclers: [at(900, 900, 0), at(252, 250, 1)] })
+      )
+    ).toEqual({ kind: 'recycle', station: 1 })
+    const far = at(250 + CONFIG.recycling.reach + 0.1, 250, 0)
+    expect(resolveInteraction(input({ recyclers: [far] }))).toBeNull()
+    expect(resolveInteraction(input({ recyclers: [] }))).toBeNull()
+    const recycle = { kind: 'recycle', station: 0 } as const
+    expect(interactionPrompt(recycle)).toBe(copy('prompts.recycle'))
     // Only in sight: not with it behind the raider, nor with a wall between.
     const lookingNorth: View<PickupSpot> = {
       eye: [250, 1.6, 250],
@@ -630,21 +632,21 @@ describe('resolveInteraction: bodies and lockers', () => {
       groundAt: () => 0,
       heightOf: () => 0.1,
     }
-    const ahead = { x: 250, z: 248 }
+    const ahead = at(250, 248, 0)
     expect(
-      resolveInteraction(input({ recycler: ahead, view: lookingNorth }))
-    ).toEqual({ kind: 'recycle' })
+      resolveInteraction(input({ recyclers: [ahead], view: lookingNorth }))
+    ).toEqual(recycle)
     expect(
       resolveInteraction(
-        input({ recycler: { x: 250, z: 252 }, view: lookingNorth })
+        input({ recyclers: [at(250, 252, 0)], view: lookingNorth })
       )
     ).toBeNull()
     expect(
       resolveInteraction(
-        input({ recycler: ahead, view: lookingNorth, walled: () => true })
+        input({ recyclers: [ahead], view: lookingNorth, walled: () => true })
       )
     ).toBeNull()
-    expect(itemLabel({ kind: 'recycle' })).toBeNull()
+    expect(itemLabel(recycle)).toBeNull()
   })
 
   it('opens your Cabbage Stand within its reach', () => {

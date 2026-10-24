@@ -1032,8 +1032,8 @@ export const CONFIG = {
     treeClear: 6,
   },
   recycler: {
-    // The recycling vending machine on the spawn Citgo's lot, station-local
-    // like the stand: its back to the storefront, on the side of the door
+    // The recycling vending machine on every Citgo's lot, station-local
+    // like the trash cans: its back to the storefront, on the side of the door
     // away from the trash can (FUEL_LAYOUT.trashCans), facing the pumps
     // (recyclermodel.ts RECYCLER sizes it). It blocks as a post this wide.
     at: { x: -6.1, z: 2.7 },

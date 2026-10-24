@@ -1,5 +1,5 @@
 // The Recycling Center (sharedworld.ts rule 33): a dialog over the valley,
-// opened with E beside the recycling machine on the spawn Citgo's lot (and
+// opened with E beside the recycling machine on any Citgo's lot (and
 // from Dial-Up's lobby), in the frame Erwin's and the stand's share
 // (npcdialog.ts). It shows the empties in the pack, then each research
 // line: its level, what it does now and at the next level, what that

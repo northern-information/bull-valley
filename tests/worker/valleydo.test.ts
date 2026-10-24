@@ -265,7 +265,9 @@ const hello = (
     maze: MAZE,
     truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
     stand: STAND,
-    recycler: RECYCLER,
+    recyclers: Array.from({ length: stations }, (_, i) =>
+      i === 0 ? RECYCLER : { x: i * 1000 + 6, z: 27 }
+    ),
     ponds: [POND],
     bushes: Array.from({ length: 7 }, () => ({ x: 0, z: 0 })),
     dealer: DEALER,
