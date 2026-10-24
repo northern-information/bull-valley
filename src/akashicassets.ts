@@ -121,6 +121,8 @@ import { buildSlurm } from './slurmmodel.ts'
 import { buildForm } from './spomenikmodel.ts'
 import { STORE_LAYOUT } from './store.ts'
 import { STRIP_MALL } from './stripmall.ts'
+import { TOPIARIES } from './topiaries.ts'
+import { buildTopiary } from './topiarymodel.ts'
 import { buildTunnelShade } from './tunnelshademodel.ts'
 import { buildTrapdoor, buildUndercroft } from './undercroftmodel.ts'
 import { buildWreck } from './wreck.ts'
@@ -567,6 +569,12 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'The Caretaker',
     build: () => buildCaretaker().group,
   },
+  // One of each hedge animal, as long as one stands across a corridor.
+  ...[...new Set(TOPIARIES)].map((kind) => ({
+    id: `topiary-${kind}`,
+    label: `Topiary ${kind}`,
+    build: () => buildTopiary(kind, CONFIG.topiaries.length),
+  })),
   {
     id: 'cabbage-stand',
     label: 'Bull Valley Cabbage Stand',

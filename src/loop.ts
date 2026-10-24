@@ -44,6 +44,7 @@ import { poseOf, stateChanged } from './presence.ts'
 import { aimHeightOf, burstScaleOf, headlightsDue } from './shadowmen.ts'
 import { drawnAt } from './shadowsync.ts'
 import { formatCash } from './store.ts'
+import { isTopiaryGate } from './topiaries.ts'
 import { tripBlur } from './trip.ts'
 import { burstHeight, burstScale } from './tunnelrig.ts'
 import { levelsAt } from './wardlevels.ts'
@@ -116,14 +117,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   } = game
   // The back room's locked door lets this raider through while they carry
   // its key, or once they are behind it (keys.ts); everyone else's game
-  // decides for them.
+  // decides for them. A corridor of the corn maze lets anyone through
+  // unless a topiary stands in it as this raider sees it (topiaries.ts).
   const plaza = world.plaza
-  if (plaza) {
-    world.walls.setGates(
-      (gate, x, z) =>
-        isLock(gate) && passes(gate, s.inventory, plaza.inBackRoom(x, z))
+  const topiaries = world.topiaries
+  world.walls.setGates((gate, x, z) => {
+    if (isTopiaryGate(gate)) return !topiaries?.stands(gate)
+    return (
+      plaza !== null &&
+      isLock(gate) &&
+      passes(gate, s.inventory, plaza.inBackRoom(x, z))
     )
-  }
+  })
 
   // Marx's countdown, for whoever is in the bed or standing by it, and
   // only with someone else in the valley (with no one else, he leaves once
@@ -202,6 +207,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   // The slurms' sounds, heard with the shadows' on the next frame.
   let slurmCues: Cue[] = []
   let moatCues: Cue[] = []
+  let topiaryCues: Cue[] = []
   // A hard landing for the valley to hear, after where we came down.
   let landing: number | null = null
   let last = performance.now()
@@ -441,6 +447,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         ...tunnelCues,
         ...slurmCues,
         ...moatCues,
+        ...topiaryCues,
       ],
       [...swarm.heard.holds, ...keeper.heard.holds],
       (x, z) => world.ground.at(x, z)
@@ -494,6 +501,16 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       )
       // The building is long: its tube and candles flicker from a way off.
       if (live(plaza.doorAt, 60)) plaza.update(time)
+    }
+    // The topiaries move on the valley's clock, but only while this raider
+    // looks at neither where one stands nor where it is going.
+    if (topiaries) {
+      topiaryCues = topiaries.update(net.clock.serverNow(now) / 1000, {
+        camera,
+        eye: player.pos,
+        overCorn: world.lookout?.on(player.pos.x, player.pos.z) ?? false,
+        blocked: world.walls.between,
+      })
     }
     if (world.wreck && live(world.wreck.group.position)) {
       world.wreck.update(time)

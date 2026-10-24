@@ -1509,6 +1509,32 @@ export const CONFIG = {
     // `clear` off its footprint.
     lookout: { at: { x: 61, z: -8 }, climbReach: 1.6, clear: 4 },
   },
+  // The topiaries (topiaries.ts): the hedge animals of The Shining's
+  // Overlook, two lions, a dog, a rabbit and a buffalo, standing broadside
+  // across the maze's corridors. Not shadows: no beam burns them and they
+  // never strike. They stand in corridors `minWidth` to `maxWidth` metres
+  // across, at least `clearOfHeart` from the portal and `clearOfGate` from
+  // the gate, the spots `spacing` apart. Every `slotSeconds` on the valley's
+  // clock each moves to another of its spots (staggered, so they never all
+  // move at once), but a raider sees it move only while they look at
+  // neither end within `sightRange`, and never onto a spot within
+  // `holdNear` of them; it rustles where it lands within `hearRange`. Each
+  // is drawn `length` nose to tail and blocks its corridor wall to wall,
+  // `gateHalf` thick either side of its spine.
+  topiaries: {
+    seed: 0x70a1a,
+    slotSeconds: 70,
+    minWidth: 3,
+    maxWidth: 4.5,
+    clearOfHeart: 16,
+    clearOfGate: 14,
+    spacing: 9,
+    sightRange: 90,
+    holdNear: 4,
+    hearRange: 30,
+    length: 3.5,
+    gateHalf: 0.7,
+  },
   // The Caretaker: one floating shade that walks the corn maze's paths
   // (caretaker.ts, sharedworld.ts rule 13). It patrols out to a random
   // corner of the maze and back to the heart, by turns, at patrolSpeed.

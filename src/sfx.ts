@@ -31,6 +31,7 @@ export type SfxId =
   | 'caretaker-windup'
   | 'caretaker-lunge'
   | 'caretaker-burned'
+  | 'topiary-rustle'
   | 'slurm-plop'
   | 'slurm-squish'
   | 'bat-smash'
@@ -204,6 +205,15 @@ export const SFX: Record<SfxId, SfxSpec> = {
     takes: 0,
     gain: 1,
     placeholder: { wave: 'sine', from: 300, to: 40, seconds: 2.5 },
+  },
+  // A topiary in the corn maze come to stand somewhere new, unseen
+  // (topiaries.ts): the hedge shaking itself still.
+  'topiary-rustle': {
+    positional: true,
+    loop: false,
+    takes: 0,
+    gain: 0.8,
+    placeholder: { wave: 'noise', from: 2400, to: 300, seconds: 0.9, pulse: 9 },
   },
   // A slurm landing on the lot off the dripline (slurms.ts).
   'slurm-plop': {

@@ -161,6 +161,8 @@ const THREE_AND_DOM = [
   'taskhud',
   'terrain',
   'titles',
+  'topiarymodel',
+  'topiaryrig',
   'trails',
   'tripsolidsrig',
   'truck',

@@ -35,6 +35,7 @@ import {
 } from './maze.ts'
 import { paintTrailField } from './mudart.ts'
 import { toWorld } from './store.ts'
+import { placeTopiaries } from './topiaryrig.ts'
 import { makeMudAccumulator, MUD_LIFT } from './worldsurfaces.ts'
 import type { CornPiece, MazeSignSize } from './assets.ts'
 import type { Ground } from './ground.ts'
@@ -42,6 +43,7 @@ import type { HeightAt, XZ } from './interfaces.ts'
 import type { Cell, MazePlace, TrailField } from './maze.ts'
 import type { LampSpot } from './roadside.ts'
 import type { StoreOrigin } from './store.ts'
+import type { TopiaryRig } from './topiaryrig.ts'
 import type { Walls } from './walls.ts'
 import type { LookoutRig, MazePortal } from './world.ts'
 
@@ -194,7 +196,12 @@ export function buildCornMaze(
   terrain: HeightAt,
   ground: Ground,
   walls: Walls
-): { group: THREE.Group; portal: MazePortal; lookout: LookoutRig } {
+): {
+  group: THREE.Group
+  portal: MazePortal
+  lookout: LookoutRig
+  topiaries: TopiaryRig
+} {
   const { size, wallHeight, wallThickness, wallSink, pieceLength } = CONFIG.maze
   const half = wallThickness / 2
   const spans = mazeSpans(SHINING_MAZE, size)
@@ -324,7 +331,10 @@ export function buildCornMaze(
     z: -Math.cos(station.yaw),
   }))
   const lookout = placeLookout(group, mazePlaceOf(station), ground, walls)
-  return { group, portal, lookout }
+  // The hedge animals standing across the corridors (topiaries.ts).
+  const topiaries = placeTopiaries(frame, ground, walls)
+  group.add(topiaries.group)
+  return { group, portal, lookout, topiaries }
 }
 
 // The maze's place in the world (maze.ts MazePlace), as the valley is told
