@@ -51,6 +51,28 @@ test('a waypoint pinned on the map rides the compass and is kept for the account
   await expect.poll(() => waypoints(page)).toBe(0)
   await clickMap(page)
   await expect.poll(() => waypoints(page)).toBe(1)
+  // The wheel zooms in about the pointer: the pin stays under it, and a
+  // click there still lifts it.
+  const map = page.locator('[data-bv="map"]')
+  const box = await map.boundingBox()
+  if (!box) throw new Error('no map')
+  const spot = { x: box.x + box.width * SPOT.x, y: box.y + box.height * SPOT.y }
+  await page.mouse.move(spot.x, spot.y)
+  await page.mouse.wheel(0, -600)
+  await expect
+    .poll(async () => Number(await map.getAttribute('data-zoom')))
+    .toBeGreaterThan(1)
+  await clickMap(page)
+  await expect.poll(() => waypoints(page)).toBe(0)
+  await clickMap(page)
+  await expect.poll(() => waypoints(page)).toBe(1)
+  // A drag pans the zoomed map and pins nothing.
+  await page.mouse.move(spot.x, spot.y)
+  await page.mouse.down()
+  await page.mouse.move(spot.x + 60, spot.y + 60, { steps: 4 })
+  await page.mouse.up()
+  await expect(map).toHaveAttribute('data-pins', '1')
+  expect(await waypoints(page)).toBe(1)
   await page.keyboard.press('m')
   await expect(page.locator('.bv-map')).toBeHidden()
   await expect
