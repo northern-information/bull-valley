@@ -146,7 +146,10 @@ export class CitgoMap {
     this.last = el('p', 'bv-map-last')
     this.last.dataset.bv = 'map-last'
     this.hint = el('p', 'bv-map-hint')
-    this.root.append(head, this.canvas, this.last, this.hint)
+    // The wheel and the drag work the same whatever a click does, so they
+    // get a line of their own under the hint.
+    const zoom = el('p', 'bv-map-zoom', copy('map.zoom'))
+    this.root.append(head, this.canvas, this.last, this.hint, zoom)
     ui.appendChild(this.root)
 
     this.canvas.addEventListener(
@@ -532,12 +535,11 @@ export class CitgoMap {
     this.last.textContent = last
       ? copy('map.last', { citgo: last.label })
       : copy('map.none')
-    const hint = this.charter
+    this.hint.textContent = this.charter
       ? copy('map.hint_charter')
       : here === null
         ? copy('map.hint_away')
         : copy('map.hint')
-    this.hint.textContent = `${hint} ${copy('map.zoom')}`
   }
 }
 
