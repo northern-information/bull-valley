@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { surveyedStations } from '../../src/citgos.ts'
 import { CONFIG } from '../../src/config.ts'
 import { pointSegmentDistance, unitToWorld } from '../../src/coords.ts'
+import { mazeToWorld } from '../../src/maze.ts'
 import { castlePlace, MOAT, onMoatGrounds } from '../../src/moat.ts'
 import { roadWidth } from '../../src/roadside.ts'
 import { chooseSpawnStation, stationFacing } from '../../src/stations.ts'
@@ -11,8 +12,10 @@ import type { Geo } from '../../src/interfaces.ts'
 import type { FuelPoint } from '../../src/world.ts'
 
 // Castle Entropy stands straight out the spawn Citgo's door (moat.ts
-// castlePlace), and its moat is cut into the terrain: nothing in the survey
-// may lie on its grounds, no road, no water, and not the corn maze.
+// castlePlace), and its moat is cut into the terrain: no water and not the
+// corn maze may lie on its grounds, and no road comes near the moat or the
+// works round its rim. The yard's concrete may reach a road, and stops
+// short of it there (castleyard.ts apronOf).
 
 const geo = JSON.parse(
   readFileSync('public/data/bull-valley/geo.json', 'utf8')
@@ -45,15 +48,41 @@ describe("Castle Entropy's place in the survey", () => {
     )
   })
 
-  it('crosses no road', () => {
+  it('keeps every road clear of the moat and the works round its rim', () => {
+    // The furthest out from the edge the yard stands anything up (the
+    // fence, the light towers, the supplies, the payphone), and room past
+    // it; a road's shoulder counts as the road.
+    const { yard } = CONFIG.castle
+    const works =
+      Math.max(
+        ...yard.poles.rows,
+        yard.lamps.out,
+        yard.clutter.to,
+        yard.payphone.out
+      ) + 2
+    const shoulder = 1.8
+    const outer = MOAT.outer.map((p) => mazeToWorld(place, p))
+    const fromEdge = (x: number, z: number) =>
+      Math.min(
+        ...outer.map((a, k) => {
+          const b = outer[(k + 1) % outer.length]
+          return pointSegmentDistance(x, z, a.x, a.z, b.x, b.z)
+        })
+      )
     for (const road of geo.roads) {
-      const half = roadWidth(road.c) / 2
+      const half = roadWidth(road.c) / 2 + shoulder
       const points = road.p.map(([u, v]) => unitToWorld(u, v, metres))
       for (let i = 0; i < points.length - 1; i++) {
         const a = points[i]
         const b = points[i + 1]
         const d = pointSegmentDistance(place.x, place.z, a.x, a.z, b.x, b.z)
-        expect(d - half, road.n).toBeGreaterThan(reach)
+        // Far off, it is clear; near, look along it.
+        if (d - half > reach) continue
+        for (let t = 0; t <= 1; t += 0.01) {
+          const x = a.x + (b.x - a.x) * t
+          const z = a.z + (b.z - a.z) * t
+          expect(fromEdge(x, z) - half, road.n).toBeGreaterThan(works)
+        }
       }
     }
   })

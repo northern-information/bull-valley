@@ -14,7 +14,7 @@
 // cells keeps a query to the few surfaces near the point, so the player and
 // the truck can ask every frame.
 
-import { projectOnSegment } from './coords.ts'
+import { pointInPolygon, projectOnSegment } from './coords.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
 
 // A point with its height, as a ribbon's centreline carries it.
@@ -73,7 +73,16 @@ interface Floor {
   y: number
 }
 
-type Surface = Segment | TrailSegment | Patch | Floor
+// Any shape of ground, its outline closed on itself, draped on the
+// terrain and lifted off it as a patch is (Castle Entropy's concrete, cut
+// short where it meets a road).
+interface Area {
+  kind: 'area'
+  ring: [number, number][]
+  lift: number
+}
+
+type Surface = Segment | TrailSegment | Patch | Floor | Area
 
 export class Ground {
   // The height to stand on at (x, z). Bound, so it passes as a HeightAt.
@@ -103,6 +112,20 @@ export class Ground {
         Math.max(a.z, b.z) + half
       )
     }
+  }
+
+  // An area inside the outline `points` (closed on itself, any shape),
+  // draped `lift` above the terrain.
+  addArea(points: readonly XZ[], lift: number) {
+    const xs = points.map((p) => p.x)
+    const zs = points.map((p) => p.z)
+    this.register(
+      { kind: 'area', ring: points.map((p) => [p.x, p.z]), lift },
+      Math.min(...xs),
+      Math.min(...zs),
+      Math.max(...xs),
+      Math.max(...zs)
+    )
   }
 
   // A trail along a line of points, `width` across, draped `lift` above
@@ -223,6 +246,10 @@ export class Ground {
       const { a, b, half, lift } = surface
       const p = projectOnSegment(x, z, a.x, a.z, b.x, b.z)
       return p.dist > half ? null : this.terrain(x, z) + lift
+    }
+    if (surface.kind === 'area') {
+      if (!pointInPolygon(x, z, surface.ring)) return null
+      return this.terrain(x, z) + surface.lift
     }
     const dx = x - surface.x
     const dz = z - surface.z

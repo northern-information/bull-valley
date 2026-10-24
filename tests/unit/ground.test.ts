@@ -141,6 +141,31 @@ describe('Ground', () => {
   })
 })
 
+describe('Ground areas', () => {
+  it('drapes an area of any shape on the terrain, and nothing outside it', () => {
+    const ground = new Ground(slope)
+    // An L: a notch out of a 20 m square's corner, as concrete stopped
+    // short of a road.
+    ground.addArea(
+      [
+        { x: 0, z: 0 },
+        { x: 20, z: 0 },
+        { x: 20, z: 10 },
+        { x: 10, z: 10 },
+        { x: 10, z: 20 },
+        { x: 0, z: 20 },
+      ],
+      0.26
+    )
+    expect(ground.at(5, 5)).toBeCloseTo(slope(5) + 0.26)
+    expect(ground.at(15, 5)).toBeCloseTo(slope(15) + 0.26)
+    expect(ground.at(5, 15)).toBeCloseTo(slope(5) + 0.26)
+    // In the notch and outside, the terrain.
+    expect(ground.surfaceAt(15, 15)).toBeNull()
+    expect(ground.surfaceAt(-1, 5)).toBeNull()
+  })
+})
+
 describe('Ground.standAt', () => {
   // Flat terrain at 0, two flights stacked over the same strip: one from
   // 6 down to 3 along x, and over it the one before, from 9 down to 6 the

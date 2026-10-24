@@ -3,6 +3,7 @@ import { buildCastle, buildCrane, buildMoat } from './assets.ts'
 import { castleOf } from './castle.ts'
 import {
   apronOf,
+  apronOutlines,
   clutterWall,
   payphoneSpot,
   yardClutter,
@@ -142,10 +143,17 @@ export function buildCastleSite(
   })
   group.add(moat.group)
 
-  // The concrete round the rim, then the works on it.
-  const apron = apronOf(place)
+  // The concrete round the rim, stopped short of whatever the ground
+  // already carries there (a road and its shoulder), then the works on it.
   const yardCfg = CONFIG.castle.yard
-  ground.addTrail(apron.line, apron.width, yardCfg.lift)
+  const apron = apronOf(
+    place,
+    CONFIG.castle,
+    (p) => ground.surfaceAt(p.x, p.z) !== null
+  )
+  for (const outline of apronOutlines(apron)) {
+    ground.addArea(outline, yardCfg.lift)
+  }
   const poles = yardPoles(place)
   for (const pole of poles) walls.addWall(pole, pole, yardCfg.poles.radius)
   const clutter = yardClutter(place)
@@ -166,6 +174,7 @@ export function buildCastleSite(
     raw,
     lift: yardCfg.lift,
     at: ground.at,
+    place,
   })
   group.add(yard.group)
 
