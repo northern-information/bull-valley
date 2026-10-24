@@ -797,8 +797,9 @@ export const CONFIG = {
       // Across the channel and down it, from the lowest of the rim.
       width: 30,
       depth: 30,
-      // Trees, poles and pickups keep this far off the outer edge.
-      clear: 12,
+      // Trees, poles and pickups keep this far off the outer edge: past
+      // the yard's concrete (yard.apron), so none stands on it.
+      clear: 30,
     },
     // The fire escapes on the outer walls (moat.ts fireEscapes): the sides
     // that carry one, how wide a flight runs (the strip is two), about how
@@ -849,7 +850,7 @@ export const CONFIG = {
     yard: {
       // The concrete poured round the outer edge: how far out it runs, and
       // how far over the terrain it lies, as a lot does.
-      apron: 9,
+      apron: 27,
       lift: 0.26,
       // The poles of the unfinished fence: the rows, each this far out
       // from the edge, a pole about every `every` metres along each (give

@@ -124,36 +124,38 @@ export function inChannel(place: MazePlace, x: number, z: number): boolean {
   )
 }
 
-// Whether (x, z) lies on the moat's grounds: inside the outer edge, or
-// within `margin` of it (roughly: from the middle, the reach of the edge
-// that way), for the trees, the poles and the pickups to keep off.
+// Whether (x, z) lies on the moat's grounds: inside the outer edge pushed
+// out `margin` all round, its corners mitred as the yard's concrete is
+// (castleyard.ts apronOf), for the trees, the poles and the pickups to keep
+// off.
 export function onMoatGrounds(
   place: MazePlace,
   x: number,
   z: number,
   margin = CONFIG.castle.moat.clear
 ): boolean {
+  const ring = groundsRing(margin)
   const dx = x - place.x
   const dz = z - place.z
-  const far = OUTER_REACH + margin
-  if (dx * dx + dz * dz > far * far) return false
+  if (dx * dx + dz * dz > ring.reach * ring.reach) return false
   const p = worldToMaze(place, { x, z })
-  if (pointInPolygon(p.x, p.z, OUTER_RING)) return true
-  return MOAT.outer.some((a, k) => {
-    const b = MOAT.outer[(k + 1) % MOAT.outer.length]
-    return segmentDistance(p, a, b) <= margin
-  })
+  return pointInPolygon(p.x, p.z, ring.points)
 }
 
-function segmentDistance(p: XZ, a: XZ, b: XZ): number {
-  const dx = b.x - a.x
-  const dz = b.z - a.z
-  const len2 = dx * dx + dz * dz || 1
-  const t = Math.max(
-    0,
-    Math.min(1, ((p.x - a.x) * dx + (p.z - a.z) * dz) / len2)
-  )
-  return Math.hypot(p.x - (a.x + dx * t), p.z - (a.z + dz * t))
+// The grounds' outline at a margin, moat-local, and its furthest corner
+// from the middle; worked out once a margin.
+const GROUNDS = new Map<number, { points: [number, number][]; reach: number }>()
+function groundsRing(margin: number) {
+  let ring = GROUNDS.get(margin)
+  if (!ring) {
+    const out = inflate(MOAT.outer, margin)
+    ring = {
+      points: out.map((p) => [p.x, p.z] as [number, number]),
+      reach: Math.max(...out.map((p) => Math.hypot(p.x, p.z))),
+    }
+    GROUNDS.set(margin, ring)
+  }
+  return ring
 }
 
 // Points along a closed polygon, about `every` metres apart.

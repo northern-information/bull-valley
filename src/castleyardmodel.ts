@@ -6,7 +6,7 @@ import {
   memo,
   mergeStatic,
 } from './assetkit.ts'
-import { crumbAt, floatAt, poleAt } from './castleyard.ts'
+import { crumbAt, floatAt, poleAt, poolReach } from './castleyard.ts'
 import { CONFIG } from './config.ts'
 import { concreteArt } from './moatart.ts'
 import { buildPayphone } from './payphonemodel.ts'
@@ -15,6 +15,7 @@ import { sodiumPoolMaterial } from './roadsideparts.ts'
 import { buildClutter, buildLightTower } from './yardprops.ts'
 import type { Apron, Clutter, YardPole, YardSpot } from './castleyard.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
+import type { MazePlace } from './maze.ts'
 import type { LightTowerRig } from './yardprops.ts'
 
 // The works round Castle Entropy's rim as seen (castleyard.ts): the
@@ -41,6 +42,8 @@ interface YardBuild {
   raw: HeightAt
   lift: number
   at: HeightAt
+  // Where the moat lies: the light towers' pools end at its lip.
+  place: MazePlace
 }
 
 const concreteTexture = memo((base: string) => {
@@ -53,7 +56,8 @@ const concreteTexture = memo((base: string) => {
 // The concrete is sampled about this often along each side, and across
 // it this many times.
 const APRON_STEP = 2
-const APRON_ACROSS = 4
+// A formwork board is about this long.
+const BOARD = 2.4
 // One texture panel this many metres a side.
 const PANEL = 4
 const HALIDE = new THREE.Color('#cfdcff')
@@ -73,7 +77,7 @@ export function buildYard(build: YardBuild): YardRig {
     group.add(tower.group)
     towers.push(tower)
   })
-  group.add(buildPools(build.lamps, build.at))
+  group.add(buildPools(build.lamps, build.at, build.place))
   for (const pile of build.clutter) {
     const model = buildClutter(pile.kind, pile.seed)
     model.position.set(pile.x, build.at(pile.x, pile.z), pile.z)
@@ -94,38 +98,32 @@ export function buildYard(build: YardBuild): YardRig {
   return { group, update }
 }
 
-// The concrete, draped on the terrain side by side round the rim, and
-// the formwork boards still staked along its outer edge.
+// The concrete, draped on the terrain side by side round the rim, out to
+// where each spoke of it ends (short of a road, where one runs by), and
+// the formwork boards still staked along that edge.
 function buildApron({ apron, raw, lift }: YardBuild): THREE.Group {
   const group = new THREE.Group()
   group.name = 'yard-apron'
   const positions: number[] = []
   const uvs: number[] = []
   const index: number[] = []
-  const n = apron.inner.length
-  for (let k = 0; k < n; k++) {
-    const i0 = apron.inner[k]
-    const i1 = apron.inner[(k + 1) % n]
-    const o0 = apron.outer[k]
-    const o1 = apron.outer[(k + 1) % n]
-    const len = Math.hypot(o1.x - o0.x, o1.z - o0.z)
-    const steps = Math.max(1, Math.ceil(len / APRON_STEP))
+  // Across, a vertex about every APRON_STEP on the longest spoke, so the
+  // slab follows the terrain however far it runs.
+  const across = Math.max(1, Math.ceil(CONFIG.castle.yard.apron / APRON_STEP))
+  const row = across + 1
+  for (const spokes of apron.sides) {
     const base = positions.length / 3
-    for (let i = 0; i <= steps; i++) {
-      const u = i / steps
-      const a = { x: i0.x + (i1.x - i0.x) * u, z: i0.z + (i1.z - i0.z) * u }
-      const b = { x: o0.x + (o1.x - o0.x) * u, z: o0.z + (o1.z - o0.z) * u }
-      for (let j = 0; j <= APRON_ACROSS; j++) {
-        const v = j / APRON_ACROSS
+    for (const { inner: a, outer: b } of spokes) {
+      for (let j = 0; j <= across; j++) {
+        const v = j / across
         const x = a.x + (b.x - a.x) * v
         const z = a.z + (b.z - a.z) * v
         positions.push(x, raw(x, z) + lift, z)
         uvs.push(x / PANEL, z / PANEL)
       }
     }
-    const row = APRON_ACROSS + 1
-    for (let i = 0; i < steps; i++) {
-      for (let j = 0; j < APRON_ACROSS; j++) {
+    for (let i = 0; i < spokes.length - 1; i++) {
+      for (let j = 0; j < across; j++) {
         const p = base + i * row + j
         index.push(p, p + 1, p + row, p + 1, p + row + 1, p + row)
       }
@@ -153,34 +151,41 @@ function buildApron({ apron, raw, lift }: YardBuild): THREE.Group {
   const board = lambert({ color: '#5a4630' })
   const rng = mulberry32(0xf0a7)
   rng()
-  for (let k = 0; k < n; k++) {
-    const a = apron.outer[k]
-    const b = apron.outer[(k + 1) % n]
-    const len = Math.hypot(b.x - a.x, b.z - a.z)
-    const steps = Math.max(1, Math.ceil(len / 2.4))
-    for (let i = 0; i < steps; i++) {
-      if (rng() < 0.15) continue
-      const u0 = i / steps
-      const u1 = (i + 1) / steps
-      const p = { x: a.x + (b.x - a.x) * u0, z: a.z + (b.z - a.z) * u0 }
-      const q = { x: a.x + (b.x - a.x) * u1, z: a.z + (b.z - a.z) * u1 }
-      const yp = raw(p.x, p.z)
-      const yq = raw(q.x, q.z)
-      const length = Math.hypot(q.x - p.x, q.z - p.z)
-      const plank = new THREE.Mesh(
-        new THREE.BoxGeometry(length, 0.3, 0.05),
-        board
-      )
-      plank.position.set((p.x + q.x) / 2, (yp + yq) / 2 + 0.12, (p.z + q.z) / 2)
-      plank.rotation.y = -Math.atan2(q.z - p.z, q.x - p.x)
-      plank.rotation.z = Math.atan2(yq - yp, length)
-      group.add(plank)
-      const stake = new THREE.Mesh(
-        new THREE.BoxGeometry(0.06, 0.5, 0.06),
-        board
-      )
-      stake.position.set(p.x, yp + 0.2, p.z)
-      group.add(stake)
+  for (const spokes of apron.sides) {
+    for (let k = 0; k < spokes.length - 1; k++) {
+      const a = spokes[k].outer
+      const b = spokes[k + 1].outer
+      const len = Math.hypot(b.x - a.x, b.z - a.z)
+      const steps = Math.max(1, Math.ceil(len / BOARD))
+      for (let i = 0; i < steps; i++) {
+        if (rng() < 0.15) continue
+        const u0 = i / steps
+        const u1 = (i + 1) / steps
+        const p = { x: a.x + (b.x - a.x) * u0, z: a.z + (b.z - a.z) * u0 }
+        const q = { x: a.x + (b.x - a.x) * u1, z: a.z + (b.z - a.z) * u1 }
+        const yp = raw(p.x, p.z)
+        const yq = raw(q.x, q.z)
+        const length = Math.hypot(q.x - p.x, q.z - p.z)
+        if (length < 0.05) continue
+        const plank = new THREE.Mesh(
+          new THREE.BoxGeometry(length, 0.3, 0.05),
+          board
+        )
+        plank.position.set(
+          (p.x + q.x) / 2,
+          (yp + yq) / 2 + 0.12,
+          (p.z + q.z) / 2
+        )
+        plank.rotation.y = -Math.atan2(q.z - p.z, q.x - p.x)
+        plank.rotation.z = Math.atan2(yq - yp, length)
+        group.add(plank)
+        const stake = new THREE.Mesh(
+          new THREE.BoxGeometry(0.06, 0.5, 0.06),
+          board
+        )
+        stake.position.set(p.x, yp + 0.2, p.z)
+        group.add(stake)
+      }
     }
   }
   mergeStatic(group)
@@ -330,8 +335,14 @@ function buildPoles({ poles, at }: YardBuild): {
 }
 
 // Each light tower's pool of cold light, draped on the ground out in
-// front of it, bright in the middle and gone at the rim.
-function buildPools(lamps: readonly YardSpot[], at: HeightAt): THREE.Mesh {
+// front of it, bright in the middle and gone at the rim, and cut off at the
+// moat's lip (castleyard.ts poolReach): it lights the rim, never the wall
+// under it or the floor.
+function buildPools(
+  lamps: readonly YardSpot[],
+  at: HeightAt,
+  place: MazePlace
+): THREE.Mesh {
   const positions: number[] = []
   const colors: number[] = []
   const index: number[] = []
@@ -344,7 +355,8 @@ function buildPools(lamps: readonly YardSpot[], at: HeightAt): THREE.Mesh {
       z: lamp.z + Math.sin(lamp.yaw) * radius * 0.55,
     }
     const base = positions.length / 3
-    const vertex = (x: number, z: number, k: number) => {
+    const vertex = (px: number, pz: number, k: number) => {
+      const { x, z } = poolReach(place, c, { x: px, z: pz })
       positions.push(x, at(x, z) + 0.35, z)
       colors.push(HALIDE.r, HALIDE.g, HALIDE.b, 0.5 * k * k)
     }

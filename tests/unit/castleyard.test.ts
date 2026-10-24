@@ -1,23 +1,27 @@
 import { describe, expect, it } from 'vitest'
 import {
   apronOf,
+  apronOutlines,
   CLUTTER_SIZE,
   clutterWall,
   crumbAt,
   floatAt,
   payphoneSpot,
   poleAt,
+  poolReach,
   yardClutter,
   yardLamps,
   yardPoles,
 } from '../../src/castleyard.ts'
 import { CONFIG } from '../../src/config.ts'
-import { mazeToWorld } from '../../src/maze.ts'
+import { mazeToWorld, worldToMaze } from '../../src/maze.ts'
 import {
   castlePlace,
   craneSpots,
   inChannel,
+  inflate,
   MOAT,
+  onIsland,
   onMoatGrounds,
 } from '../../src/moat.ts'
 import type { XZ } from '../../src/interfaces.ts'
@@ -42,20 +46,64 @@ const stairTops = CONFIG.castle.stairs.sides.map((k) => {
 
 describe('the concrete round the rim', () => {
   const apron = apronOf(place)
+  const spokes = apron.sides.flat()
 
-  it('runs out from the edge and never over the channel', () => {
-    expect(apron.line[0]).toEqual(apron.line[apron.line.length - 1])
-    for (const p of [...apron.inner, ...apron.line, ...apron.outer]) {
-      expect(inChannel(place, p.x, p.z)).toBe(false)
+  it('runs apron metres out to its mitred corners, never over the channel', () => {
+    expect(apron.sides).toHaveLength(MOAT.outer.length)
+    for (const { inner, outer } of spokes) {
+      expect(inChannel(place, inner.x, inner.z)).toBe(false)
+      expect(inChannel(place, outer.x, outer.z)).toBe(false)
     }
-    // The middle line sits half its width in from the outer edge.
-    expect(apron.width).toBeCloseTo(Y.apron - 0.05, 9)
+    // Each side runs from one mitred outer corner to the next.
+    const corners = inflate(MOAT.outer, Y.apron).map((p) =>
+      mazeToWorld(place, p)
+    )
+    apron.sides.forEach((side, k) => {
+      expect(side[0].outer.x).toBeCloseTo(corners[k].x, 6)
+      expect(side[0].outer.z).toBeCloseTo(corners[k].z, 6)
+      const last = side[side.length - 1].outer
+      expect(last.x).toBeCloseTo(corners[(k + 1) % corners.length].x, 6)
+    })
+    // Its outline for the Ground closes round each side's slab.
+    const outlines = apronOutlines(apron)
+    expect(outlines).toHaveLength(apron.sides.length)
+    expect(outlines[0]).toHaveLength(apron.sides[0].length * 2)
   })
 
   it('stays inside the grounds the trees and the pickups keep off', () => {
-    for (const p of apron.outer) {
-      expect(onMoatGrounds(place, p.x, p.z)).toBe(true)
+    for (const { outer } of spokes) {
+      expect(onMoatGrounds(place, outer.x, outer.z)).toBe(true)
     }
+  })
+
+  it('stops short of a road where one runs by', () => {
+    // A road across one side, 12 m out from the moat's edge.
+    const a = MOAT.outer[0]
+    const b = MOAT.outer[1]
+    const len = Math.hypot(b.x - a.x, b.z - a.z)
+    const mid = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 }
+    let out = { x: (b.z - a.z) / len, z: -(b.x - a.x) / len }
+    if (out.x * mid.x + out.z * mid.z < 0) out = { x: -out.x, z: -out.z }
+    // Moat-local distance out from side 0's line.
+    const beyond = (p: { x: number; z: number }) => {
+      const m = worldToMaze(place, p)
+      return (m.x - a.x) * out.x + (m.z - a.z) * out.z
+    }
+    const road = (p: { x: number; z: number }) => beyond(p) >= 12
+    const cut = apronOf(place, CONFIG.castle, road)
+    for (const { inner, outer } of cut.sides[0]) {
+      expect(road(outer)).toBe(false)
+      // Short of it, by its stopping distance and no more than a probe.
+      const along = Math.hypot(outer.x - inner.x, outer.z - inner.z)
+      if (along > 0) expect(beyond(outer)).toBeGreaterThan(11)
+    }
+    // The other sides' spokes that never meet it run out to the apron's
+    // full reach.
+    const whole = apron.sides[2]
+    cut.sides[2].forEach((s, i) => {
+      if (road(whole[i].outer)) return
+      expect(s.outer.x).toBeCloseTo(whole[i].outer.x, 6)
+    })
   })
 })
 
@@ -207,5 +255,42 @@ describe('the supplies, the lamps and the payphone', () => {
       z: phone.z + Math.sin(phone.yaw) * 2,
     }
     expect(dist(ahead, middle)).toBeGreaterThan(dist(phone, middle))
+  })
+})
+
+describe("the light towers' pools", () => {
+  it('end at the lip, never hanging down the wall to the floor', () => {
+    const radius = Y.lamps.pool
+    let cut = 0
+    for (const lamp of yardLamps(place)) {
+      const c = {
+        x: lamp.x + Math.cos(lamp.yaw) * radius * 0.55,
+        z: lamp.z + Math.sin(lamp.yaw) * radius * 0.55,
+      }
+      for (let a = 0; a < Math.PI * 2; a += Math.PI / 10) {
+        for (const r of [radius / 2, radius]) {
+          const p = { x: c.x + Math.cos(a) * r, z: c.z + Math.sin(a) * r }
+          const q = poolReach(place, c, p)
+          expect(inChannel(place, q.x, q.z)).toBe(false)
+          expect(onIsland(place, q.x, q.z)).toBe(false)
+          const past = inChannel(place, p.x, p.z) || onIsland(place, p.x, p.z)
+          if (!past) {
+            // On the rim it is where it was.
+            expect(q).toEqual(p)
+            continue
+          }
+          cut++
+          // Pulled back along its line, to just short of the edge.
+          expect(Math.hypot(q.x - c.x, q.z - c.z)).toBeLessThan(r)
+          const on = {
+            x: q.x + ((p.x - c.x) / r) * 0.3,
+            z: q.z + ((p.z - c.z) / r) * 0.3,
+          }
+          expect(inChannel(place, on.x, on.z)).toBe(true)
+        }
+      }
+    }
+    // Each pool did reach out past the rim, and was cut there.
+    expect(cut).toBeGreaterThan(0)
   })
 })

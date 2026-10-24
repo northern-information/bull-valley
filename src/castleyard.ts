@@ -1,6 +1,7 @@
 // Pure: the works round Castle Entropy's rim (castlesite.ts lays them
-// out): concrete poured round the moat's outer edge (`apronOf`, laid on the
-// Ground as a trail); an unfinished fence along it, two staggered rows of
+// out): concrete poured round the moat's outer edge, out to its mitred
+// corners and stopped short of any road (`apronOf`, laid on the Ground as
+// an area a side, `apronOutlines`); an unfinished fence along it, two staggered rows of
 // poles, each standing straight to its knee and bent in toward the island
 // (`yardPoles`, `poleAt`), some with a span broken loose and floating over
 // the break, shedding bits and now and then crumbling away to come back,
@@ -15,7 +16,7 @@ import { CONFIG } from './config.ts'
 import { projectOnSegment } from './coords.ts'
 import { mix } from './crumble.ts'
 import { mazeToWorld } from './maze.ts'
-import { craneSpots, inflate, MOAT } from './moat.ts'
+import { craneSpots, inChannel, inflate, MOAT, onIsland } from './moat.ts'
 import { mulberry32, range } from './rng.ts'
 import type { Fragment } from './crumble.ts'
 import type { XZ } from './interfaces.ts'
@@ -93,30 +94,77 @@ function crowding(place: MazePlace, cfg: CastleConfig) {
     ) || cranes.some((c) => Math.hypot(p.x - c.x, p.z - c.z) < clear + pad)
 }
 
-// The concrete round the rim: its inner and outer edges (the inner a
-// hair off the moat's edge, so no deck ever hangs over the channel), and
-// its middle line closed on itself with its width, for the Ground.
+// The concrete round the rim, side by side round the moat's outer edge:
+// each side's spokes, corner to corner, each from the moat's edge (a hair
+// off it, so no deck ever hangs over the channel) straight out to where
+// the concrete ends: CONFIG.castle.yard.apron out, to the mitred corners,
+// or short of whatever already lies on the ground there (a road and its
+// shoulder), where it stops.
 export interface Apron {
-  inner: XZ[]
-  outer: XZ[]
-  line: XZ[]
-  width: number
+  sides: { inner: XZ; outer: XZ }[][]
 }
+
+// The concrete's spokes along a side, about this far apart; how far out
+// along each it looks for a road at a time, and how far short of one it
+// stops.
+const APRON_SPOKE = 2
+const APRON_PROBE = 0.25
+const APRON_SHORT = 0.3
 
 export function apronOf(
   place: MazePlace,
-  cfg: CastleConfig = CONFIG.castle
+  cfg: CastleConfig = CONFIG.castle,
+  blocked: (p: XZ) => boolean = () => false
 ): Apron {
   const gap = 0.05
-  const width = cfg.yard.apron - gap
   const world = (poly: XZ[]) => poly.map((p) => mazeToWorld(place, p))
-  const line = world(inflate(MOAT.outer, gap + width / 2))
-  return {
-    inner: world(inflate(MOAT.outer, gap)),
-    outer: world(inflate(MOAT.outer, cfg.yard.apron)),
-    line: [...line, line[0]],
-    width,
+  const inner = world(inflate(MOAT.outer, gap))
+  const outer = world(inflate(MOAT.outer, cfg.yard.apron))
+  const n = inner.length
+  const spoke = (a: XZ, b: XZ) => {
+    const len = Math.hypot(b.x - a.x, b.z - a.z)
+    let reach = 0
+    while (reach < len) {
+      const next = Math.min(len, reach + APRON_PROBE)
+      const t = next / len
+      if (blocked({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t })) {
+        reach = Math.max(0, reach - APRON_SHORT)
+        break
+      }
+      reach = next
+    }
+    const t = len > 0 ? reach / len : 0
+    return {
+      inner: a,
+      outer: { x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t },
+    }
   }
+  const sides = inner.map((i0, k) => {
+    const i1 = inner[(k + 1) % n]
+    const o0 = outer[k]
+    const o1 = outer[(k + 1) % n]
+    const steps = Math.max(
+      1,
+      Math.ceil(Math.hypot(o1.x - o0.x, o1.z - o0.z) / APRON_SPOKE)
+    )
+    return Array.from({ length: steps + 1 }, (_, i) => {
+      const u = i / steps
+      return spoke(
+        { x: i0.x + (i1.x - i0.x) * u, z: i0.z + (i1.z - i0.z) * u },
+        { x: o0.x + (o1.x - o0.x) * u, z: o0.z + (o1.z - o0.z) * u }
+      )
+    })
+  })
+  return { sides }
+}
+
+// Each side's concrete as an outline closed on itself (along its inner
+// edge, back along where it ends), for the Ground (Ground.addArea).
+export function apronOutlines(apron: Apron): XZ[][] {
+  return apron.sides.map((spokes) => [
+    ...spokes.map((s) => s.inner),
+    ...spokes.map((s) => s.outer).reverse(),
+  ])
 }
 
 // A pole of the fence: its foot, the way it leans (a unit in the world,
@@ -296,6 +344,32 @@ export function payphoneSpot(
     ...onSide(place, s, s.len * P.along, P.out),
     yaw: headingOf(turned(place, s.out)),
   }
+}
+
+// How far short of the rim's lip a light tower's pool ends, so the
+// ground it is draped on is the rim's, never the floor's.
+const POOL_LIP = 0.15
+
+// Where a light tower's pool reaches toward `p` from its middle `c`: `p`
+// itself on the rim, or where the line out to it crosses the moat's outer
+// edge, a hair short, so the pool ends at the lip instead of hanging down
+// the wall to the floor. A middle already past the edge stays where it is.
+export function poolReach(place: MazePlace, c: XZ, p: XZ): XZ {
+  const past = (q: XZ) =>
+    inChannel(place, q.x, q.z) || onIsland(place, q.x, q.z)
+  if (!past(p)) return p
+  if (past(c)) return c
+  let lo = 0
+  let hi = 1
+  for (let i = 0; i < 20; i++) {
+    const mid = (lo + hi) / 2
+    const q = { x: c.x + (p.x - c.x) * mid, z: c.z + (p.z - c.z) * mid }
+    if (past(q)) hi = mid
+    else lo = mid
+  }
+  const len = Math.hypot(p.x - c.x, p.z - c.z)
+  const t = Math.max(0, lo - POOL_LIP / len)
+  return { x: c.x + (p.x - c.x) * t, z: c.z + (p.z - c.z) * t }
 }
 
 // A light tower to each outer side, its lamps toward the island, at the
