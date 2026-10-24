@@ -4,6 +4,7 @@ import {
   cellAt,
   croftWalls,
   inRoom,
+  inStone,
   inUndercroft,
   ossuaryLedges,
   ROOMS,
@@ -116,5 +117,66 @@ describe('the ossuary', () => {
         expect(b).toBeGreaterThan(a)
       }
     }
+  })
+})
+
+describe('the backrooms', () => {
+  const stoneRows = 17
+  const stoneCols = 29
+  const floors = (inside: (r: number, c: number) => boolean) => {
+    let n = 0
+    UNDERCROFT_GRID.forEach((row, r) => {
+      for (let c = 0; c < row.length; c++) if (floor(r, c) && inside(r, c)) n++
+    })
+    return n
+  }
+
+  it('make the Undercroft about three times the size of the stone', () => {
+    const area = UNDERCROFT.size.across * UNDERCROFT.size.along
+    const stone = (stoneRows - 1) * (stoneCols - 1) * UNDERCROFT.cell ** 2
+    expect(area / stone).toBeGreaterThan(2.8)
+    const old = floors((r, c) => r < stoneRows && c < stoneCols)
+    const all = floors(() => true)
+    expect(all / old).toBeGreaterThan(2.5)
+  })
+
+  it('leave the stone as it was but for the doors through its far walls', () => {
+    const doors: string[] = []
+    for (let r = 0; r < stoneRows; r++) {
+      for (let c = 0; c < stoneCols; c++) {
+        const edge = r === stoneRows - 1 || c === stoneCols - 1
+        if (edge && floor(r, c)) doors.push(`${r},${c}`)
+      }
+    }
+    expect(doors).toEqual(['13,28', '16,3', '16,13'])
+  })
+
+  it('are papered, lower than the stone, and lit by tubes only out there', () => {
+    const paper = UNDERCROFT.boxes.filter((b) => b.finish === 'wallpaper')
+    expect(paper.length).toBeGreaterThan(40)
+    for (const b of paper) {
+      expect(inStone({ x: b.center[0], z: b.center[2] })).toBe(false)
+      expect(b.size[1]).toBe(UNDERCROFT.low)
+    }
+    expect(UNDERCROFT.low).toBeLessThan(UNDERCROFT.height)
+    const tubes = UNDERCROFT.boxes.filter((b) =>
+      ['tube', 'flicker', 'dead'].includes(b.finish)
+    )
+    expect(tubes.length).toBeGreaterThan(100)
+    for (const b of tubes) {
+      expect(inStone({ x: b.center[0], z: b.center[2] })).toBe(false)
+    }
+    // Some fail; most hold.
+    expect(tubes.filter((b) => b.finish === 'tube').length).toBeGreaterThan(
+      tubes.length * 0.75
+    )
+    expect(tubes.some((b) => b.finish === 'flicker')).toBe(true)
+    expect(tubes.some((b) => b.finish === 'dead')).toBe(true)
+  })
+
+  it('have shades of their own and something worth the walk', () => {
+    const out = (p: { x: number; z: number }) => !inStone(p)
+    expect(UNDERCROFT.lairs.filter(out).length).toBeGreaterThanOrEqual(3)
+    expect(UNDERCROFT.loot.filter(out).length).toBeGreaterThanOrEqual(2)
   })
 })

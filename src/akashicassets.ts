@@ -676,7 +676,10 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'The Warden',
     build: () => {
       const rig = buildTunnelShade('warden')
-      setMotion(rig.group, (t) => rig.update(t))
+      // Walking its chamber, at its patrol.
+      setMotion(rig.group, (t) =>
+        rig.update(t, CONFIG.tunnel.warden.patrolSpeed)
+      )
       return rig.group
     },
   },
