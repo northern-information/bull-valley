@@ -27,7 +27,7 @@ import {
   pipeWalls,
   trickle,
 } from './moat.ts'
-import { moatSlurmsAt } from './moatslurms.ts'
+import { MOAT_STATION, moatSlurmsAt } from './moatslurms.ts'
 import { buildSlurm } from './slurmmodel.ts'
 import { treads, underfoot } from './slurms.ts'
 import type { CastleRig, CraneRig, MoatRig } from './assets.ts'
@@ -38,6 +38,7 @@ import type { MazePlace } from './maze.ts'
 import type { FireEscape, MoatPipe } from './moat.ts'
 import type { MoatSlurm, MoatSource } from './moatslurms.ts'
 import type { Cue } from './sfx.ts'
+import type { CrawlingSlurm } from './slurmrig.ts'
 import type { Feet } from './slurms.ts'
 import type { Walls } from './walls.ts'
 
@@ -85,6 +86,10 @@ export interface CastleSite {
   day(): string
   // The moat's slurms as the last frame drew them.
   slurms(): readonly MoatSlurm[]
+  // Those down on the floor a jar could catch (sharedworld.ts rule 36),
+  // by MOAT_STATION, and one caught, gone from the floor for good.
+  crawlingSlurms(): CrawlingSlurm[]
+  jarSlurm(slot: number, index: number): void
 }
 
 export function buildCastleSite(
@@ -217,6 +222,9 @@ export function buildCastleSite(
   })
   // When each was trodden on, by its key; forgotten once it is gone.
   const trodden = new Map<string, number>()
+  // Those caught in a jar, by key; forgotten once they would have melted.
+  const jarred = new Set<string>()
+  let crawling: CrawlingSlurm[] = []
   // What each looked like last frame, to hear it land.
   let phases = new Map<string, string>()
   let drawn: MoatSlurm[] = []
@@ -228,7 +236,12 @@ export function buildCastleSite(
     const cues: Cue[] = []
     const seen = new Map<string, string>()
     drawn = []
-    const now = moatSlurmsAt(sources, hooks.length, t, landY)
+    crawling = []
+    const all = moatSlurmsAt(sources, hooks.length, t, landY)
+    for (const key of jarred) {
+      if (!all.some((slurm) => slurm.key === key)) jarred.delete(key)
+    }
+    const now = all.filter((slurm) => !jarred.has(slurm.key))
     slurms.forEach((rig, i) => {
       let slurm = now[i]
       rig.group.visible = slurm !== undefined
@@ -249,6 +262,16 @@ export function buildCastleSite(
       }
       seen.set(slurm.key, slurm.phase)
       drawn.push(slurm)
+      if (slurm.phase === 'crawling') {
+        crawling.push({
+          station: MOAT_STATION,
+          slot: slurm.slot,
+          index: slurm.index,
+          x: slurm.x,
+          z: slurm.z,
+          object: rig.group,
+        })
+      }
       rig.group.position.set(slurm.x, slurm.y, slurm.z)
       rig.group.rotation.set(
         slurm.phase === 'falling' ? slurm.progress * 5 : 0,
@@ -310,6 +333,7 @@ export function buildCastleSite(
     if (!near) {
       for (const rig of slurms) rig.group.visible = false
       drawn = []
+      crawling = []
       return []
     }
     moat.update(t)
@@ -335,5 +359,9 @@ export function buildCastleSite(
     update,
     day: () => today,
     slurms: () => drawn,
+    crawlingSlurms: () => crawling,
+    jarSlurm(slot, index) {
+      jarred.add(`${slot}:${index}`)
+    },
   }
 }

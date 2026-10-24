@@ -9,6 +9,7 @@ import { isFallHeight } from './fall.ts'
 import { isBait, toPondPlace } from './fishing.ts'
 import { isHealth } from './health.ts'
 import { isFileBody, isFileId, isFileName } from './laptop.ts'
+import { MOAT_STATION } from './moatslurms.ts'
 import { isQuestStep } from './quests.ts'
 import { isResearchLine } from './recycling.ts'
 import { WAYPOINT_MAX } from './waypoints.ts'
@@ -445,6 +446,7 @@ type FishMessage =
   | { type: 'dig' }
   | { type: 'cast'; bait: Bait }
   | { type: 'reel'; landed: boolean }
+  // A Citgo's slurm, or the moat's by MOAT_STATION (moatslurms.ts).
   | { type: 'jar-slurm'; station: number; slot: number; index: number }
 
 // An expedition (sharedworld.ts rule 30): a run of `kind` sent out, or the
@@ -898,8 +900,8 @@ export interface LineMessage {
 }
 
 // A slurm caught in a jar (rule 36), to everyone: slurm `index` of slot
-// `slot`'s drop at `station` is off the lot, by raider `by`. The catcher's
-// pack frame follows.
+// `slot`'s drop at `station` (MOAT_STATION, the moat's) is off the lot,
+// by raider `by`. The catcher's pack frame follows.
 export interface SlurmJarredMessage {
   type: 'slurm-jarred'
   station: number
@@ -1851,7 +1853,9 @@ const CLIENT_PARSERS: ClientParsers = {
   // Which slurms there are, and whether one crawls, is the valley's to
   // check.
   'jar-slurm': ({ station, slot, index }) =>
-    isCount(station) && Number.isInteger(slot) && isCount(index)
+    (isCount(station) || station === MOAT_STATION) &&
+    Number.isInteger(slot) &&
+    isCount(index)
       ? {
           type: 'jar-slurm',
           station,

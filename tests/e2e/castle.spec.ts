@@ -1,6 +1,7 @@
 import { CONFIG } from '../../src/config.ts'
 import { isKeyItem } from '../../src/items.ts'
 import { inChannel } from '../../src/moat.ts'
+import { MOAT_STATION } from '../../src/moatslurms.ts'
 import { copy } from './copy.ts'
 import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
@@ -249,6 +250,72 @@ test('a slurm in the moat squashes underfoot', async ({ page }) => {
       )
     )
     .toBe('squashed')
+})
+
+// Erwin's jar catches the moat's slurms as it does a Citgo's (rule 36):
+// the jar in hand, from down in the channel, E on one down on the floor.
+test('a slurm in the moat goes into the jar', async ({ page }) => {
+  test.slow()
+  await beginRaid(page)
+  await page.evaluate(() => window.__bv?.grant('slurm-jar', 1))
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.hotbar.indexOf('slurm-jar')))
+    .toBeGreaterThanOrEqual(0)
+  const slot = await page.evaluate(
+    () => window.__bv?.hotbar.indexOf('slurm-jar') ?? -1
+  )
+  await page.keyboard.press(`Digit${slot + 1}`)
+  await expect.poll(() => page.evaluate(() => window.__bv?.held)).toBe('jar')
+  // Down on the floor, by the outer wall, where they drop.
+  await page.evaluate(() => {
+    const castle = window.__bv?.world.castle
+    if (!castle) throw new Error('No castle in the valley')
+    const a = castle.outer[1]
+    const b = castle.outer[2]
+    const mid = { x: (a.x + b.x) / 2, z: (a.z + b.z) / 2 }
+    const ox = mid.x - castle.middle.x
+    const oz = mid.z - castle.middle.z
+    const len = Math.hypot(ox, oz)
+    window.__bv?.player.relocate(
+      mid.x - (ox / len) * 8,
+      mid.z - (oz / len) * 8,
+      0
+    )
+  })
+  // Stand a couple of metres off one down on the open floor, looking at
+  // it, and E until one is caught: they melt, and a foot squashes them.
+  const jarred = () => page.evaluate(() => window.__bv?.inventory.slurm ?? 0)
+  await expect(async () => {
+    if ((await jarred()) > 0) return
+    await page.evaluate((moat) => {
+      const bv = window.__bv
+      const castle = bv?.world.castle
+      if (!bv || !castle) throw new Error('No castle in the valley')
+      const floor = (x: number, z: number) =>
+        bv.world.ground.at(x, z) < castle.floor + 1
+      for (const slurm of bv.slurms.filter((s) => s.station === moat)) {
+        for (let k = 0; k < 8; k++) {
+          const a = (k / 8) * Math.PI * 2
+          const u = { x: Math.sin(a), z: Math.cos(a) }
+          const x = slurm.x + u.x * 2
+          const z = slurm.z + u.z * 2
+          if (!floor(slurm.x, slurm.z) || !floor(x, z)) continue
+          bv.player.relocate(x, z, Math.atan2(u.x, u.z))
+          bv.player.pitch = -0.6
+          return
+        }
+      }
+      throw new Error('no slurm down on the open floor yet')
+    }, MOAT_STATION)
+    await heardWhere(page)
+    await expect(page.locator('.bv-prompt')).toHaveText(
+      copy('prompts.jar_slurm'),
+      { timeout: 2_000 }
+    )
+    await page.keyboard.press('KeyE')
+    await expect.poll(jarred, { timeout: 5_000 }).toBe(1)
+  }).toPass({ timeout: 90_000 })
+  await expect(page.locator('.bv-chat')).toContainText(copy('log.slurm_jarred'))
 })
 
 test('a shadowman climbs a fire escape after a raider on it, and a spider crawls down the wall', async ({

@@ -48,6 +48,7 @@ import { tripBlur } from './trip.ts'
 import { burstHeight, burstScale } from './tunnelrig.ts'
 import { levelsAt } from './wardlevels.ts'
 import { wardView } from './wardview.ts'
+import { crawlingSlurms } from './world.ts'
 import { boardable, clockText, countdown, seatOf } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
@@ -834,9 +835,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       // The jar in hand with room in the pack: E or the click scoops
       // (actions.ts jarSlurm).
       slurms:
-        s.held === 'jar' && jarRoom(s.inventory)
-          ? world.shelves.crawlingSlurms()
-          : [],
+        s.held === 'jar' && jarRoom(s.inventory) ? crawlingSlurms(world) : [],
       tackle: nearestLanding(
         world.ponds.map((pond) => pond.place),
         player.pos

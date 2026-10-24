@@ -1413,6 +1413,10 @@ export const CONFIG = {
       crawlSpeed: 0.1,
       crawlSeconds: 7,
       lingerSeconds: 18,
+      // The valley takes one into a jar this long past its melting, for
+      // the longest fall (a crane's hook) and the wire (moatslurms.ts
+      // mayJarMoat).
+      jarSlack: 6,
       // The rigs drawn at once, more than the slots overlapping hold.
       pool: 48,
     },

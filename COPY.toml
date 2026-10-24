@@ -1508,7 +1508,7 @@ blurb = { text = "A dented brass police whistle on a waxed cord, older than the 
 
 [items.slurm-jar]
 label = { text = "Slurm Jar", by = "ai" }
-blurb = { text = "A gallon Mason jar from Erwin von Dutch, nail holes in the lid. In hand, E or a click on a slurm still crawling on a Citgo's lot puts it in. Holds six.", by = "ai" }
+blurb = { text = "A gallon Mason jar from Erwin von Dutch, nail holes in the lid. In hand, E or a click on a slurm still crawling on a Citgo's lot or down in Castle Entropy's moat puts it in. Holds six.", by = "ai" }
 
 [items.shadow-carp]
 label = { text = "Shadow Carp", by = "ai" }

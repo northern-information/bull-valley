@@ -11,6 +11,7 @@ import { KEEP, landmarkWorldPositions } from './landmarks.ts'
 import { LOOKOUT, onLookout } from './lookout.ts'
 import { mazeToWorld } from './maze.ts'
 import { carve, castlePlace, moatFloor, onMoatGrounds } from './moat.ts'
+import { MOAT_STATION } from './moatslurms.ts'
 import { buildCroft, buildPlaza, CROFT_TREE_CLEAR } from './plazasite.ts'
 import { buildPoles } from './poles.ts'
 import { placePond } from './pondsite.ts'
@@ -355,6 +356,25 @@ function buildBoundary(
     )
   }
   return group
+}
+
+// Every slurm a jar could catch now (sharedworld.ts rule 36): those on the
+// parked Citgo's lot and those down on the moat's floor.
+export function crawlingSlurms(world: World): CrawlingSlurm[] {
+  const moat = world.castle?.crawlingSlurms() ?? []
+  return [...world.shelves.crawlingSlurms(), ...moat]
+}
+
+// A slurm caught in someone's jar, gone from wherever it crawled: the
+// moat's by MOAT_STATION, else a Citgo's lot.
+export function jarSlurm(
+  world: World,
+  station: number,
+  slot: number,
+  index: number
+): void {
+  if (station === MOAT_STATION) world.castle?.jarSlurm(slot, index)
+  else world.shelves.jarSlurm(station, slot, index)
 }
 
 export function buildWorld(

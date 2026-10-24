@@ -5,6 +5,7 @@
 import { unitToWorld } from './coords.ts'
 import { isSfxId, SFX_IDS } from './sfx.ts'
 import { levelsAt } from './wardlevels.ts'
+import { crawlingSlurms } from './world.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
 import type { ChatLine } from './chat.ts'
@@ -348,15 +349,15 @@ export function installDevHook(game: Game, actions: Actions): void {
       return s.line
     },
     get slurms() {
-      return game.world.shelves
-        .crawlingSlurms()
-        .map(({ station, slot, index, x, z }) => ({
+      return crawlingSlurms(game.world).map(
+        ({ station, slot, index, x, z }) => ({
           station,
           slot,
           index,
           x,
           z,
-        }))
+        })
+      )
     },
     get ponds() {
       return game.world.ponds.map(({ place }) => ({
