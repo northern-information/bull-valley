@@ -21,6 +21,7 @@ Two apps share one codebase: the 3D valley (`src/main.ts`) and Bull Valley Dial-
 - `npm run dev` — the whole stack on port 5174 (Vite plus the Worker in workerd). Run `npm run db:migrate` once on a fresh checkout.
 - `npm run typecheck`, `npm run lint`, `npm run lint:css`, `npm test`, `npm run test:e2e` (port 5175, `--mode test`).
 - `npm run pretty` before every commit. CI checks format, lint, migrations, types, unit tests with per-file coverage floors, build, and three e2e shards.
+- Every change reaches `main` through a pull request whose CI is green on its current head. Never merge before CI has finished and passed, even when asked to "merge it": that means open the PR, drive CI green (fix and push on red), then merge. Nothing on `main` enforces this, so it is on you.
 - Deploys go through GitHub only (`.github/workflows/deploy.yml` after green CI on `main`). Never run `npm run deploy` from a machine.
 - `localhost:5174/akashic` is the asset viewer; `#map` is the map editor. Check asset edits there.
 
