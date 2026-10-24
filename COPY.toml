@@ -581,6 +581,7 @@ none = { text = "No Citgo yet. Stand on a forecourt.", by = "ai" }
 hint = { text = "Click a visited Citgo or a found payphone to fast travel, anywhere else to pin a waypoint.", by = "ai" }
 hint_away = { text = "Fast travel leaves from a Citgo forecourt or a found payphone. Click anywhere to pin a waypoint.", by = "ai" }
 hint_charter = { text = "Click where Marx should take you. M for the long way, E to hop out.", by = "ai" }
+zoom = { text = "Scroll to zoom, drag to pan.", by = "ai" }
 somewhere = { text = "the middle of nowhere", by = "ai" }
 citgo = { text = "Citgo on {road}", by = "ai" }
 citgo_unnamed = { text = "Citgo #{n}", by = "ai" }
