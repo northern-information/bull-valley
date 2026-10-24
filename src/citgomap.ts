@@ -10,9 +10,10 @@
 // (the first one into Marx's bed, marx.ts charter), a click anywhere picks
 // where he drives instead. Otherwise a click anywhere else pins a waypoint
 // there (waypoints.ts, sharedworld.ts rule 37), and a click on a pin lifts
-// it. It opens over the valley with the pointer free, as the Book of
-// Shadows does; hud.ts builds it, loop.ts draws it each frame while it is
-// open.
+// it. The wheel zooms in about the pointer and a drag pans the zoomed
+// map; a drag never pins. It opens over the valley with the pointer free,
+// as the Book of Shadows does; hud.ts builds it, loop.ts draws it each
+// frame while it is open.
 
 import { context2d, EGGSHELL, MONO } from './canvas.ts'
 import { phonesOf, roadNameNear, surveyedStations } from './citgos.ts'
@@ -58,6 +59,11 @@ const ROAD = 'rgba(240, 234, 214, 0.22)'
 const UNVISITED = 'rgba(240, 234, 214, 0.45)'
 // How near a Citgo a point is still called after it.
 const NEAR_CITGO = 80
+// How far in the wheel zooms, and how far one notch of it goes.
+const MAX_ZOOM = 12
+const WHEEL_ZOOM = 0.0015
+// Canvas pixels a press may move and still be a click, not a drag.
+const DRAG = 4
 
 export class CitgoMap {
   readonly root: HTMLElement
@@ -80,9 +86,18 @@ export class CitgoMap {
   // The payphones found, as the last frame drew them: only those pick.
   private found: readonly number[] = []
   private readonly roads: readonly MapRoad[]
-  // World metres per canvas pixel, and the world point at its middle.
+  // World metres per canvas pixel unzoomed, how far in it is zoomed, and
+  // the world point at its middle.
   private readonly scale: number
+  private zoom = 1
+  private centre: XZ = { x: 0, z: 0 }
+  // A press on the canvas: where it went down, the middle then, and
+  // whether it has moved far enough to be a drag.
+  private press: { x: number; y: number; centre: XZ; dragged: boolean } | null =
+    null
+  // The roads as drawn for the view they were drawn at.
   private base: HTMLCanvasElement | null = null
+  private baseView = ''
   private hovered: Stop | null = null
   // Whether a click picks where Marx drives (a charter), and the world
   // point under the pointer while it does.
@@ -134,12 +149,62 @@ export class CitgoMap {
     this.root.append(head, this.canvas, this.last, this.hint)
     ui.appendChild(this.root)
 
+    this.canvas.addEventListener(
+      'wheel',
+      (e) => {
+        e.preventDefault()
+        // Keep the point under the pointer where it was.
+        const before = this.toWorld(e)
+        this.zoom = Math.min(
+          MAX_ZOOM,
+          Math.max(1, this.zoom * Math.exp(-e.deltaY * WHEEL_ZOOM))
+        )
+        const after = this.toWorld(e)
+        if (before && after) {
+          this.centre = {
+            x: this.centre.x + before.x - after.x,
+            z: this.centre.z + before.z - after.z,
+          }
+        }
+        this.keepInside()
+      },
+      { passive: false }
+    )
+    this.canvas.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return
+      this.press = {
+        x: e.clientX,
+        y: e.clientY,
+        centre: this.centre,
+        dragged: false,
+      }
+    })
+    window.addEventListener('mouseup', () => {
+      // The click that ends a drag still reads it, then it is done.
+      if (!this.press?.dragged) this.press = null
+    })
     this.canvas.addEventListener('mousemove', (e) => {
+      const press = this.press
+      if (press && e.buttons & 1) {
+        const k = this.pixelsPerClient()
+        const dx = (e.clientX - press.x) * k
+        const dy = (e.clientY - press.y) * k
+        if (press.dragged || Math.hypot(dx, dy) > DRAG) {
+          press.dragged = true
+          const m = this.scale / this.zoom
+          this.centre = {
+            x: press.centre.x - dx * m,
+            z: press.centre.z - dy * m,
+          }
+          this.keepInside()
+        }
+      }
       this.hovered = this.pick(e)
       this.hoveredPin = this.charter ? null : this.pickPin(e)
       this.pointer = this.charter ? this.toWorld(e) : null
-      this.canvas.style.cursor =
-        this.charter || (this.hovered === null && this.hoveredPin === null)
+      this.canvas.style.cursor = this.press?.dragged
+        ? 'grabbing'
+        : this.charter || (this.hovered === null && this.hoveredPin === null)
           ? 'crosshair'
           : 'pointer'
     })
@@ -151,6 +216,10 @@ export class CitgoMap {
     this.canvas.addEventListener('click', (e) => {
       // Not a click past the map, which closes it.
       e.stopPropagation()
+      // The end of a drag: it moved the map, it picks nothing.
+      const dragged = this.press?.dragged
+      this.press = null
+      if (dragged) return
       const stop = this.pick(e)
       if (this.charter) {
         const to = stop === null ? this.toWorld(e) : this.placeOfStop(stop)
@@ -209,10 +278,20 @@ export class CitgoMap {
     return show
   }
 
-  // The world to the canvas: x east, z south, the survey's middle in the
+  // The world to the canvas: x east, z south, the view's middle in the
   // canvas's.
   private toCanvas(at: XZ): { x: number; y: number } {
-    return { x: SIZE / 2 + at.x / this.scale, y: SIZE / 2 + at.z / this.scale }
+    const m = this.zoom / this.scale
+    return {
+      x: SIZE / 2 + (at.x - this.centre.x) * m,
+      y: SIZE / 2 + (at.z - this.centre.z) * m,
+    }
+  }
+
+  // Canvas pixels to one CSS pixel of the canvas as laid out.
+  private pixelsPerClient(): number {
+    const width = this.canvas.getBoundingClientRect().width
+    return width === 0 ? 1 : SIZE / width
   }
 
   // The world point under the pointer, or null.
@@ -222,7 +301,19 @@ export class CitgoMap {
     const k = SIZE / box.width
     const px = (e.clientX - box.left) * k
     const py = (e.clientY - box.top) * k
-    return { x: (px - SIZE / 2) * this.scale, z: (py - SIZE / 2) * this.scale }
+    const m = this.scale / this.zoom
+    return {
+      x: this.centre.x + (px - SIZE / 2) * m,
+      z: this.centre.z + (py - SIZE / 2) * m,
+    }
+  }
+
+  // The middle held where the zoomed view still covers only the survey's
+  // square.
+  private keepInside(): void {
+    const reach = (SIZE / 2) * this.scale * (1 - 1 / this.zoom)
+    const clamp = (v: number) => Math.min(reach, Math.max(-reach, v))
+    this.centre = { x: clamp(this.centre.x), z: clamp(this.centre.z) }
   }
 
   // The Citgo or found payphone under the pointer, or null.
@@ -270,10 +361,11 @@ export class CitgoMap {
       : 'phone' in h && h.phone === stop.phone
   }
 
-  // The roads, drawn once.
+  // The roads, drawn once for each view.
   private roadLayer(): HTMLCanvasElement {
-    if (this.base) return this.base
-    const base = document.createElement('canvas')
+    const view = `${this.zoom},${this.centre.x},${this.centre.z}`
+    if (this.base && this.baseView === view) return this.base
+    const base = this.base ?? document.createElement('canvas')
     base.width = SIZE
     base.height = SIZE
     const ctx = context2d(base)
@@ -289,6 +381,7 @@ export class CitgoMap {
     }
     ctx.stroke()
     this.base = base
+    this.baseView = view
     return base
   }
 
@@ -380,6 +473,7 @@ export class CitgoMap {
       )
     })
     this.canvas.dataset.pins = String(marks.length)
+    this.canvas.dataset.zoom = this.zoom.toFixed(2)
     // The raider's bodies: each a cross where it lies, always named, so a
     // corpse run knows where to run.
     for (const body of bodies) {
@@ -438,11 +532,12 @@ export class CitgoMap {
     this.last.textContent = last
       ? copy('map.last', { citgo: last.label })
       : copy('map.none')
-    this.hint.textContent = this.charter
+    const hint = this.charter
       ? copy('map.hint_charter')
       : here === null
         ? copy('map.hint_away')
         : copy('map.hint')
+    this.hint.textContent = `${hint} ${copy('map.zoom')}`
   }
 }
 

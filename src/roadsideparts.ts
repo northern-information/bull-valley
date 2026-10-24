@@ -229,41 +229,102 @@ export function buildLandmarkBeacon(
 
 // --- Waypoint pillar -----------------------------------------------------
 
-// How tall a waypoint's pillar of light rises.
+// How tall a waypoint's pillar of light rises near to; further off it
+// rises a share of the distance, so it always stands over the horizon.
 export const WAYPOINT_PILLAR_HEIGHT = 140
+const WAYPOINT_PILLAR_RISE = 0.12
 
-// A waypoint (waypoints.ts) as it stands in the valley: a thin, faint
-// column of light, a thinner core inside a wider haze, added over what is
-// behind and never fogged, so it reads from across the valley without
-// hiding anything. Origin at ground level.
+// The pillar's column: a quad (x the side, -1 to 1; y the foot, 0, or the
+// top, 1) turned to face the camera about its own upright, as wide as
+// `uRadius` near to and never narrower on screen than `uHalfPx` pixels
+// either side, so it holds a line through the PS1 downscale from any
+// distance. Its depth is pinned inside the view so the far plane never
+// clips it.
+const PILLAR_VERTEX = `
+uniform float uRadius;
+uniform float uHalfPx;
+uniform vec2 uRes;
+uniform float uHeight;
+uniform float uRise;
+varying float vSide;
+varying float vUp;
+void main() {
+  vec3 foot = (modelMatrix * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+  float dist = length(foot.xz - cameraPosition.xz);
+  float height = max(uHeight, dist * uRise);
+  vec4 clip = projectionMatrix * viewMatrix * vec4(foot.x, foot.y + position.y * height, foot.z, 1.0);
+  float halfWidth = max(uRadius * projectionMatrix[0][0], uHalfPx * 2.0 / uRes.x * clip.w);
+  clip.x += position.x * halfWidth;
+  clip.z = 0.0;
+  gl_Position = clip;
+  vSide = position.x;
+  vUp = position.y;
+}
+`
+
+const PILLAR_FRAGMENT = `
+uniform vec3 uColor;
+uniform float uOpacity;
+varying float vSide;
+varying float vUp;
+void main() {
+  float across = 1.0 - abs(vSide);
+  float alpha = uOpacity * across * (1.0 - 0.6 * vUp);
+  gl_FragColor = vec4(uColor * alpha, 1.0);
+}
+`
+
+// A waypoint (waypoints.ts) as it stands in the valley: a column of light,
+// a bright core inside a wider haze, added over everything (no fog, no
+// depth test, drawn last) so it cuts through the dark, the mist and the
+// hills from anywhere in the valley. Only the raider who pinned it sees it,
+// and it is meant to be found, so it is not hidden the way the valley
+// hides things. Origin at ground level.
 export function buildWaypointPillar(): THREE.Group {
   const group = new THREE.Group()
-  const layer = (radius: number, opacity: number) => {
-    const geometry = new THREE.CylinderGeometry(
-      radius,
-      radius,
-      WAYPOINT_PILLAR_HEIGHT,
-      8,
-      1,
-      true
+  const size = new THREE.Vector2()
+  const layer = (radius: number, halfPx: number, opacity: number) => {
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute(
+      'position',
+      new THREE.Float32BufferAttribute(
+        [-1, 0, 0, 1, 0, 0, 1, 1, 0, -1, 0, 0, 1, 1, 0, -1, 1, 0],
+        3
+      )
     )
-    geometry.translate(0, WAYPOINT_PILLAR_HEIGHT / 2, 0)
+    const uniforms = {
+      uRadius: { value: radius },
+      uHalfPx: { value: halfPx },
+      uRes: { value: new THREE.Vector2(1, 1) },
+      uHeight: { value: WAYPOINT_PILLAR_HEIGHT },
+      uRise: { value: WAYPOINT_PILLAR_RISE },
+      uColor: { value: new THREE.Color('#f0ead6') },
+      uOpacity: { value: opacity },
+    }
     const mesh = new THREE.Mesh(
       geometry,
-      new THREE.MeshBasicMaterial({
-        color: '#f0ead6',
+      new THREE.ShaderMaterial({
+        uniforms,
+        vertexShader: PILLAR_VERTEX,
+        fragmentShader: PILLAR_FRAGMENT,
         transparent: true,
-        opacity,
         blending: THREE.AdditiveBlending,
+        depthTest: false,
         depthWrite: false,
         side: THREE.DoubleSide,
-        fog: false,
       })
     )
+    // The shader places every vertex, so the bounds Three would cull by
+    // are not where it draws.
+    mesh.frustumCulled = false
     mesh.renderOrder = 2
+    mesh.onBeforeRender = (renderer) => {
+      renderer.getDrawingBufferSize(size)
+      uniforms.uRes.value.copy(size)
+    }
     group.add(mesh)
   }
-  layer(0.12, 0.35)
-  layer(0.6, 0.08)
+  layer(0.6, 3, 0.35)
+  layer(0.15, 1, 1)
   return group
 }
