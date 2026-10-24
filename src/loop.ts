@@ -831,9 +831,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       wreck: world.wreck
         ? { x: world.wreck.group.position.x, z: world.wreck.group.position.z }
         : null,
-      // A jar with room anywhere in the pack: E or the click scoops,
-      // bringing it to hand (actions.ts jarSlurm).
-      slurms: jarRoom(s.inventory) ? world.shelves.crawlingSlurms() : [],
+      // The jar in hand with room in the pack: E or the click scoops
+      // (actions.ts jarSlurm).
+      slurms:
+        s.held === 'jar' && jarRoom(s.inventory)
+          ? world.shelves.crawlingSlurms()
+          : [],
       tackle: nearestLanding(
         world.ponds.map((pond) => pond.place),
         player.pos

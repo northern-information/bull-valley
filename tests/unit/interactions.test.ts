@@ -584,6 +584,24 @@ describe('resolveInteraction: bodies and lockers', () => {
     ).toBe(copy('prompts.jar_slurm'))
   })
 
+  it('takes a slurm off to the side of a level look, but not behind', () => {
+    const lookingNorth: View<PickupSpot> = {
+      eye: [250, 1.6, 250],
+      dir: [0, 0, -1],
+      feet: 0,
+      groundAt: () => 0,
+      heightOf: () => 0.1,
+    }
+    const aside = { x: 252, z: 247.5, station: 1, slot: 7, index: 0 }
+    expect(
+      resolveInteraction(input({ slurms: [aside], view: lookingNorth }))
+    ).toMatchObject({ kind: 'jar-slurm', index: 0 })
+    const behind = { x: 250, z: 252, station: 1, slot: 7, index: 1 }
+    expect(
+      resolveInteraction(input({ slurms: [behind], view: lookingNorth }))
+    ).toBeNull()
+  })
+
   it('opens the tackle box on the firefly pond, within its reach', () => {
     expect(resolveInteraction(input({ tackle: { x: 252, z: 250 } }))).toEqual({
       kind: 'fish',

@@ -229,6 +229,9 @@ test('three ponds, and a slurm caught alive in the jar', async ({ page }) => {
     .poll(() => page.evaluate(() => window.__bv?.hotbar.includes('slurm-jar')))
     .toBe(true)
   expect(await page.evaluate(() => window.__bv?.held)).toBe('flashlight')
+  // Slurms answer only to the jar in hand.
+  await selectKind(page, 'slurm-jar')
+  await expect.poll(() => page.evaluate(() => window.__bv?.held)).toBe('jar')
   // The shelf display parks at the Citgo on the next frames; then the next
   // drop is brought to now.
   await frames(page, 5)
@@ -261,8 +264,7 @@ test('three ponds, and a slurm caught alive in the jar', async ({ page }) => {
       bv.player.pitch = -0.9
     })
     await heardWhere(page)
-    // It glows as anything E answers does, and E brings the jar to hand
-    // and catches it.
+    // It glows as anything E answers does, and E catches it.
     await expect(page.locator('.bv-prompt')).toHaveText(
       copy('prompts.jar_slurm'),
       { timeout: 2_000 }
