@@ -92,7 +92,7 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'laptop'; station: number }
   // The Cabbage Stand: E opens this raider's own (rule 23).
   | { kind: 'stand' }
-  // The wreck: E opens the Recycling Center (rule 33).
+  // The recycling machine: E opens the Recycling Center (rule 33).
   | { kind: 'recycle' }
   // The tackle box on the firefly pond's landing: E opens it to fish
   // (rule 36).
@@ -170,8 +170,8 @@ export const SIGHTS = {
   // A slurm crawling on a lot: drawn wide and tall, as small and quick as
   // it is, so a look anywhere near it takes it.
   slurm: { low: -0.3, high: 0.6, r: 0.7 },
-  // The BMW in its tree, roof to wheels and nose to tail.
-  wreck: { low: 0, high: 1.5, r: 2.2 },
+  // The recycling machine, kick plate to header.
+  recycler: { low: 0, high: 1.9, r: 0.6 },
   hatch: { low: -0.2, high: 0.3, r: 0.7 },
   // A ladder going up from its foot, and down from its top.
   ladder: { low: 0, high: 3, r: 0.5 },
@@ -268,8 +268,8 @@ export interface InteractionInput<P extends PickupSpot> {
   laptops?: readonly LockerSpot[]
   // The Cabbage Stand's middle, or null.
   stand?: XZ | null
-  // The wreck's middle, or null.
-  wreck?: XZ | null
+  // The recycling machine's middle, or null.
+  recycler?: XZ | null
   // The tackle box on the firefly pond's landing, or null.
   tackle?: XZ | null
   // The slurms crawling on the lot, while this raider holds a jar with
@@ -423,12 +423,12 @@ export function resolveInteraction<P extends PickupSpot>(
     return { kind: 'stand' }
   }
 
-  const wreck = input.wreck
+  const recycler = input.recycler
   if (
-    wreck &&
-    Math.hypot(wreck.x - player.x, wreck.z - player.z) <
+    recycler &&
+    Math.hypot(recycler.x - player.x, recycler.z - player.z) <
       CONFIG.recycling.reach &&
-    sees(wreck, SIGHTS.wreck)
+    sees(recycler, SIGHTS.recycler)
   ) {
     return { kind: 'recycle' }
   }

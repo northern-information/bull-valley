@@ -288,12 +288,13 @@
 //    Materials: a drink its can or its bottle, the last cigarette out of a
 //    pack the pack (emptyOf, from what the pack holds after). Dialed in the
 //    same.
-// 33. The Recycling Center at the wreck (recycling.ts): every account keeps
-//    its own research, a level on each line, in D1. A raider out of the bed
-//    whose last state frame put them beside the wreck (the world was opened
-//    with where it is, SharedWorld.wreck), or dialed in from anywhere, buys
-//    a line's next level (a line never ends) with the empties it costs (ValleyContext.research
-//    in, Reduced.research out); the valley writes the level and takes the
+// 33. The Recycling Center at the recycling machine (recycling.ts): every
+//    account keeps its own research, a level on each line, in D1. A raider
+//    out of the bed whose last state frame put them beside the machine (the
+//    world was opened with where it stands, SharedWorld.recycler), or
+//    dialed in from anywhere, buys a line's next level (a line never ends)
+//    with the empties it costs (ValleyContext.research in,
+//    Reduced.research out); the valley writes the level and takes the
 //    empties out of the pack together, or neither. Research is the
 //    account's alone and never reaches the shared world: loose change
 //    (`dimes`) gives a raider taking up dimes a burst left (Drop.burst,
@@ -475,7 +476,7 @@ import { PROTOCOL_VERSION } from './protocol.ts'
 import { atHeart, isQuest, QUESTS, questStep } from './quests.ts'
 import {
   affordsResearch,
-  atWreck,
+  atRecycler,
   emptyOf,
   extraDimes,
   priceOf,
@@ -580,8 +581,8 @@ interface SharedWorld {
   routes: TruckRoutes
   // Where the Cabbage Stand stands, or null (rule 23).
   stand: XZ | null
-  // Where the wreck lies, or null (rule 33).
-  wreck: XZ | null
+  // Where the recycling machine stands, or null (rule 33).
+  recycler: XZ | null
   // The firefly ponds (rule 36).
   ponds: PondPlace[]
   // Where each berry bush stands, in bush order (rule 8).
@@ -707,7 +708,7 @@ export type ValleyAction =
       maze: MazePlace | null
       routes: TruckRoutes
       stand: XZ | null
-      wreck: XZ | null
+      recycler: XZ | null
       ponds: PondPlace[]
       bushes: XZ[]
       dealer: XZ | null
@@ -822,7 +823,8 @@ export type ValleyAction =
       at: XZ | null
     }
   | { type: 'stand-collect' | 'stand-upgrade'; id: string; at: XZ | null }
-  // Rule 33: the next level on `line`, bought with empties at the wreck.
+  // Rule 33: the next level on `line`, bought with empties at the
+  // recycling machine.
   | { type: 'recycle'; id: string; line: ResearchLine; at: XZ | null }
   // Rule 36: a rod out of the tackle box; the bank dug, with the valley's
   // roll; a line cast, with the valley's roll for what bites and the seed
@@ -1697,7 +1699,7 @@ function onJoin(
         maze: action.maze,
         routes: action.routes,
         stand: action.stand,
-        wreck: action.wreck,
+        recycler: action.recycler,
         ponds: action.ponds,
         bushes: action.bushes,
         dealer: action.dealer,
@@ -2875,11 +2877,12 @@ function onRecycle(
   const refuse = (reason: string): Reduced =>
     done(valley, now, { broadcast: [], reply: nack('recycle', reason) })
   if (!member) return refuse('not-in-valley')
-  // Rule 29: dialed in, the wreck is wherever they are, as the stand is.
+  // Rule 29: dialed in, the recycling machine is wherever they are, as the
+  // stand is.
   if (!member.dialup) {
     if (!world) return refuse('not-in-valley')
     if (isAboard(world.truck, action.id)) return refuse('aboard')
-    if (!atWreck(action.at, world.wreck)) return refuse('no-wreck')
+    if (!atRecycler(action.at, world.recycler)) return refuse('no-recycler')
   }
   if (!research?.pack) return refuse('unavailable')
   const { levels, pack } = research

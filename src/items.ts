@@ -118,7 +118,7 @@ interface Valuable extends ItemBase {
 
 // Never on a shelf and of no use yet: what using something leaves behind
 // (recycling.ts emptyOf, sharedworld.ts rule 32), for the Recycling Center
-// at the wreck to take in.
+// at the recycling machine to take in.
 interface Material extends ItemBase {
   category: 'material'
   price?: undefined

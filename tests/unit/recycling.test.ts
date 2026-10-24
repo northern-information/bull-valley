@@ -3,7 +3,7 @@ import { CONFIG } from '../../src/config.ts'
 import { contentsOf, itemById } from '../../src/items.ts'
 import {
   affordsResearch,
-  atWreck,
+  atRecycler,
   dimesChance,
   emptyOf,
   extraDimes,
@@ -100,12 +100,12 @@ describe('research', () => {
     expect(extraDimes({ dimes: 5 }, 0, 0)).toBe(0)
   })
 
-  it('takes empties only beside the wreck', () => {
-    const wreck = { x: 10, z: 10 }
+  it('takes empties only beside the recycling machine', () => {
+    const recycler = { x: 10, z: 10 }
     const reach = CONFIG.recycling.tendReach
-    expect(atWreck({ x: 10 + reach, z: 10 }, wreck)).toBe(true)
-    expect(atWreck({ x: 10 + reach + 0.1, z: 10 }, wreck)).toBe(false)
-    expect(atWreck(null, wreck)).toBe(false)
-    expect(atWreck({ x: 10, z: 10 }, null)).toBe(false)
+    expect(atRecycler({ x: 10 + reach, z: 10 }, recycler)).toBe(true)
+    expect(atRecycler({ x: 10 + reach + 0.1, z: 10 }, recycler)).toBe(false)
+    expect(atRecycler(null, recycler)).toBe(false)
+    expect(atRecycler({ x: 10, z: 10 }, null)).toBe(false)
   })
 })

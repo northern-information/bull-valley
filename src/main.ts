@@ -419,9 +419,7 @@ async function boot() {
       landing: place.landing,
     })),
     stand: world.stand ? world.stand.at : null,
-    wreck: world.wreck
-      ? { x: world.wreck.group.position.x, z: world.wreck.group.position.z }
-      : null,
+    recycler: world.recycler ? world.recycler.at : null,
     dealer: world.plaza ? world.plaza.dealer.at : null,
     undercroft: world.undercroft?.place ?? null,
     moat: world.castle?.place ?? null,

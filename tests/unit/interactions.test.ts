@@ -612,13 +612,15 @@ describe('resolveInteraction: bodies and lockers', () => {
     expect(interactionPrompt({ kind: 'fish' })).toBe(copy('prompts.fish'))
   })
 
-  it('opens the Recycling Center at the wreck, within its reach', () => {
-    expect(resolveInteraction(input({ wreck: { x: 252, z: 250 } }))).toEqual({
-      kind: 'recycle',
-    })
+  it('opens the Recycling Center at the recycling machine, within its reach', () => {
+    expect(resolveInteraction(input({ recycler: { x: 252, z: 250 } }))).toEqual(
+      {
+        kind: 'recycle',
+      }
+    )
     const far = { x: 250 + CONFIG.recycling.reach + 0.1, z: 250 }
-    expect(resolveInteraction(input({ wreck: far }))).toBeNull()
-    expect(resolveInteraction(input({ wreck: null }))).toBeNull()
+    expect(resolveInteraction(input({ recycler: far }))).toBeNull()
+    expect(resolveInteraction(input({ recycler: null }))).toBeNull()
     expect(interactionPrompt({ kind: 'recycle' })).toBe(copy('prompts.recycle'))
     // Only in sight: not with it behind the raider, nor with a wall between.
     const lookingNorth: View<PickupSpot> = {
@@ -628,18 +630,18 @@ describe('resolveInteraction: bodies and lockers', () => {
       groundAt: () => 0,
       heightOf: () => 0.1,
     }
-    const ahead = { x: 250, z: 247 }
+    const ahead = { x: 250, z: 248 }
     expect(
-      resolveInteraction(input({ wreck: ahead, view: lookingNorth }))
+      resolveInteraction(input({ recycler: ahead, view: lookingNorth }))
     ).toEqual({ kind: 'recycle' })
     expect(
       resolveInteraction(
-        input({ wreck: { x: 250, z: 253 }, view: lookingNorth })
+        input({ recycler: { x: 250, z: 252 }, view: lookingNorth })
       )
     ).toBeNull()
     expect(
       resolveInteraction(
-        input({ wreck: ahead, view: lookingNorth, walled: () => true })
+        input({ recycler: ahead, view: lookingNorth, walled: () => true })
       )
     ).toBeNull()
     expect(itemLabel({ kind: 'recycle' })).toBeNull()

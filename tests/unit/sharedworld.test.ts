@@ -117,7 +117,7 @@ const MAZE = { x: 3000, z: 3000, yaw: 0 }
 const ROUTES = { home: { x: 10, z: 10 }, joyrideMs: 600_000 }
 // Where the Cabbage Stand stands (rule 23).
 const STAND = { x: 5, z: -20 }
-const WRECK_SPOT = { x: 30, z: 40 }
+const RECYCLER_SPOT = { x: 30, z: 40 }
 const DEALER = { x: -30, z: -60 }
 // The firefly ponds (rule 36), away from every station.
 const POND = { x: 800, z: 0, radius: 100, landing: { x: 720, z: 0 } }
@@ -219,7 +219,7 @@ const join = (id: string): ValleyAction => ({
   maze: null,
   routes: ROUTES,
   stand: STAND,
-  wreck: WRECK_SPOT,
+  recycler: RECYCLER_SPOT,
   ponds: [POND, FAR_POND],
   bushes: BUSH_SPOTS,
   dealer: DEALER,
@@ -385,7 +385,7 @@ describe('rule 1: the world is persistent', () => {
     expect(world.truck.riders).toEqual([])
     expect(world.portals).toEqual([])
     expect(world.dealerStock).toEqual(freshDealerStock())
-    expect(world.wreck).toEqual(WRECK_SPOT)
+    expect(world.recycler).toEqual(RECYCLER_SPOT)
     expect(world.pickups).toEqual(PICKUPS)
     expect(valley.carried).toBeNull()
     expect(toWire(valley)?.graves).toHaveLength(2)
@@ -2065,8 +2065,8 @@ describe('rule 31: the laptop', () => {
   })
 })
 
-describe('rule 33: the Recycling Center at the wreck', () => {
-  const beside = { x: WRECK_SPOT.x + 1, z: WRECK_SPOT.z }
+describe('rule 33: the Recycling Center at the recycling machine', () => {
+  const beside = { x: RECYCLER_SPOT.x + 1, z: RECYCLER_SPOT.z }
   const [first, second] = CONFIG.recycling.lines.dimes
   const recycle = (
     valley: Valley,
@@ -2081,11 +2081,11 @@ describe('rule 33: the Recycling Center at the wreck', () => {
     })
   const empties = { 'empty-can': 100, 'empty-pack': 100, 'empty-bottle': 100 }
 
-  it('keeps where the wreck lies with the world', () => {
-    expect(valleyWith(join('a')).valley.world?.wreck).toEqual(WRECK_SPOT)
+  it('keeps where the recycling machine stands with the world', () => {
+    expect(valleyWith(join('a')).valley.world?.recycler).toEqual(RECYCLER_SPOT)
   })
 
-  it("buys a line's next level with its empties, beside the wreck", () => {
+  it("buys a line's next level with its empties, beside the recycling machine", () => {
     const v = valleyWith(join('a'))
     const action: ValleyAction = {
       type: 'recycle',
@@ -2114,7 +2114,7 @@ describe('rule 33: the Recycling Center at the wreck', () => {
     })
   })
 
-  it('refuses away from the wreck, short of empties, or unread', () => {
+  it('refuses away from the recycling machine, short of empties, or unread', () => {
     const v = valleyWith(join('a'))
     const at = (where: XZ | null): ValleyAction => ({
       type: 'recycle',
@@ -2125,9 +2125,9 @@ describe('rule 33: the Recycling Center at the wreck', () => {
     const reason = (r: Reduced) => r.reply?.reason
     expect(
       reason(recycle(v.valley, at({ x: 900, z: 900 }), FRESH_RESEARCH, empties))
-    ).toBe('no-wreck')
+    ).toBe('no-recycler')
     expect(reason(recycle(v.valley, at(null), FRESH_RESEARCH, empties))).toBe(
-      'no-wreck'
+      'no-recycler'
     )
     expect(
       reason(recycle(v.valley, at(beside), FRESH_RESEARCH, { 'empty-can': 1 }))

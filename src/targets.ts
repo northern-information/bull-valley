@@ -88,7 +88,7 @@ export function createTargets(game: Game): Targets {
       case 'stand':
         return world.stand?.group ?? null
       case 'recycle':
-        return world.wreck?.car ?? null
+        return world.recycler?.group ?? null
       case 'jar-slurm':
         return (
           crawlingSlurms(world).find(

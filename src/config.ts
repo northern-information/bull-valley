@@ -1031,14 +1031,22 @@ export const CONFIG = {
     // Trees keep this far off its middle.
     treeClear: 6,
   },
-  // The Recycling Center at the wreck (recycling.ts, sharedworld.ts rule
-  // 33): every account feeds its empties in for research, its own and no
-  // one else's.
+  recycler: {
+    // The recycling vending machine on the spawn Citgo's lot, station-local
+    // like the stand: its back to the storefront, on the side of the door
+    // away from the trash can (FUEL_LAYOUT.trashCans), facing the pumps
+    // (recyclermodel.ts RECYCLER sizes it). It blocks as a post this wide.
+    at: { x: -6.1, z: 2.7 },
+    radius: 0.55,
+  },
+  // The Recycling Center at the recycling machine (recycling.ts,
+  // sharedworld.ts rule 33): every account feeds its empties in for
+  // research, its own and no one else's.
   recycling: {
-    // How close the wreck's middle must be for E to open it.
-    reach: 4,
+    // How close the machine's middle must be for E to open it.
+    reach: 2.6,
     // The valley takes a raider's empties only when their last state frame
-    // put them within this of the wreck's middle: generous, since frames
+    // put them within this of the machine's middle: generous, since frames
     // lag.
     tendReach: 10,
     // Each research line, level by level from the first: what it does at

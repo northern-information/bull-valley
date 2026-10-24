@@ -227,7 +227,7 @@ const MAZE = { x: 5000, z: 5000, yaw: 0 }
 // Where a build sets up the Cabbage Stand: on the first station's lot.
 const STAND = { x: -4, z: -17 }
 const PAYPHONE = { x: 3000, z: -3000 }
-const WRECK = { x: 6, z: 27 }
+const RECYCLER = { x: 6, z: 27 }
 // The firefly pond (rule 36), clear of every station.
 const POND = { x: -5000, z: 5000, radius: 80, landing: { x: -5060, z: 5000 } }
 const DEALER = { x: -20, z: -55 }
@@ -265,7 +265,7 @@ const hello = (
     maze: MAZE,
     truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
     stand: STAND,
-    wreck: WRECK,
+    recycler: RECYCLER,
     ponds: [POND],
     bushes: Array.from({ length: 7 }, () => ({ x: 0, z: 0 })),
     dealer: DEALER,
@@ -2880,11 +2880,11 @@ describe('ValleyDO: the Recycling Center', () => {
     expect(research(a)).toEqual({ type: 'research', research: { dimes: 0 } })
   })
 
-  it('buys a level with the empties beside the wreck, the pack and the level together', async () => {
+  it('buys a level with the empties beside the recycling machine, the pack and the level together', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A', { dev: true })
     const other = await join(v, s, 'A2', { account: 'acct-A' })
-    await v.webSocketMessage(ws(a), state(WRECK.x + 1, WRECK.z))
+    await v.webSocketMessage(ws(a), state(RECYCLER.x + 1, RECYCLER.z))
     const buy = '{"type":"recycle","line":"dimes"}'
     await v.webSocketMessage(ws(a), buy)
     expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'short' })
@@ -2900,13 +2900,13 @@ describe('ValleyDO: the Recycling Center', () => {
     expect(await v.packStore.research('acct-A')).toEqual({ dimes: 1 })
   })
 
-  it('stays shut away from the wreck, or when the research cannot be read', async () => {
+  it('stays shut away from the recycling machine, or when the research cannot be read', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A', { dev: true })
     await grant(v, a, first.price)
-    await v.webSocketMessage(ws(a), state(WRECK.x + 400, WRECK.z))
+    await v.webSocketMessage(ws(a), state(RECYCLER.x + 400, RECYCLER.z))
     await v.webSocketMessage(ws(a), '{"type":"recycle","line":"dimes"}')
-    expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'no-wreck' })
+    expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'no-recycler' })
     const store = v.packStore
     const error = console.error
     console.error = () => {}
@@ -2915,7 +2915,7 @@ describe('ValleyDO: the Recycling Center', () => {
       v.packStore = Object.assign(Object.create(store) as PackStore, {
         research: () => Promise.reject(new Error('down')),
       })
-      await v.webSocketMessage(ws(a), state(WRECK.x, WRECK.z))
+      await v.webSocketMessage(ws(a), state(RECYCLER.x, RECYCLER.z))
       await v.webSocketMessage(ws(a), '{"type":"recycle","line":"dimes"}')
       expect(nack(a)).toMatchObject({ re: 'recycle', reason: 'unavailable' })
       await v.webSocketMessage(ws(a), '{"type":"research"}')

@@ -33,6 +33,7 @@ import {
   placeDishes,
   placeGron,
   placeMoabs,
+  placeRecycler,
   placeSpunkysGrave,
   placeStand,
   placeTyler,
@@ -214,6 +215,10 @@ export interface World {
   // where its middle is, the stand itself for the glow, and setLevel to
   // dress it for the raider's own level. Null without a spawn station.
   stand: StandRig | null
+  // The recycling vending machine on the spawn station's lot
+  // (sharedworld.ts rule 33): where its middle is, and the machine itself
+  // for the glow. Null without a spawn station.
+  recycler: RecyclerRig | null
   // The green BMW in a tree by the spawn station, update(t) for its smoke
   // and hazards; null without a spawn station.
   wreck: Wreck | null
@@ -230,7 +235,7 @@ export interface World {
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the berry bush, Gron,
-  // Moab and his horse, Tyler's Jeep, the wreck and its tree, the dishes, the plaza, the
+  // Moab and his horse, Tyler's Jeep, the recycling machine, the wreck and its tree, the dishes, the plaza, the
   // poles and lamps.
   walls: Walls
   // Every station's shelf facings in the world, indexed like fuelPoints.
@@ -287,6 +292,11 @@ export interface StandRig {
   at: XZ
   group: THREE.Group
   setLevel(level: number): void
+}
+
+export interface RecyclerRig {
+  at: XZ
+  group: THREE.Group
 }
 
 // The portal at the corn maze's heart: where it stands, where it puts you
@@ -550,6 +560,7 @@ export function buildWorld(
   const { bushes, mazePlace } = plantBushes(group, ground, walls, spawnStation)
   const { gron, gronRig } = placeGron(group, ground, walls, spawnStation)
   const standRig = placeStand(group, ground, walls, spawnStation)
+  const recycler = placeRecycler(group, ground, walls, spawnStation)
   const wreck = placeWreck(group, ground, walls, spawnStation, wreckAt)
   const dishes = placeDishes(group, ground, walls, dishSpots)
   placeSpunkysGrave(group, ground, walls, spawnStation, pine)
@@ -589,6 +600,7 @@ export function buildWorld(
       return { x, z }
     }),
     stand: standRig,
+    recycler,
     wreck,
     dishes,
     plaza: plaza ? plaza.rig : null,

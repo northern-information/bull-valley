@@ -47,7 +47,7 @@ const hello = {
   maze: { x: 120, z: -40, yaw: 0.5 },
   truck: { home: { x: 10, z: -20 }, joyrideMs: 600_000 },
   stand: { x: 6, z: -24 },
-  wreck: { x: 12, z: 30 },
+  recycler: { x: 12, z: 30 },
   ponds: [
     { x: -300, z: 40, radius: 120, landing: { x: -220, z: 10 } },
     { x: 600, z: 400, radius: 90, landing: { x: 540, z: 360 } },
@@ -284,7 +284,7 @@ describe('parseClientMessage', () => {
       maze: _maze,
       truck: _truck,
       stand: _stand,
-      wreck: _wreck,
+      recycler: _recycler,
       ponds: _ponds,
       bushes: _bushes,
       dealer: _dealer,
@@ -303,7 +303,7 @@ describe('parseClientMessage', () => {
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
-      wreck: null,
+      recycler: null,
       ponds: [],
       bushes: [],
       dealer: null,
@@ -338,7 +338,7 @@ describe('parseClientMessage', () => {
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
-      wreck: null,
+      recycler: null,
       ponds: [],
       bushes: [],
       dealer: null,
@@ -523,9 +523,12 @@ describe('parseClientMessage', () => {
     // A hello says where the stand stands, or that there is none.
     expect(parse({ ...hello, stand: null })).toEqual({ ...hello, stand: null })
     expect(parse({ ...hello, stand: { x: 'here' } })).toBeNull()
-    // And where the wreck lies, or that there is none (rule 33).
-    expect(parse({ ...hello, wreck: null })).toEqual({ ...hello, wreck: null })
-    expect(parse({ ...hello, wreck: 'bmw' })).toBeNull()
+    // And where the recycling machine stands, or that there is none (rule 33).
+    expect(parse({ ...hello, recycler: null })).toEqual({
+      ...hello,
+      recycler: null,
+    })
+    expect(parse({ ...hello, recycler: 'machine' })).toBeNull()
     // And the firefly ponds, none or more (rule 36).
     expect(parse({ ...hello, ponds: [] })).toEqual({ ...hello, ponds: [] })
     expect(parse({ ...hello, ponds: null })).toBeNull()

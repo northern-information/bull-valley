@@ -709,7 +709,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
   }
 
-  // E at the wreck: the Recycling Center, the pointer free for it as at
+  // E at the recycling machine: the Recycling Center, the pointer free for it as at
   // the stand. The research is the account's (rule 33): the dialog asks
   // the valley for it as it opens, and asks for each level; the research
   // and pack frames that answer show in it as they land.

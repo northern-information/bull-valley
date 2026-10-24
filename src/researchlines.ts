@@ -48,7 +48,7 @@ export function foundLine(dimes: number): string {
 // Why the valley would not take the empties.
 export function recycleRefusal(reason: string): string {
   switch (reason) {
-    case 'no-wreck':
+    case 'no-recycler':
     case 'aboard':
       return copy('log.recycle_far')
     case 'short':

@@ -96,6 +96,7 @@ import {
   GUITAR_OUTLINE,
 } from './props.ts'
 import { applyPS1 } from './ps1.ts'
+import { buildRecycler } from './recyclermodel.ts'
 import { mulberry32, range } from './rng.ts'
 import {
   buildLandmarkBeacon,
@@ -585,6 +586,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'wreck',
     label: 'The wreck: a green BMW in a tree',
     build: () => buildWreck().group,
+  },
+  {
+    id: 'recycler',
+    label: 'The recycling machine by the Citgo door',
+    build: buildRecycler,
   },
   {
     id: 'jeep',

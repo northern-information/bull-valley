@@ -413,7 +413,7 @@ async function boot(): Promise<void> {
         say(said)
       },
     },
-    // Rule 29: dialed in, the wreck is wherever the phone is.
+    // Rule 29: dialed in, the recycling machine is wherever the phone is.
     openRecycle: () => {
       send({ type: 'research' }, {})
       void openRecycleDialog({

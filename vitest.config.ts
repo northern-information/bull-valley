@@ -116,6 +116,7 @@ const THREE_AND_DOM = [
   'packhud',
   'partyhud',
   'payphonemodel',
+  'recyclermodel',
   'peers',
   'phone',
   'pickups',

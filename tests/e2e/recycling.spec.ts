@@ -2,9 +2,9 @@ import { copy } from './copy.ts'
 import { beginRaid, expect, faceSpot, heardWhere, test } from './fixtures.ts'
 
 // Rules 32 and 33: a drink drunk leaves its empty in the pack, and E at
-// the wreck opens the Recycling Center, where empties buy research.
+// the recycling machine opens the Recycling Center, where empties buy research.
 
-test('a drink leaves its can, and the wreck turns empties into loose change', async ({
+test('a drink leaves its can, and the recycling machine turns empties into loose change', async ({
   page,
 }) => {
   test.slow()
@@ -24,19 +24,19 @@ test('a drink leaves its can, and the wreck turns empties into loose change', as
     .poll(() => page.evaluate(() => window.__bv?.inventory['empty-can']))
     .toBe(6)
 
-  // Beside the wreck, toward the spawn Citgo, looking at it.
+  // In front of the machine, toward the pumps, looking at it.
   const at = await page.evaluate(() => {
     const bv = window.__bv
-    const at = bv?.wreckAt
+    const at = bv?.recyclerAt
     const station = bv?.world.spawnStation
-    if (!bv || !at || !station) throw new Error('no wreck')
+    if (!bv || !at || !station) throw new Error('no recycling machine')
     const d = Math.hypot(station.x - at.x, station.z - at.z)
-    const x = at.x + ((station.x - at.x) / d) * 2.5
-    const z = at.z + ((station.z - at.z) / d) * 2.5
+    const x = at.x + ((station.x - at.x) / d) * 1.8
+    const z = at.z + ((station.z - at.z) / d) * 1.8
     bv.player.relocate(x, z, 0)
     return { x: at.x, z: at.z }
   })
-  await faceSpot(page, at.x, at.z, 0.7)
+  await faceSpot(page, at.x, at.z, 1)
   await heardWhere(page)
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.recycle'))
   await page.keyboard.press('KeyE')
