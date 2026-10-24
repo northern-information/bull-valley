@@ -1,10 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { deflateSync } from 'node:zlib'
 import { describe, expect, it } from 'vitest'
+import { CONFIG } from '../../src/config.ts'
 import {
   decodeTerrainPng,
   heightGrid,
   valleyGround,
+  valleyStairs,
 } from '../../src/heightmap.ts'
 import { carve, castlePlace, moatFloor, trickle } from '../../src/moat.ts'
 import type { Geo } from '../../src/interfaces.ts'
@@ -142,5 +144,23 @@ describe('heightmap', () => {
     expect(ground(mid.x, mid.z)).toBe(cut(mid.x, mid.z))
     expect(ground(mid.x, mid.z)).toBeLessThan(raw(mid.x, mid.z) - 20)
     expect(ground(place.x, place.z)).toBe(raw(place.x, place.z))
+    // The fire escapes, each from the rim to the floor.
+    expect(valleyStairs(raw, null)).toEqual([])
+    const stairs = valleyStairs(raw, place)
+    const floor = moatFloor(raw, place)
+    expect(stairs).toHaveLength(CONFIG.castle.stairs.sides.length)
+    for (const path of stairs) {
+      const top = path[0]
+      const foot = path[path.length - 1]
+      expect(top.y).toBe(raw(top.x, top.z))
+      expect(ground(top.x, top.z)).toBe(top.y)
+      expect(foot.y).toBe(floor)
+      expect(ground(foot.x, foot.z)).toBe(floor)
+      // Down all the way, never a step up more than a body climbs (the top
+      // landing sits a hair over the rim it is stepped onto from).
+      for (let i = 1; i < path.length; i++) {
+        expect(path[i].y).toBeLessThanOrEqual(path[i - 1].y + CONFIG.fall.climb)
+      }
+    }
   })
 })

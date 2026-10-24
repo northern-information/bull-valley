@@ -832,3 +832,13 @@ export function moatEdges(place: MazePlace): MoatShape {
     outer: MOAT.outer.map((p) => mazeToWorld(place, p)),
   }
 }
+
+// The way a body walks a fire escape, from its top on the rim down to its
+// foot on the floor: onto the top landing, down each flight from end to
+// end, across each landing to the next lane, and off the open landing at
+// the foot. Each point with the height of what is underfoot there, and
+// straight between them, so a shadow walking it treads the decks a raider
+// would (shadowclimb.ts).
+export function stairPath(escape: FireEscape): (XZ & { y: number })[] {
+  return [escape.top, ...escape.flights.flatMap((f) => [f.a, f.b]), escape.foot]
+}

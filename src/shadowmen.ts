@@ -17,8 +17,12 @@
 // and one that bursts breaks into a brood of spiderlings, small and quick,
 // that rush whoever is near.
 //
-// They walk the ground (the valley's, heightmap.ts valleyGround) and reach
-// no higher or lower than a body: a raider up a fire escape, on the
+// They walk the ground (the valley's, heightmap.ts valleyGround) and never
+// through a wall. A shadowman at the moat's rim or the island's edge turns
+// along it (keepOffWalls), and goes down to the floor or up to the rim
+// only by a fire escape, after a raider there (hunt). A spider crawls
+// straight down or up the wall's face, crossing or hunting (shadowclimb.ts).
+// They reach no higher or lower than a body: a raider up a fire escape, on the
 // moat's rim over the floor or down on it under the rim is out of reach
 // of a shadow at the other height, and is never rushed by it. A beam
 // finds one where it stands, so one shone down off the rim burns what
@@ -37,9 +41,17 @@
 import { CONFIG } from './config.ts'
 import { nearLair } from './lairs.ts'
 import { range } from './rng.ts'
+import {
+  alongPath,
+  crawl,
+  nearestStair,
+  startClimb,
+  wallBetween,
+} from './shadowclimb.ts'
 import type { HeightAt, Metres, XZ } from './interfaces.ts'
 import type { Lair } from './lairs.ts'
 import type { Rng } from './rng.ts'
+import type { Climb, StairPath } from './shadowclimb.ts'
 
 export type ShadowmenConfig = typeof CONFIG.shadowmen
 
@@ -134,7 +146,28 @@ export interface Shadowman {
   windup: number
   // Stood somewhere by a spec (placeStill), not crossing.
   placed?: boolean
+  // The raider it is after at the other height (down on the moat's floor
+  // under the rim it walks, or up on the rim over the floor), out of its
+  // reach: a shadowman makes for a fire escape, a spider straight for them
+  // and up or down the wall between (shadowclimb.ts).
+  hunt?: string
+  // A shadowman's fire escape (the step's `stairs`, by index), going down
+  // or up it: making for its end on his own level (`on` false, `waited`
+  // seconds so far), then on it, `along` metres from that end.
+  stair?: {
+    path: number
+    down: boolean
+    on: boolean
+    along: number
+    waited: number
+  }
+  // A spider on a wall's face, crawling up or down it (shadowclimb.ts).
+  climb?: Climb
 }
+
+// Spiders and spiderlings crawl walls; shadowmen take the stairs.
+const isSpider = (kind: ShadeKind): boolean =>
+  kind === 'spider' || kind === 'spiderling'
 
 export interface XYZ {
   x: number
@@ -195,6 +228,10 @@ export interface ShadowmenStep {
   // no height: every raider is within reach up and down, and a beam finds
   // one at its holder's feet.
   ground?: HeightAt | null
+  // The moat's fire escapes, top to foot (heightmap.ts valleyStairs): the
+  // way a shadowman goes down after a raider on the floor, or up after one
+  // on the rim. None, and he never goes after one at the other height.
+  stairs?: readonly StairPath[]
 }
 
 // Where one burst, by which shadowman, and what it was.
@@ -203,8 +240,10 @@ export interface Burst {
   kind: ShadeKind
   x: number
   z: number
-  // The ground it stood on, where the valley knew it.
+  // The ground it stood on, where the valley knew it, or the height it
+  // clung to a wall at (`wall`, a spider crawling one).
   y?: number
+  wall?: true
 }
 
 // A burst as the step saw it: also the raiders whose beams were on the
@@ -282,6 +321,47 @@ function turnAside(
     s.x = from.x
     s.z = from.z
   }
+}
+
+// The turns a shadow stopped at a wall tries, the least first, either way,
+// out to straight back.
+const WALL_TURNS = [1, 2, 3, 4, 5]
+  .flatMap((k) => [k, -k].map((side) => (side * Math.PI) / 6))
+  .concat(Math.PI)
+
+// Keeps s off the walls (cfg.wall): where its step from `from` took it up
+// or down more than a wall, over the moat's rim or the island's edge, it
+// takes the least turn whose step of the same length stays level with
+// where it was, and keeps that heading, so it walks along the wall and
+// away instead of through it. Boxed in every way, it stays where it was.
+// Mutates s.
+function keepOffWalls(
+  s: Shadowman,
+  from: XZ,
+  ground: HeightAt,
+  cfg: ShadowmenConfig
+): void {
+  const level = ground(from.x, from.z)
+  const levelAt = (x: number, z: number) =>
+    Math.abs(ground(x, z) - level) <= cfg.wall
+  if (levelAt(s.x, s.z)) return
+  const step = Math.hypot(s.x - from.x, s.z - from.z)
+  for (const turn of WALL_TURNS) {
+    const cos = Math.cos(turn)
+    const sin = Math.sin(turn)
+    const dirX = s.dirX * cos - s.dirZ * sin
+    const dirZ = s.dirX * sin + s.dirZ * cos
+    const x = from.x + dirX * step
+    const z = from.z + dirZ * step
+    if (!levelAt(x, z)) continue
+    s.dirX = dirX
+    s.dirZ = dirZ
+    s.x = x
+    s.z = z
+    return
+  }
+  s.x = from.x
+  s.z = from.z
 }
 
 // Whether p is inside the beam's cone: no further than its range from the
@@ -486,11 +566,14 @@ function arrival(
 
 // The spiderlings a spider bursting at `at` breaks into: brood.min to
 // brood.max of them, scattered round where it burst, each heading out from
-// it, with ids from field.nextId. They rush like any other shadow.
+// it, with ids from field.nextId. They rush like any other shadow. On the
+// `ground`, one scattered past a wall (over the moat's rim, say) breaks
+// out where the spider burst instead, on its side of the wall.
 function broodOf(
   field: ShadowmenField,
   rng: Rng,
   at: XZ,
+  ground: HeightAt | null,
   cfg: ShadowmenConfig
 ): Shadowman[] {
   const { brood, scatter } = cfg.spiderling
@@ -500,11 +583,17 @@ function broodOf(
   for (let i = 0; i < n; i++) {
     const a = (i / n) * Math.PI * 2 + rng() * 0.5
     const r = scatter * (0.4 + 0.6 * rng())
+    let x = at.x + Math.cos(a) * r
+    let z = at.z + Math.sin(a) * r
+    if (ground && Math.abs(ground(x, z) - ground(at.x, at.z)) > cfg.wall) {
+      x = at.x
+      z = at.z
+    }
     out.push({
       id: field.nextId++,
       kind: 'spiderling',
-      x: at.x + Math.cos(a) * r,
-      z: at.z + Math.sin(a) * r,
+      x,
+      z,
       dirX: Math.cos(a),
       dirZ: Math.sin(a),
       speed: range(rng, slow, fast),
@@ -577,6 +666,7 @@ export function stepShadowmen(
     lairs = [],
     lights = [],
     ground = null,
+    stairs = [],
   }: ShadowmenStep,
   cfg: ShadowmenConfig = CONFIG.shadowmen
 ): ShadowmenUpdate {
@@ -602,71 +692,212 @@ export function stepShadowmen(
   )
   const lit = raiders.filter((r) => r.beam !== null)
 
+  // On a wall or a fire escape it is at its own height, not the ground's.
   const stand = (s: Shadowman): void => {
-    if (ground) s.y = ground(s.x, s.z)
+    if (ground && !s.climb && !s.stair?.on) s.y = ground(s.x, s.z)
   }
+  const headFor = (s: Shadowman, p: XZ): void => {
+    const d = Math.hypot(p.x - s.x, p.z - s.z)
+    if (d > 0) {
+      s.dirX = (p.x - s.x) / d
+      s.dirZ = (p.z - s.z) / d
+    }
+  }
+  // Gives up the raider at the other height, and the stair it made for,
+  // but never a stair it is already on.
+  const unhunt = (s: Shadowman): void => {
+    delete s.hunt
+    if (!s.stair?.on) delete s.stair
+  }
+
+  // Goes after a raider at the other height, out of reach: the nearest
+  // exposed one within climb.seek. A spider makes straight for them, a
+  // shadowman for the nearest fire escape that takes him their way.
+  const hunt = (s: Shadowman): void => {
+    if (!ground || s.y === undefined || s.stair?.on) return
+    const y = s.y
+    let quarry = s.hunt ? exposed.find((r) => r.id === s.hunt) : undefined
+    if (
+      s.hunt &&
+      (!quarry ||
+        reachesUp(s, quarry, cfg) ||
+        Math.hypot(quarry.x - s.x, quarry.z - s.z) > cfg.climb.seek)
+    ) {
+      unhunt(s)
+      quarry = undefined
+    }
+    if (!s.hunt) {
+      if (calm && !s.placed) return
+      let best = cfg.climb.seek
+      for (const r of exposed) {
+        if (r.y === undefined || reachesUp(s, r, cfg)) continue
+        const d = Math.hypot(r.x - s.x, r.z - s.z)
+        if (d >= best) continue
+        if (!isSpider(s.kind)) {
+          const way = nearestStair(stairs, { x: s.x, z: s.z, y }, r.y, cfg.wall)
+          if (!way) continue
+          s.stair = {
+            path: way.path,
+            down: way.down,
+            on: false,
+            along: 0,
+            waited: 0,
+          }
+        }
+        best = d
+        quarry = r
+      }
+      if (!quarry) return
+      s.hunt = quarry.id
+      s.speed = rushSpeedOf(s.kind, cfg)
+    }
+    if (!quarry) return
+    if (isSpider(s.kind) || !s.stair) {
+      headFor(s, quarry)
+      return
+    }
+    // Making for the stair's end on his own level; past his patience he
+    // gives it up.
+    const path = stairs[s.stair.path]
+    s.stair.waited += dt
+    if (!path || s.stair.waited > cfg.climb.patience) {
+      unhunt(s)
+      return
+    }
+    const end = s.stair.down ? path[0] : path[path.length - 1]
+    if (Math.hypot(end.x - s.x, end.z - s.z) <= s.speed * dt) {
+      s.x = end.x
+      s.z = end.z
+      s.y = end.y
+      s.stair.on = true
+      s.stair.along = 0
+      return
+    }
+    headFor(s, end)
+  }
+
+  // A shadowman on a fire escape treads it at his pace, flight by flight,
+  // and steps off its other end onto that level's ground, facing whoever
+  // he went after.
+  const descend = (s: Shadowman): void => {
+    const stair = s.stair
+    const path = stair ? stairs[stair.path] : undefined
+    if (!stair || !path) {
+      delete s.stair
+      stand(s)
+      return
+    }
+    stair.along += s.speed * dt
+    const p = alongPath(path, stair.along, !stair.down)
+    headFor(s, p)
+    s.x = p.x
+    s.z = p.z
+    s.y = p.y
+    if (!p.end) return
+    delete s.stair
+    const quarry = s.hunt ? exposed.find((r) => r.id === s.hunt) : undefined
+    delete s.hunt
+    stand(s)
+    if (quarry) headFor(s, quarry)
+  }
+
+  // A step across the ground: aside at a haven or the survey's edge, and
+  // at a wall, along it for a shadowman or onto its face for a spider.
+  const stride = (s: Shadowman): void => {
+    const from = { x: s.x, z: s.z }
+    const fromY = s.y
+    s.x += s.dirX * s.speed * dt
+    s.z += s.dirZ * s.speed * dt
+    turnAside(s, from, metres, havens, cfg)
+    if (ground && isSpider(s.kind)) {
+      const face = wallBetween(ground, from, s, cfg.wall)
+      if (face) {
+        const { at, climb } = startClimb(face, fromY ?? ground(from.x, from.z))
+        s.x = at.x
+        s.z = at.z
+        s.y = fromY
+        s.climb = climb
+        return
+      }
+    } else if (ground) {
+      keepOffWalls(s, from, ground, cfg)
+    }
+    stand(s)
+  }
+
   const kept: Shadowman[] = []
   for (const s of field.shadowmen) {
     stand(s)
-    let target = s.target
-      ? exposed.find((r) => r.id === s.target && reachesUp(s, r, cfg))
-      : undefined
-    if (s.target && !target) {
-      // Breaks off: keeps its heading, back to a crossing pace.
+    if (s.climb) {
+      // On the wall it only crawls, up or down, at its pace, and steps off
+      // onto the other side's ground when it gets there.
       s.target = null
-      const [slow, fast] = speedRange(s.kind, cfg)
-      s.speed = range(rng, slow, fast)
-    }
-    if (!s.target && (!calm || s.placed)) {
-      // The nearest exposed raider inside the rush radius.
-      let best = rushRadiusOf(s.kind, cfg)
-      for (const r of exposed) {
-        if (!reachesUp(s, r, cfg)) continue
-        const d = Math.hypot(r.x - s.x, r.z - s.z)
-        if (d < best) {
-          best = d
-          target = r
+      s.windup = 0
+      const { y, there } = crawl(s.y ?? s.climb.toY, s.climb.toY, s.speed * dt)
+      s.y = y
+      if (there) {
+        s.x = s.climb.off.x
+        s.z = s.climb.off.z
+        delete s.climb
+        stand(s)
+      }
+    } else {
+      let target = s.target
+        ? exposed.find((r) => r.id === s.target && reachesUp(s, r, cfg))
+        : undefined
+      if (s.target && !target) {
+        // Breaks off: keeps its heading, back to a crossing pace.
+        s.target = null
+        const [slow, fast] = speedRange(s.kind, cfg)
+        s.speed = range(rng, slow, fast)
+      }
+      if (!s.target && (!calm || s.placed)) {
+        // The nearest exposed raider inside the rush radius.
+        let best = rushRadiusOf(s.kind, cfg)
+        for (const r of exposed) {
+          if (!reachesUp(s, r, cfg)) continue
+          const d = Math.hypot(r.x - s.x, r.z - s.z)
+          if (d < best) {
+            best = d
+            target = r
+          }
+        }
+        if (target) {
+          s.target = target.id
+          s.speed = rushSpeedOf(s.kind, cfg)
         }
       }
       if (target) {
-        s.target = target.id
-        s.speed = rushSpeedOf(s.kind, cfg)
+        headFor(s, target)
+        unhunt(s)
+      } else {
+        hunt(s)
       }
-    }
-    if (target) {
-      const d = Math.hypot(target.x - s.x, target.z - s.z)
-      if (d > 0) {
-        s.dirX = (target.x - s.x) / d
-        s.dirZ = (target.z - s.z) / d
-      }
-    }
 
-    // Only a rush can touch, and a rush only runs while its raider is
-    // exposed. In reach it stands and winds up, then lunges; the lunge
-    // lands if its raider is still within reach (reachScale over its
-    // touch), and it stays either way.
-    const reach = touchRadiusOf(s.kind, cfg)
-    if (
-      target &&
-      (s.windup > 0 || Math.hypot(target.x - s.x, target.z - s.z) < reach)
-    ) {
-      s.windup += dt
-      if (s.windup >= cfg.windupSeconds) {
-        s.windup = 0
-        lunges.push(s.id)
-        const d = Math.hypot(target.x - s.x, target.z - s.z)
-        if (d < reach * cfg.reachScale && reachesUp(s, target, cfg)) {
-          struck.push(target.id)
-          strikers[target.id] = s.kind
+      // Only a rush can touch, and a rush only runs while its raider is
+      // exposed. In reach it stands and winds up, then lunges; the lunge
+      // lands if its raider is still within reach (reachScale over its
+      // touch), and it stays either way.
+      const reach = touchRadiusOf(s.kind, cfg)
+      if (
+        target &&
+        (s.windup > 0 || Math.hypot(target.x - s.x, target.z - s.z) < reach)
+      ) {
+        s.windup += dt
+        if (s.windup >= cfg.windupSeconds) {
+          s.windup = 0
+          lunges.push(s.id)
+          const d = Math.hypot(target.x - s.x, target.z - s.z)
+          if (d < reach * cfg.reachScale && reachesUp(s, target, cfg)) {
+            struck.push(target.id)
+            strikers[target.id] = s.kind
+          }
         }
+      } else {
+        s.windup = 0
+        if (s.stair?.on) descend(s)
+        else stride(s)
       }
-    } else {
-      s.windup = 0
-      const from = { x: s.x, z: s.z }
-      s.x += s.dirX * s.speed * dt
-      s.z += s.dirZ * s.speed * dt
-      turnAside(s, from, metres, havens, cfg)
-      stand(s)
     }
     let nearest = Infinity
     for (const r of raiders) {
@@ -694,9 +925,11 @@ export function stepShadowmen(
         x: s.x,
         z: s.z,
         ...(s.y !== undefined ? { y: s.y } : {}),
+        ...(s.climb ? { wall: true as const } : {}),
         by,
       })
-      if (s.kind === 'spider') brood.push(...broodOf(field, rng, s, cfg))
+      if (s.kind === 'spider')
+        brood.push(...broodOf(field, rng, s, ground, cfg))
       continue
     }
     kept.push(s)

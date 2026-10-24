@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { mulberry32 } from '../../src/rng.ts'
+import { CLING } from '../../src/shadowclimb.ts'
 import {
   beamFrom,
   burstScaleOf,
@@ -16,6 +17,7 @@ import {
 } from '../../src/shadowmen.ts'
 import type { Metres, XZ } from '../../src/interfaces.ts'
 import type { Lair } from '../../src/lairs.ts'
+import type { StairPath } from '../../src/shadowclimb.ts'
 import type {
   Beam,
   Raider,
@@ -69,6 +71,8 @@ const CFG: ShadowmenConfig = {
   windupSeconds: 0.3,
   reachScale: 1.25,
   vertical: { under: 1, over: 0.8 },
+  wall: 2,
+  climb: { seek: 60, patience: 30 },
   havenRadius: 60,
   strikeSeconds: 1.6,
   burnSeconds: 0.5,
@@ -921,6 +925,160 @@ describe('height', () => {
     const flat = one({ z: -20, speed: 0 })
     step(flat, undefined, { raiders })
     expect(first(flat)?.burn).toBe(0)
+  })
+
+  it('never walks up or down a wall, and turns along it instead', () => {
+    // On the floor heading straight for the wall, and on top heading
+    // straight off it: each keeps to its own level, and walks on.
+    for (const [z, dirZ, y] of [
+      [-12, 1, -30],
+      [-8, -1, 0],
+    ] as const) {
+      const field = one({ z, dirZ, speed: CFG.speedMax })
+      const start = { x: first(field)!.x, z }
+      for (let i = 0; i < 40; i++) {
+        step(field, undefined, { ground: cliff })
+        expect(first(field)?.y).toBe(y)
+      }
+      const s = first(field)!
+      expect(Math.hypot(s.x - start.x, s.z - start.z)).toBeGreaterThan(
+        CFG.speedMax * DT * 20
+      )
+      expect(Math.abs(s.dirX)).toBeGreaterThan(0.5)
+    }
+  })
+
+  it('never takes a short cut across the moat to a raider', () => {
+    // The channel: 30 m down between z -20 and -10, level ground either
+    // side. A shadow on the far side rushes a raider on this side and
+    // walks the rim, never down and up through the walls.
+    const moat = (_x: number, z: number) => (z > -20 && z < -10 ? -30 : 0)
+    const field = one({ z: -24, target: 'a', speed: CFG.rushSpeed })
+    const raiders = [raider({ x: 0, z: -6, y: 0, vulnerable: true })]
+    for (let i = 0; i < 60; i++) {
+      expect(step(field, undefined, { raiders, ground: moat }).struck).toEqual(
+        []
+      )
+      expect(first(field)?.y).toBe(0)
+      expect(first(field)!.z).toBeLessThanOrEqual(-20)
+    }
+  })
+
+  it('breaks a spider at the rim into spiderlings on its own side', () => {
+    const lit = [raider({ beam: BEAM })]
+    for (let seed = 1; seed <= 20; seed++) {
+      // Burst a metre from the drop, so half the scatter is over it.
+      const edge = (_x: number, z: number) => (z < -21 ? -30 : 0)
+      const field = one({ kind: 'spider', z: -20, speed: 0 })
+      const rng = mulberry32(seed)
+      for (let i = 0; i < 200 && field.shadowmen[0]?.kind === 'spider'; i++) {
+        step(field, rng, { raiders: lit, ground: edge })
+      }
+      expect(field.shadowmen.length).toBeGreaterThan(0)
+      for (const s of field.shadowmen) {
+        expect(s.kind).toBe('spiderling')
+        expect(s.y).toBe(0)
+      }
+    }
+  })
+
+  it('a spider crawls down the face of a wall it meets, and on across the floor', () => {
+    for (const [z, dirZ, from, to] of [
+      [-5, -1, 0, -30],
+      [-20, 1, -30, 0],
+    ] as const) {
+      const field = one({ kind: 'spider', z, dirZ, speed: 6 })
+      let was: number = from
+      let clung = false
+      for (let i = 0; i < 200; i++) {
+        step(field, undefined, { ground: cliff })
+        const s = first(field)!
+        // Never a jump up or down: a crawl at its pace.
+        expect(Math.abs(s.y! - was)).toBeLessThanOrEqual(6 * DT + 1e-9)
+        was = s.y!
+        if (s.climb) {
+          clung = true
+          // On the face, over the floor.
+          expect(s.z).toBeCloseTo(-10 - CLING, 1)
+        }
+      }
+      expect(clung).toBe(true)
+      expect(first(field)?.climb).toBeUndefined()
+      expect(first(field)?.y).toBe(to)
+    }
+  })
+
+  it('a spider goes down the wall after a raider on the floor', () => {
+    const field = one({ kind: 'spider', z: -5, dirZ: 1, speed: 6 })
+    const raiders = [raider({ x: 0, z: -30, y: -30, vulnerable: true })]
+    const struck: string[] = []
+    let was = 0
+    for (let i = 0; i < 300 && struck.length === 0; i++) {
+      struck.push(...step(field, undefined, { raiders, ground: cliff }).struck)
+      const y = first(field)!.y!
+      expect(Math.abs(y - was)).toBeLessThanOrEqual(
+        CFG.spider.rushSpeed * DT + 1e-9
+      )
+      was = y
+    }
+    expect(struck).toEqual(['a'])
+  })
+
+  // A fire escape down the cliff: along the rim, one long flight down to
+  // the floor, and off its foot.
+  const escape: StairPath = [
+    { x: 5, z: -9.5, y: 0 },
+    { x: 5, z: -10.5, y: 0 },
+    { x: 5, z: -40, y: -30 },
+    { x: 6, z: -40, y: -30 },
+  ]
+
+  it('a shadowman takes a fire escape down after a raider on the floor', () => {
+    const field = one({ z: -5, dirZ: 1, speed: 8 })
+    const raiders = [raider({ x: 0, z: -30, y: -30, vulnerable: true })]
+    const struck: string[] = []
+    let was = 0
+    let stepped = false
+    for (let i = 0; i < 400 && struck.length === 0; i++) {
+      struck.push(
+        ...step(field, undefined, { raiders, ground: cliff, stairs: [escape] })
+          .struck
+      )
+      const s = first(field)!
+      // Down the flight a little at a time, never off the rim in one.
+      expect(Math.abs(s.y! - was)).toBeLessThanOrEqual(
+        CFG.rushSpeed * DT + 1e-9
+      )
+      if (s.y! < -1 && s.y! > -29) stepped = true
+      was = s.y!
+    }
+    expect(stepped).toBe(true)
+    expect(struck).toEqual(['a'])
+  })
+
+  it('a shadowman with no stair down stays on the rim', () => {
+    const field = one({ z: -5, dirZ: 1, speed: 8 })
+    const raiders = [raider({ x: 0, z: -30, y: -30, vulnerable: true })]
+    for (let i = 0; i < 400; i++) {
+      expect(step(field, undefined, { raiders, ground: cliff }).struck).toEqual(
+        []
+      )
+      expect(first(field)?.y).toBe(0)
+    }
+  })
+
+  it('a shadowman comes up a fire escape after a raider on the rim', () => {
+    const field = one({ z: -30, dirZ: -1, speed: 8 })
+    field.shadowmen[0].y = -30
+    const raiders = [raider({ x: 0, z: -2, y: 0, vulnerable: true })]
+    const struck: string[] = []
+    for (let i = 0; i < 400 && struck.length === 0; i++) {
+      struck.push(
+        ...step(field, undefined, { raiders, ground: cliff, stairs: [escape] })
+          .struck
+      )
+    }
+    expect(struck).toEqual(['a'])
   })
 
   it('says how high it stood when it burst', () => {

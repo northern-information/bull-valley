@@ -42,7 +42,12 @@ import { DAILY_TASK, tallyTask } from '../src/dailytask.ts'
 import { spillsOf } from '../src/drops.ts'
 import { sameName, whereabouts } from '../src/friends.ts'
 import { burialsOf } from '../src/graves.ts'
-import { DATA_BASE, readHeightGrid, valleyGround } from '../src/heightmap.ts'
+import {
+  DATA_BASE,
+  readHeightGrid,
+  valleyGround,
+  valleyStairs,
+} from '../src/heightmap.ts'
 import { cardOf } from '../src/inspect.ts'
 import { healsOf } from '../src/items.ts'
 import { listingFor, saveRefusal } from '../src/laptop.ts'
@@ -116,6 +121,7 @@ import type {
 import type { QuestId, QuestStage } from '../src/quests.ts'
 import type { Research } from '../src/recycling.ts'
 import type { SeasonProgress } from '../src/season.ts'
+import type { StairPath } from '../src/shadowclimb.ts'
 import type { ShadeKind, TruckPose } from '../src/shadowmen.ts'
 import type {
   PackChange,
@@ -226,10 +232,15 @@ export class ValleyDO extends DurableObject<Env> {
   private calm = false
   // Rule 11: the terrain as the map has it, read from the Worker's own
   // assets once a wake (null until then, and for good if it cannot be),
-  // and the ground the shadowmen walk, with the world's moat cut in.
+  // and the ground the shadowmen walk, with the world's moat cut in and
+  // its fire escapes hung.
   private terrain: HeightAt | null = null
   private reading: Promise<void> | null = null
-  private ground: { moat: MazePlace | null; at: HeightAt } | null = null
+  private ground: {
+    moat: MazePlace | null
+    at: HeightAt
+    stairs: StairPath[]
+  } | null = null
   private ticker: unknown = null
   // Steps since a forecourt last gave back its share (rule 24).
   private forecourtSteps = 0
@@ -772,7 +783,11 @@ export class ValleyDO extends DurableObject<Env> {
     }
     const moat = this.valley.world?.moat ?? null
     if (!this.ground || !samePlace(this.ground.moat, moat)) {
-      this.ground = { moat, at: valleyGround(this.terrain, moat) }
+      this.ground = {
+        moat,
+        at: valleyGround(this.terrain, moat),
+        stairs: valleyStairs(this.terrain, moat),
+      }
     }
     return this.ground.at
   }
@@ -805,6 +820,7 @@ export class ValleyDO extends DurableObject<Env> {
       dt: 1 / CONFIG.shadowmen.tickHz,
       calm: this.calm,
       ground: this.groundNow(),
+      stairs: this.ground?.stairs ?? [],
     })
     if (!out) {
       if (this.ticker !== null) this.stopTicker(this.ticker)

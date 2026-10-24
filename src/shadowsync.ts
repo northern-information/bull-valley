@@ -84,10 +84,12 @@ export function sampleShadowmen<T extends Stepped>(
 // The height to draw a shadow (or where it burst) at: the deck its feet
 // at the valley's height for it stand on (world.ground.standAt, as a
 // raider's would), or the highest deck there where the valley sent none.
+// A spider on a wall (`wall`) clings at the valley's height, on no deck.
 export function drawnAt(
-  s: { x: number; z: number; y?: number },
+  s: { x: number; z: number; y?: number; wall?: unknown },
   groundAt: HeightAt,
   standAt: (x: number, z: number, feetY: number) => number
 ): number {
-  return s.y === undefined ? groundAt(s.x, s.z) : standAt(s.x, s.z, s.y)
+  if (s.y === undefined) return groundAt(s.x, s.z)
+  return s.wall ? s.y : standAt(s.x, s.z, s.y)
 }

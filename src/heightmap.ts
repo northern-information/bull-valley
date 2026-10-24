@@ -4,14 +4,16 @@
 // canvas (the valley has none), and `heightGrid` decimates it to the grid
 // everything stands on (terrain.ts draws that grid; the valley stands its
 // shadowmen on it, sharedworld.ts rule 11), so the two agree. `valleyGround`
-// cuts Castle Entropy's moat into it, as world.ts does. No three.js, no
+// cuts Castle Entropy's moat into it, as world.ts does, and `valleyStairs`
+// hangs its fire escapes, as castlesite.ts does. No three.js, no
 // DOM: only the Compression Streams every browser, Node and the Workers
 // runtime share.
 
 import { bilinearHeight } from './coords.ts'
-import { carve, moatFloor } from './moat.ts'
+import { carve, fireEscapes, moatFloor, stairPath } from './moat.ts'
 import type { Geo, HeightAt } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
+import type { StairPath } from './shadowclimb.ts'
 
 // Where the map is served from: geo.json and terrain.png, beside the page
 // and in the Worker's own assets.
@@ -201,4 +203,15 @@ export async function readHeightGrid(
 // it where the world placed one.
 export function valleyGround(raw: HeightAt, moat: MazePlace | null): HeightAt {
   return moat ? carve(raw, moat, moatFloor(raw, moat)) : raw
+}
+
+// The moat's fire escapes as a shadowman walks them, top to foot
+// (moat.ts stairPath), where the world placed a moat: the same flights the
+// client hangs, from the same terrain.
+export function valleyStairs(
+  raw: HeightAt,
+  moat: MazePlace | null
+): StairPath[] {
+  if (!moat) return []
+  return fireEscapes(raw, moat, moatFloor(raw, moat)).map(stairPath)
 }
