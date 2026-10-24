@@ -49,6 +49,7 @@ import type {
   TunnelShadeWire,
 } from './protocol.ts'
 import type { Rng } from './rng.ts'
+import type { StairPath } from './shadowclimb.ts'
 import type {
   Beam,
   Haven,
@@ -284,6 +285,7 @@ function shadowmanWire(s: Shadowman, cfg: ShadowmenConfig): ShadowmanWire {
     burn: share(s.burn, burnSecondsOf(s.kind, cfg)),
     target: s.target,
     ...(windup > 0 ? { windup } : {}),
+    ...(s.climb ? { wall: [round(s.climb.nx, 2), round(s.climb.nz, 2)] } : {}),
   }
 }
 
@@ -349,7 +351,9 @@ export function shadeHavens(
 // placed in it), and the field is emptied, so the valley stops stepping
 // until someone is placed again. `ground` is the valley's
 // (heightmap.ts valleyGround) once it has read it: the shadowmen walk it
-// and reach a raider only at their own height. Mutates shadows.
+// and reach a raider only at their own height, and `stairs` its fire
+// escapes (heightmap.ts valleyStairs), which take a shadowman down to the
+// moat's floor or up to its rim. Mutates shadows.
 export function stepShadows(
   valley: Valley,
   shadows: Shadows,
@@ -360,7 +364,14 @@ export function stepShadows(
     dt,
     calm = false,
     ground = null,
-  }: { now: number; dt: number; calm?: boolean; ground?: HeightAt | null },
+    stairs = [],
+  }: {
+    now: number
+    dt: number
+    calm?: boolean
+    ground?: HeightAt | null
+    stairs?: readonly StairPath[]
+  },
   cfg = CONFIG.shadowmen
 ): ShadowStep | null {
   const world = valley.world
@@ -386,6 +397,7 @@ export function stepShadows(
       calm,
       lights: headlightsAt(shadows, now),
       ground,
+      stairs,
     },
     cfg
   )
@@ -420,6 +432,7 @@ export function stepShadows(
         x: round(b.x, 2),
         z: round(b.z, 2),
         ...(b.y !== undefined ? { y: round(b.y, 2) } : {}),
+        ...(b.wall ? { wall: true as const } : {}),
       })),
       caretaker: keeper.caretaker,
       burned: keeper.burned,

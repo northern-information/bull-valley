@@ -10,7 +10,8 @@ import type { Page } from '@playwright/test'
 // shatters a raider's geometrie, leaving the pack on their body at the
 // bottom (sharedworld.ts rules 24 and 18), unless a pipe down the wall
 // catches them on the way (moat.ts catchPipe). The shadowmen walk its floor
-// at the floor's height and reach no one up a fire escape (rule 11).
+// at the floor's height and never through its walls: they take the fire
+// escapes up and down, and the spiders crawl the walls (rule 11).
 
 // A spot on the outer rim to run straight off at `speed`, found by
 // falling from it as the game does (gravity, the pipes' catch, the
@@ -250,7 +251,7 @@ test('a slurm in the moat squashes underfoot', async ({ page }) => {
     .toBe('squashed')
 })
 
-test('a shadowman on the floor never reaches a raider up a fire escape', async ({
+test('a shadowman climbs a fire escape after a raider on it, and a spider crawls down the wall', async ({
   page,
 }) => {
   test.slow()
@@ -259,53 +260,113 @@ test('a shadowman on the floor never reaches a raider up a fire escape', async (
   const spot = await page.evaluate(() => {
     const castle = window.__bv?.world.castle
     if (!castle) throw new Error('No castle in the valley')
-    const [stair] = castle.stairs
+    const [stair, , far] = castle.stairs
     const { a, b } = stair.flights[0]
     const x = (a.x + b.x) / 2
     const z = (a.z + b.z) / 2
     window.__bv?.player.relocate(x, z, 0)
-    // Out on the floor past the foot, clear of the pipes along the wall.
-    const foot = {
-      x: stair.foot.x + stair.inward.x * 4,
-      z: stair.foot.z + stair.inward.z * 4,
+    // Out on the floor past a foot, clear of the pipes along the wall, and
+    // the rim straight back from there over the wall.
+    const out = (at: typeof stair, by: number) => ({
+      x: at.foot.x + at.inward.x * by,
+      z: at.foot.z + at.inward.z * by,
+    })
+    return {
+      x,
+      z,
+      foot: out(stair, 4),
+      // Another side's, well out of reach of whatever hunts at the first.
+      farFoot: out(far, 4),
+      rim: out(far, -5),
+      floor: castle.floor,
+      top: a.y,
     }
-    return { x, z, foot, floor: castle.floor }
   })
   await heardWhere(page)
   const whole = await health(page)
-  // One stood on the floor right under them: the valley stands it there,
-  // and it never strikes.
-  await page.evaluate(
-    ({ x, z }) => window.__bv?.placeShadowman(x + 0.5, z),
-    spot
-  )
-  const under = () =>
+  // The ids in the newest frame, and the shadow of `kind` that came in
+  // since (`before`) near a point: the one placed there, never one of the
+  // valley's crossings, which come in far out in the fog.
+  const ids = () =>
+    page.evaluate(() =>
+      (window.__bv?.shadowmen.table.frames.at(-1)?.shadowmen ?? []).map(
+        (s) => s.id
+      )
+    )
+  const placed = (
+    before: number[],
+    p: { x: number; z: number },
+    kind?: string
+  ) =>
     page.evaluate(
-      ({ x, z }) =>
+      ({ before, p, kind }) => {
+        const all = window.__bv?.shadowmen.table.frames.at(-1)?.shadowmen ?? []
+        const here = all.find(
+          (s) =>
+            s.kind === kind &&
+            !before.includes(s.id) &&
+            Math.hypot(s.x - p.x, s.z - p.z) < 40
+        )
+        return here?.id ?? null
+      },
+      { before, p, kind }
+    )
+  const shade = (id: number) =>
+    page.evaluate(
+      (id) =>
         window.__bv?.shadowmen.table.frames
           .at(-1)
-          ?.shadowmen.find((s) => Math.hypot(s.x - x - 0.5, s.z - z) < 0.1) ??
-        null,
-      spot
+          ?.shadowmen.find((s) => s.id === id) ?? null,
+      id
     )
+  // One stood on the floor by the foot: no body reaches up from there, so
+  // he goes up the fire escape after them, a flight at a time, and strikes.
+  const crowd = await ids()
+  await page.evaluate(
+    ({ foot }) => window.__bv?.placeShadowman(foot.x, foot.z),
+    spot
+  )
+  await expect.poll(() => placed(crowd, spot.foot)).not.toBeNull()
+  const man = (await placed(crowd, spot.foot))!
   await expect
-    .poll(async () => (await under())?.y, { timeout: 30_000 })
-    .toBeCloseTo(spot.floor, 1)
-  await page.waitForTimeout(3000)
-  expect(await health(page)).toBe(whole)
-  // Down on the floor past the foot, beside one there, they are struck.
-  await page.evaluate(({ foot }) => {
-    window.__bv?.player.relocate(foot.x, foot.z, 0)
+    .poll(
+      async () => {
+        const y = (await shade(man))?.y ?? spot.floor
+        return y > spot.floor + 2 && y < spot.top - 2
+      },
+      { timeout: 30_000 }
+    )
+    .toBe(true)
+  await expect.poll(() => health(page), { timeout: 30_000 }).toBeLessThan(whole)
+
+  // Down on the floor past another foot, a spider on the rim over them
+  // comes straight down the wall's face after them, clinging to it.
+  await page.evaluate(({ farFoot }) => {
+    window.__bv?.player.relocate(farFoot.x, farFoot.z, 0)
   }, spot)
   await heardWhere(page)
   await expect
     .poll(() => page.evaluate(() => window.__bv?.player.groundY))
     .toBeCloseTo(spot.floor, 1)
+  const others = await ids()
   await page.evaluate(
-    ({ foot }) => window.__bv?.placeShadowman(foot.x + 1, foot.z),
+    ({ rim }) => window.__bv?.placeShadowman(rim.x, rim.z, 'spider'),
     spot
   )
-  await expect.poll(() => health(page), { timeout: 15_000 }).toBeLessThan(whole)
+  await expect.poll(() => placed(others, spot.rim, 'spider')).not.toBeNull()
+  const spider = (await placed(others, spot.rim, 'spider'))!
+  await expect
+    .poll(
+      async () => {
+        const s = await shade(spider)
+        return !!s?.wall && (s.y ?? 0) < spot.top - 2
+      },
+      { timeout: 30_000 }
+    )
+    .toBe(true)
+  await expect
+    .poll(async () => (await shade(spider))?.y, { timeout: 30_000 })
+    .toBeCloseTo(spot.floor, 1)
 })
 
 test('a raider up on a pipe walks along it', async ({ page }) => {

@@ -94,6 +94,17 @@ export const CONFIG = {
     // more than its aim height and `over` above it. Past that a raider is
     // out of its reach, and it never rushes them.
     vertical: { under: 1, over: 0.8 },
+    // A step that would take one up or down more than this is a wall (the
+    // moat's, the island's edge): it never takes it, and turns along the
+    // wall instead, as a raider cannot climb more than CONFIG.fall.climb.
+    // A spider crawls up or down it instead (shadowclimb.ts).
+    wall: 2,
+    // A raider within `seek` metres at the other height (on the moat's
+    // floor under one on the rim, or the rim over one on the floor), out of
+    // reach, is gone after: a spider straight for them, over the wall, a
+    // shadowman by the nearest fire escape, which he gives up if he has
+    // not reached it in `patience` seconds.
+    climb: { seek: 60, patience: 30 },
     // Citgo forecourts are havens: shadowmen turn aside at the lights and
     // nothing can touch you inside.
     havenRadius: 60,
@@ -117,9 +128,12 @@ export const CONFIG = {
     // shadowman's burnSeconds to burst one, aimed at aimHeight over the
     // ground, where its body hangs. It crosses a little slower than a
     // shadowman, rushes a little faster, touches from further off, and
-    // leaves one $20 bill (drops.ts TWENTY) where it burst.
+    // leaves one $20 bill (drops.ts TWENTY) where it burst. `chance` is
+    // about what a spider came at across the valley as a whole when the
+    // lure was water (a third of the roads ran near it at 0.12, the rest
+    // at 0.02), so spiders are as common everywhere as they were then.
     spider: {
-      chance: 0.02,
+      chance: 0.05,
       lairChance: 0.12,
       lairReach: 120,
       maxPerBubble: 3,

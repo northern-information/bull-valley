@@ -110,5 +110,9 @@ describe('height', () => {
     expect(drawnAt({ x: 0, z: 0, y: 0 }, groundAt, standAt)).toBe(0)
     expect(drawnAt({ x: 0, z: 0, y: 11 }, groundAt, standAt)).toBe(12)
     expect(drawnAt({ x: 0, z: 0 }, groundAt, standAt)).toBe(12)
+    // A spider on a wall clings at the valley's height, on no deck.
+    expect(drawnAt({ x: 0, z: 0, y: 7, wall: [0, 1] }, groundAt, standAt)).toBe(
+      7
+    )
   })
 })

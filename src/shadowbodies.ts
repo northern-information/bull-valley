@@ -45,7 +45,7 @@ interface ShadowBodiesOptions {
 // One shown, as the valley sends it.
 type Shown = Pick<
   ShadowmanWire,
-  'id' | 'kind' | 'x' | 'z' | 'y' | 'burn' | 'target' | 'windup'
+  'id' | 'kind' | 'x' | 'z' | 'y' | 'burn' | 'target' | 'windup' | 'wall'
 >
 
 export const LUNGE_SECONDS = 0.3
@@ -61,14 +61,29 @@ export function strikeReach(windup: number, lunge: number): number {
 }
 
 // A spider as shown: its body, where it was last frame (so it faces the
-// way it goes), and how fast it was going.
+// way it goes), how fast it was going, which way it was crawling on a
+// wall (1 up, -1 down), and how it is turned (toward its heading on the
+// ground, or onto a wall's face, never all at once).
 interface Spider {
   rig: ShadowSpider
   x: number
+  y: number
   z: number
   heading: number
   speed: number
+  crawl: 1 | -1
+  turned: THREE.Quaternion
 }
+
+// How fast a spider turns onto a wall's face or back off it, a share of
+// the way a second.
+const CLING_TURN = 8
+const UP = new THREE.Vector3(0, 1, 0)
+const wallSide = new THREE.Vector3()
+const wallBack = new THREE.Vector3()
+const wallAhead = new THREE.Vector3()
+const wallBasis = new THREE.Matrix4()
+const wantTurn = new THREE.Quaternion()
 
 interface ShadowBodiesFrame {
   dt: number
@@ -238,31 +253,58 @@ export class ShadowBodies {
         s.kind === 'spiderling' ? CONFIG.shadowmen.spiderling.scale : 1
       const rig = buildShadowSpider(range(look, 2.4, 3.2) * 2 * scale, s.id)
       this.group.add(rig.group)
-      spider = { rig, x: s.x, z: s.z, heading: look() * Math.PI * 2, speed: 0 }
+      const heading = look() * Math.PI * 2
+      spider = {
+        rig,
+        x: s.x,
+        y: drawnAt(s, this.groundAt, this.standAt),
+        z: s.z,
+        heading,
+        speed: 0,
+        crawl: 1,
+        turned: new THREE.Quaternion().setFromAxisAngle(UP, heading),
+      }
       this.spiders.set(s.id, spider)
     }
+    const y = drawnAt(s, this.groundAt, this.standAt)
     const dx = s.x - spider.x
+    const dy = y - spider.y
     const dz = s.z - spider.z
     const moved = Math.hypot(dx, dz)
-    if (moved > 0.01) {
+    if (moved > 0.01 && !s.wall) {
       // Turn toward the way it went, not all at once.
       const want = Math.atan2(dx, dz)
       let turn = want - spider.heading
       turn = Math.atan2(Math.sin(turn), Math.cos(turn))
       spider.heading += turn * Math.min(1, dt * 6)
     }
-    const speed = dt > 0 ? moved / dt : 0
+    // Its legs keep pace with it up or down a wall as on the ground.
+    const speed = dt > 0 ? Math.hypot(moved, s.wall ? dy : 0) / dt : 0
     spider.speed += (speed - spider.speed) * Math.min(1, dt * 5)
+    if (s.wall && Math.abs(dy) > 0.001) spider.crawl = dy > 0 ? 1 : -1
     spider.x = s.x
+    spider.y = y
     spider.z = s.z
     const burn = Math.min(1, s.burn)
     const shake = burn * 0.18
     spider.rig.group.position.set(
       s.x + range(this.rng, -shake, shake),
-      drawnAt(s, this.groundAt, this.standAt),
+      y,
       s.z + range(this.rng, -shake, shake)
     )
-    spider.rig.group.rotation.y = spider.heading
+    if (s.wall) {
+      // On a wall its back is to the open air off the face and its head the
+      // way it crawls, up or down.
+      wallBack.set(s.wall[0], 0, s.wall[1]).normalize()
+      wallAhead.set(0, spider.crawl, 0)
+      wallSide.crossVectors(wallBack, wallAhead)
+      wallBasis.makeBasis(wallSide, wallBack, wallAhead)
+      wantTurn.setFromRotationMatrix(wallBasis)
+    } else {
+      wantTurn.setFromAxisAngle(UP, spider.heading)
+    }
+    spider.turned.slerp(wantTurn, Math.min(1, dt * CLING_TURN))
+    spider.rig.group.quaternion.copy(spider.turned)
     spider.rig.update({
       dt,
       speed: spider.speed,

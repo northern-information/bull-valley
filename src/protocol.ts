@@ -1089,6 +1089,10 @@ export interface ShadowmanWire {
   target: string | null
   // How far through its windup before it lunges (0 to 1), when winding up.
   windup?: number
+  // A spider on a wall's face, crawling up or down it (shadowclimb.ts): the
+  // face's unit normal, x and z. It is drawn clinging there at `y`, not
+  // stood on any deck.
+  wall?: [number, number]
 }
 
 // The Caretaker as the valley sends it (rule 13): where it floats, how
