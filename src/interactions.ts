@@ -167,8 +167,9 @@ export const SIGHTS = {
   lockers: { low: 0, high: 1.85, r: 1.8 },
   laptop: { low: 0.6, high: 1.1, r: 0.35 },
   stand: { low: 0, high: 2.2, r: 1.3 },
-  // A slurm crawling on a lot.
-  slurm: { low: -0.1, high: 0.15, r: 0.2 },
+  // A slurm crawling on a lot: drawn wide and tall, as small and quick as
+  // it is, so a look anywhere near it takes it.
+  slurm: { low: -0.3, high: 0.6, r: 0.7 },
   // The BMW in its tree, roof to wheels and nose to tail.
   wreck: { low: 0, high: 1.5, r: 2.2 },
   hatch: { low: -0.2, high: 0.3, r: 0.7 },
@@ -271,7 +272,7 @@ export interface InteractionInput<P extends PickupSpot> {
   wreck?: XZ | null
   // The tackle box on the firefly pond's landing, or null.
   tackle?: XZ | null
-  // The slurms crawling on the lot, while this raider carries a jar with
+  // The slurms crawling on the lot, while this raider holds a jar with
   // room in it; none otherwise.
   slurms?: readonly SlurmSpot[]
   // With the rod in hand, no line out, at a firefly pond: the bait it

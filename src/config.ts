@@ -1126,8 +1126,9 @@ export const CONFIG = {
     perDay: 40,
     // Erwin von Dutch's slurm jar: each one carried holds `holds` live
     // slurms, caught off a Citgo's lot while they crawl (slurms.ts), with
-    // E within `reach` of one.
-    jar: { holds: 6, reach: 1.8 },
+    // the jar in hand and E or the click within `reach` of one: a long
+    // arm, so a raider need not tread it on the way in.
+    jar: { holds: 6, reach: 3.5 },
     // Digging the mud bank: between `min` and `max` nightcrawlers, once
     // every `cooldownSeconds` an account.
     dig: { min: 1, max: 3, cooldownSeconds: 20 },
