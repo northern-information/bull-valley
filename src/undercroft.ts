@@ -4,6 +4,10 @@
 // entry chamber, a hall of candles, a flooded room, the room where Erwin's
 // chalk triangle was first drawn, an ossuary, and the deep chamber where
 // the Warden keeps an altar. The tunnel shades walk it (tunnelshades.ts).
+// Past the flooded room, the chalk room and the ossuary the stone gives
+// out onto the backrooms: low yellow rooms, much alike, under a drop
+// ceiling of humming tubes, twice as much floor again as the stone, laid
+// out by a fixed seed (lay) so the valley and every raider walk the same.
 //
 // It is laid out like the corn maze, as a grid of stone (`#`) and floor
 // (`.`) cells, so the shades walk it with the Caretaker's own pathing
@@ -32,8 +36,9 @@ import type { Cell, MazePlace, MazeSize } from './maze.ts'
 //   D  the flooded room                               rows 10-15, cols 1-5
 //   E  the chalk room                                 rows 10-15, cols 7-15
 //   F  the ossuary, one pillar                        rows 10-15, cols 17-27
-// The way down: A to B, B to E, E to F, F to C; and D off A and E.
-export const UNDERCROFT_GRID: readonly string[] = [
+// The way down: A to B, B to E, E to F, F to C; and D off A and E. The
+// way on into the backrooms: off D, E and F (SEAM_DOORS).
+const STONE_GRID: readonly string[] = [
   '#############################',
   '#.....#.........#...........#',
   '#.....#.........#...........#',
@@ -53,10 +58,95 @@ export const UNDERCROFT_GRID: readonly string[] = [
   '#############################',
 ]
 
-// Metres between cell centres; the stone's thickness and height.
+// The backrooms are a lattice of bays, each BAY cells on a side counting
+// one wall, BAYS_DOWN by BAYS_ACROSS of them over the whole Undercroft;
+// the stone takes the bays in its corner. Between two bays a wall stands
+// whole, or has a door in it, or is gone, leaving the posts at its ends.
+const BAY = 4
+const BAYS_DOWN = 10
+const BAYS_ACROSS = 9
+// Where the stone's last row and column fall: the seam.
+const SEAM_ROW = STONE_GRID.length - 1
+const SEAM_COL = STONE_GRID[0].length - 1
+// The doors through the seam: off the flooded room, the chalk room, and
+// the ossuary.
+const SEAM_DOORS: readonly [number, number][] = [
+  [SEAM_ROW, 3],
+  [SEAM_ROW, 13],
+  [13, SEAM_COL],
+]
+
+// The whole grid: the lattice, the stone over its corner, then each wall
+// between two backroom bays kept, given a door, or knocked out. A tree
+// through the bays (union-find over a shuffled list) is opened first, so
+// every bay reaches every other; the rest open by chance, for loops.
+function lay(): string[] {
+  const rows = BAYS_DOWN * BAY + 1
+  const cols = BAYS_ACROSS * BAY + 1
+  const grid = Array.from({ length: rows }, (_, r) =>
+    Array.from({ length: cols }, (_, c): string =>
+      r % BAY === 0 || c % BAY === 0 ? '#' : '.'
+    )
+  )
+  STONE_GRID.forEach((row, r) => {
+    for (let c = 0; c < row.length; c++) grid[r][c] = row[c]
+  })
+  const stone = (i: number, j: number) =>
+    i * BAY < SEAM_ROW && j * BAY < SEAM_COL
+  const bay = (i: number, j: number) => i * BAYS_ACROSS + j
+  const edges: { a: number; b: number; cells: [number, number][] }[] = []
+  for (let i = 0; i < BAYS_DOWN; i++) {
+    for (let j = 0; j < BAYS_ACROSS; j++) {
+      if (stone(i, j)) continue
+      const line = (k: number) => k * BAY
+      if (i + 1 < BAYS_DOWN && !stone(i + 1, j)) {
+        edges.push({
+          a: bay(i, j),
+          b: bay(i + 1, j),
+          cells: [1, 2, 3].map((k) => [line(i + 1), line(j) + k]),
+        })
+      }
+      if (j + 1 < BAYS_ACROSS && !stone(i, j + 1)) {
+        edges.push({
+          a: bay(i, j),
+          b: bay(i, j + 1),
+          cells: [1, 2, 3].map((k) => [line(i) + k, line(j + 1)]),
+        })
+      }
+    }
+  }
+  const rng = mulberry32(0xbac4)
+  for (let i = edges.length - 1; i > 0; i--) {
+    const k = Math.floor(rng() * (i + 1))
+    ;[edges[i], edges[k]] = [edges[k], edges[i]]
+  }
+  const root = Array.from({ length: BAYS_DOWN * BAYS_ACROSS }, (_, i) => i)
+  const find = (n: number): number =>
+    root[n] === n ? n : (root[n] = find(root[n]))
+  const open = (cells: [number, number][], whole: boolean) => {
+    const door = cells[Math.floor(rng() * cells.length)]
+    for (const [r, c] of whole ? cells : [door]) grid[r][c] = '.'
+  }
+  for (const { a, b, cells } of edges) {
+    const joins = find(a) !== find(b)
+    if (joins) root[find(a)] = find(b)
+    const roll = rng()
+    if (joins) open(cells, roll < 0.3)
+    else if (roll < 0.14) open(cells, true)
+    else if (roll < 0.5) open(cells, false)
+  }
+  for (const [r, c] of SEAM_DOORS) grid[r][c] = '.'
+  return grid.map((row) => row.join(''))
+}
+
+export const UNDERCROFT_GRID: readonly string[] = lay()
+
+// Metres between cell centres; the stone's thickness and height; the
+// backrooms' ceiling, lower.
 const CELL = 3
 const WALL = 0.9
 const HEIGHT = 4.2
+const LOW = 2.7
 const ROWS = UNDERCROFT_GRID.length
 const COLS = UNDERCROFT_GRID[0].length
 
@@ -68,6 +158,27 @@ const UNDERCROFT_SIZE: MazeSize = {
 // A cell's middle in the Undercroft's metres.
 const at = (row: number, col: number): XZ =>
   cellPoint(UNDERCROFT_GRID, UNDERCROFT_SIZE, { col, row })
+
+// The stone's corner, in metres: everything with x and z both inside it.
+const SEAM = { x: SEAM_ROW * CELL, z: SEAM_COL * CELL }
+
+// Whether a point is in the old stone rather than the backrooms (the
+// seam's walls count as stone).
+export function inStone(p: XZ): boolean {
+  return p.x <= SEAM.x + 0.01 && p.z <= SEAM.z + 0.01
+}
+
+// The backrooms' floor as two rectangles, in metres: the long run past
+// the stone's far edge, and the strip beside it.
+const BACKROOMS: readonly { x0: number; x1: number; z0: number; z1: number }[] =
+  [
+    { x0: SEAM.x, x1: (ROWS - 1) * CELL, z0: 0, z1: (COLS - 1) * CELL },
+    { x0: 0, x1: SEAM.x, z0: SEAM.z, z1: (COLS - 1) * CELL },
+  ]
+
+// The middle of bay (i, j), always floor.
+const bayMiddle = (i: number, j: number): XZ =>
+  at(i * BAY + BAY / 2, j * BAY + BAY / 2)
 
 // A room, by its cells (inclusive), as metres: the floor between its
 // walls' faces.
@@ -121,6 +232,14 @@ export type CroftFinish =
   | 'water'
   | 'iron'
   | 'cloth'
+  | 'wallpaper' // the backrooms' walls
+  | 'trim' // their baseboards
+  | 'carpet' // their floor
+  | 'damp' // the stains on it
+  | 'tile' // their drop ceiling
+  | 'tube' // a fluorescent panel, lit
+  | 'flicker' // one failing
+  | 'dead' // one gone out
 
 // One box, in the Undercroft's metres; `turn` (Euler XYZ) tips it. The
 // stone blocks (the grid's walls, croftWalls); a fixture that `blocks`
@@ -171,10 +290,12 @@ function solid(
 // thickness past its ends so the corners close; a pillar is a square. The
 // walls standing inside the deep chamber are ruins (ruin).
 function stone(): CroftBox[] {
-  return mazeSpans(UNDERCROFT_GRID, UNDERCROFT_SIZE).flatMap((span, i) => {
+  const spans = mazeSpans(UNDERCROFT_GRID, UNDERCROFT_SIZE).flatMap(atSeam)
+  return spans.flatMap((span, i) => {
     const dx = Math.abs(span.b.x - span.a.x)
     const dz = Math.abs(span.b.z - span.a.z)
     const mid = { x: (span.a.x + span.b.x) / 2, z: (span.a.z + span.b.z) / 2 }
+    if (!inStone(mid)) return papered(`paper-${i}`, mid, dx, dz)
     if (inRoom(ROOMS.deep, mid)) return ruin(`stone-${i}`, span, i)
     return [
       box(
@@ -185,6 +306,49 @@ function stone(): CroftBox[] {
       ),
     ]
   })
+}
+
+// A span running through the stone's corner, cut there in two, so the
+// stone stays stone and the backrooms' side is papered.
+function atSeam(span: { a: XZ; b: XZ }): { a: XZ; b: XZ }[] {
+  const lo = (u: number, v: number) => Math.min(u, v)
+  const hi = (u: number, v: number) => Math.max(u, v)
+  const { a, b } = span
+  if (a.x === SEAM.x && b.x === SEAM.x && lo(a.z, b.z) < SEAM.z) {
+    if (hi(a.z, b.z) > SEAM.z) {
+      return [
+        { a: { x: SEAM.x, z: lo(a.z, b.z) }, b: { ...SEAM } },
+        { a: { ...SEAM }, b: { x: SEAM.x, z: hi(a.z, b.z) } },
+      ]
+    }
+  }
+  if (a.z === SEAM.z && b.z === SEAM.z && lo(a.x, b.x) < SEAM.x) {
+    if (hi(a.x, b.x) > SEAM.x) {
+      return [
+        { a: { x: lo(a.x, b.x), z: SEAM.z }, b: { ...SEAM } },
+        { a: { ...SEAM }, b: { x: hi(a.x, b.x), z: SEAM.z } },
+      ]
+    }
+  }
+  return [span]
+}
+
+// A backrooms wall: up to the drop ceiling, papered, with a baseboard.
+function papered(name: string, mid: XZ, dx: number, dz: number): CroftBox[] {
+  return [
+    box(
+      name,
+      [mid.x, LOW / 2, mid.z],
+      [dx + WALL, LOW, dz + WALL],
+      'wallpaper'
+    ),
+    box(
+      `${name}-trim`,
+      [mid.x, 0.06, mid.z],
+      [dx + WALL + 0.03, 0.12, dz + WALL + 0.03],
+      'trim'
+    ),
+  ]
 }
 
 // A broken wall: a course of stone well over a raider's head, so it still
@@ -455,6 +619,7 @@ function furnish(): CroftBox[] {
     ),
     box('ring-b', [deep.x0 + 0.5, 1.8, altar.z + 2.4], [0.06, 0.4, 0.4], 'iron')
   )
+  boxes.push(...backrooms())
   // The ladder up to the trapdoor, against the entry's wall.
   const ladder = LADDER
   for (const side of [-0.25, 0.25]) {
@@ -474,6 +639,65 @@ function furnish(): CroftBox[] {
         [ladder.x - 0.35, 0.3 + i * 0.36, ladder.z],
         [0.05, 0.05, 0.5],
         'wood'
+      )
+    )
+  }
+  return boxes
+}
+
+// The backrooms' fittings: carpet over the flagstone, the drop ceiling,
+// a panel of tubes over every other cell (some failing, some gone out),
+// damp spreading on the carpet, and over each door through the seam the
+// stone carried down to the low ceiling.
+function backrooms(): CroftBox[] {
+  const rng = mulberry32(0xf1c4)
+  const boxes: CroftBox[] = []
+  BACKROOMS.forEach(({ x0, x1, z0, z1 }, i) => {
+    const mid = (y: number): Vec3 => [(x0 + x1) / 2, y, (z0 + z1) / 2]
+    boxes.push(
+      box(`carpet-${i}`, mid(0.015), [x1 - x0, 0.03, z1 - z0], 'carpet'),
+      box(`tiles-${i}`, mid(LOW + 0.03), [x1 - x0, 0.06, z1 - z0], 'tile')
+    )
+  })
+  UNDERCROFT_GRID.forEach((row, r) => {
+    for (let c = 0; c < row.length; c++) {
+      const p = at(r, c)
+      if (row[c] !== '.' || inStone(p)) continue
+      if ((r + c) % 2 === 0) {
+        const roll = rng()
+        const finish = roll < 0.07 ? 'dead' : roll < 0.13 ? 'flicker' : 'tube'
+        boxes.push(
+          box(
+            `tube-${r}-${c}`,
+            [p.x, LOW - 0.005, p.z],
+            [0.6, 0.03, 1.2],
+            finish
+          )
+        )
+      }
+      if (rng() < 0.05) {
+        const size = range(rng, 0.8, 2.4)
+        boxes.push(
+          box(
+            `damp-${r}-${c}`,
+            [p.x + range(rng, -0.6, 0.6), 0.034, p.z + range(rng, -0.6, 0.6)],
+            [size, 0.006, size * range(rng, 0.5, 1)],
+            'damp',
+            [0, range(rng, 0, Math.PI), 0]
+          )
+        )
+      }
+    }
+  })
+  for (const [r, c] of SEAM_DOORS) {
+    const p = at(r, c)
+    const tall = HEIGHT - LOW
+    boxes.push(
+      box(
+        `lintel-${r}-${c}`,
+        [p.x, LOW + tall / 2, p.z],
+        r === SEAM_ROW ? [WALL, tall, CELL] : [CELL, tall, WALL],
+        'stone'
       )
     )
   }
@@ -546,6 +770,10 @@ const LOOT: readonly CroftLoot[] = [
   { kind: 'dimes', count: 15, ...at(14, 26) },
   { kind: 'gold-bullion', count: 1, x: ALTAR.x + 0.95, z: ALTAR.z - 0.4 },
   { kind: 'twenty', count: 1, x: ALTAR.x + 0.95, z: ALTAR.z + 0.4 },
+  // And far out in the backrooms, for whoever walks that far.
+  { kind: 'dimes', count: 25, ...bayMiddle(9, 8) },
+  { kind: 'twenty', count: 1, ...bayMiddle(8, 0) },
+  { kind: 'jim-beam', count: 1, ...bayMiddle(1, 8) },
 ]
 
 // Where each tunnel shade keeps to (tunnelshades.ts), and the Warden's
@@ -556,6 +784,11 @@ const LAIRS: readonly XZ[] = [
   at(12, 11),
   at(11, 20),
   at(14, 24),
+  // The backrooms'.
+  bayMiddle(5, 2),
+  bayMiddle(7, 6),
+  bayMiddle(9, 1),
+  bayMiddle(2, 8),
 ]
 const WARDEN: XZ = { x: ALTAR.x + 3.5, z: ALTAR.z }
 
@@ -565,6 +798,8 @@ export const UNDERCROFT = {
   cell: CELL,
   wall: WALL,
   height: HEIGHT,
+  low: LOW,
+  backrooms: BACKROOMS,
   rooms: ROOMS,
   boxes: [...stone(), ...furnish()],
   signs: signs(),

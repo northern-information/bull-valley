@@ -55,6 +55,8 @@ export class TunnelShades {
   private table: ShadowTable<TunnelShadeWire> = createShadowTable()
   private pending: TunnelBurstWire[] = []
   private hits: TunnelBurstWire[] = []
+  // Where each stood when last drawn, and when, for how fast it walks.
+  private last = new Map<number, { x: number; z: number; time: number }>()
 
   constructor({ scene, groundAt, place }: TunnelShadesOptions) {
     this.scene = scene
@@ -105,7 +107,12 @@ export class TunnelShades {
       rig.group.rotation.y = Math.atan2(player.x - s.x, player.z - s.z)
       // Its wounds pale it for good, a beam on it the rest of the way.
       rig.setBurn(Math.min(1, s.hurt * 0.45 + burn * (1 - s.hurt * 0.45)))
-      rig.update(time)
+      const was = this.last.get(s.id)
+      const dt = was ? time - was.time : 0
+      const speed =
+        was && dt > 0 ? Math.hypot(s.x - was.x, s.z - was.z) / dt : 0
+      this.last.set(s.id, { x: s.x, z: s.z, time })
+      rig.update(time, speed)
     }
     for (const [id, rig] of this.rigs) {
       if (!seen.has(id)) rig.group.visible = false
