@@ -350,10 +350,13 @@
 //    turns. The shadow carp takes only a slurm: a raider out of the bed
 //    whose last state frame put them at a Citgo, carrying Erwin von
 //    Dutch's jar with room in it (jarRoom), catches a slurm of a drop
-//    there that could still be crawling (slurms.ts mayJar), once
-//    (Valley.jarred), into the pack (`jar-slurm`; ValleyContext.holdings
-//    in), and everyone hears it is off the lot (Reduced.jarred). Dialed
-//    in, there is no slurm to catch (`dialup`).
+//    there that could still be crawling (slurms.ts mayJar), or, from
+//    down in Castle Entropy's moat (moat.ts inChannel), a slurm of the
+//    moat's (MOAT_STATION) that could still lie on its floor
+//    (moatslurms.ts mayJarMoat), once (Valley.jarred), into the pack
+//    (`jar-slurm`; ValleyContext.holdings in), and everyone hears it is
+//    off the lot (Reduced.jarred). Dialed in, there is no slurm to catch
+//    (`dialup`).
 // 37. Waypoints (waypoints.ts): the valley keeps each account's pins on
 //    the map, up to WAYPOINT_MAX, the oldest dropped past it
 //    (Valley.waypoints). A raider sends the whole list at once (a `mark`
@@ -455,6 +458,8 @@ import {
   settleTruck,
 } from './marx.ts'
 import { mazeToWorld } from './maze.ts'
+import { inChannel } from './moat.ts'
+import { mayJarMoat, MOAT_STATION } from './moatslurms.ts'
 import {
   dropAway,
   markAway,
@@ -3014,21 +3019,27 @@ function onJarSlurm(
   if (!member || !world) return refuse('not-in-valley')
   if (isAboard(world.truck, action.id)) return refuse('aboard')
   const { station, slot, index } = action
-  if (!action.at || citgoAt(action.at, world.havens) !== station) {
-    return refuse('too-far')
-  }
+  // The moat's go by MOAT_STATION: from a raider down in the channel, while
+  // that drop could still lie on its floor (moatslurms.ts mayJarMoat).
+  const moat = station === MOAT_STATION
+  const at = action.at
+  const near = moat
+    ? world.moat !== null && !!at && inChannel(world.moat, at.x, at.z)
+    : !!at && citgoAt(at, world.havens) === station
+  if (!near) return refuse('too-far')
   const seconds = now / 1000
   const key = slurmKey(station, slot, index)
-  if (!mayJar(station, slot, index, seconds) || valley.jarred.includes(key)) {
-    return refuse('gone')
-  }
+  const there = moat
+    ? mayJarMoat(slot, index, seconds)
+    : mayJar(station, slot, index, seconds)
+  if (!there || valley.jarred.includes(key)) return refuse('gone')
   if (!holdings) return refuse('unavailable')
   if ((holdings.pack['slurm-jar'] ?? 0) < 1) return refuse('no-jar')
   if (!jarRoom(holdings.pack)) return refuse('jar-full')
-  // Only the drops that could still be crawling are remembered.
-  const recent = slotOf(seconds) - 3
+  // Only the drops that could still be crawling are remembered, each by
+  // its own slots: the Citgos' a minute long, the moat's a few seconds.
   const jarred = [
-    ...valley.jarred.filter((k) => Number(k.split(':')[1]) >= recent),
+    ...valley.jarred.filter((k) => stillJarrable(k, seconds)),
     key,
   ]
   return done({ ...valley, jarred }, now, {
@@ -3036,6 +3047,19 @@ function onJarSlurm(
     pack: { account: member.account, kind: 'slurm', delta: 1 },
     jarred: { type: 'slurm-jarred', station, slot, index, by: action.id },
   })
+}
+
+// Whether a jarred slurm's key (slurms.ts slurmKey) names a drop that could
+// still be crawling at `seconds`, so the valley must keep it.
+function stillJarrable(key: string, seconds: number): boolean {
+  const [station, slot] = key.split(':').map(Number)
+  if (station === MOAT_STATION) {
+    const { crawlSeconds, lingerSeconds, jarSlack, slotSeconds } =
+      CONFIG.slurms.moat
+    const life = crawlSeconds + lingerSeconds + jarSlack + slotSeconds
+    return slot * slotSeconds >= seconds - life
+  }
+  return slot >= slotOf(seconds) - 3
 }
 
 // Rule 36: the line out reeled in or given up.

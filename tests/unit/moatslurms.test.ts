@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
-import { moatDrop, moatSlurmsAt } from '../../src/moatslurms.ts'
+import {
+  mayJarMoat,
+  moatDrop,
+  moatDropCount,
+  moatSlurmsAt,
+} from '../../src/moatslurms.ts'
 import type { MoatSource } from '../../src/moatslurms.ts'
 
 const cfg = CONFIG.slurms.moat
@@ -129,5 +134,36 @@ describe('moatSlurmsAt', () => {
 
   it('has nothing to drop with no sources', () => {
     expect(moatSlurmsAt([], 0, 1000, landY)).toEqual([])
+  })
+})
+
+describe('mayJarMoat', () => {
+  it('counts each drop as moatDrop does, whatever the sources', () => {
+    for (const slot of SLOTS) {
+      const drop = moatDrop(slot, 3, 1)
+      expect(moatDropCount(slot)).toEqual({
+        start: drop.start,
+        count: drop.sources.length,
+      })
+    }
+  })
+
+  it('takes every slurm down on the floor, and none melted or never dropped', () => {
+    const t = 90_000_000 * cfg.slotSeconds + 500
+    const down = moatSlurmsAt(SOURCES, 1, t, landY).filter(
+      (s) => s.phase === 'crawling'
+    )
+    expect(down.length).toBeGreaterThan(0)
+    for (const s of down) {
+      expect(s.key).toBe(`${s.slot}:${s.index}`)
+      expect(mayJarMoat(s.slot, s.index, t)).toBe(true)
+      const melted = cfg.crawlSeconds + cfg.lingerSeconds + cfg.jarSlack + 2
+      expect(mayJarMoat(s.slot, s.index, t + melted)).toBe(false)
+    }
+    const slot = 90_000_000
+    expect(mayJarMoat(slot, cfg.maxCount, t)).toBe(false)
+    expect(mayJarMoat(slot + 1000, 0, t)).toBe(false)
+    expect(mayJarMoat(slot + 0.5, 0, t)).toBe(false)
+    expect(mayJarMoat(slot, -1, t)).toBe(false)
   })
 })

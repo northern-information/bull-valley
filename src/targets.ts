@@ -7,6 +7,7 @@ import * as THREE from 'three'
 import { meshBounds } from './assets.ts'
 import { itemById } from './items.ts'
 import { insideStore, unitInView } from './store.ts'
+import { crawlingSlurms } from './world.ts'
 import type { Game } from './game.ts'
 import type {
   Interaction,
@@ -90,14 +91,12 @@ export function createTargets(game: Game): Targets {
         return world.wreck?.car ?? null
       case 'jar-slurm':
         return (
-          world.shelves
-            .crawlingSlurms()
-            .find(
-              (s) =>
-                s.station === action.station &&
-                s.slot === action.slot &&
-                s.index === action.index
-            )?.object ?? null
+          crawlingSlurms(world).find(
+            (s) =>
+              s.station === action.station &&
+              s.slot === action.slot &&
+              s.index === action.index
+          )?.object ?? null
         )
       case 'deal':
         return world.plaza?.dealer.group ?? null

@@ -18,6 +18,8 @@ import { contentsOf, getItem, healsOf } from '../../src/items.ts'
 import { LADDER_FOOT, LADDER_TOP, lookoutToWorld } from '../../src/lookout.ts'
 import { nextChange } from '../../src/marx.ts'
 import { mazeToWorld } from '../../src/maze.ts'
+import { inChannel } from '../../src/moat.ts'
+import { MOAT_STATION } from '../../src/moatslurms.ts'
 import { partyOf } from '../../src/party.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { FRESH_RESEARCH, priceOf } from '../../src/recycling.ts'
@@ -4549,5 +4551,69 @@ describe('rule 36: slurms into the jar', () => {
       level: 1,
     })
     expect(reason(jar(v.valley))).toBe('dialup')
+  })
+
+  describe("the moat's", () => {
+    const moat = { x: 2000, z: 2000, yaw: 0.35 }
+    // A point down in the channel: out from the middle until it is.
+    const inMoat = (() => {
+      for (let r = 0; r < 200; r += 0.5) {
+        const p = { x: moat.x + r, z: moat.z }
+        if (inChannel(moat, p.x, p.z)) return { x: p.x + 1, z: p.z }
+      }
+      throw new Error('no channel')
+    })()
+    // A drop a few slots back, down by now.
+    const moatSlot = Math.floor(T0 / 1000 / CONFIG.slurms.moat.slotSeconds) - 2
+    const opened = () =>
+      valleyWith({ ...join('a'), moat } as ValleyAction).valley
+    const moatJar = (
+      valley: Valley,
+      over: Partial<Extract<ValleyAction, { type: 'jar-slurm' }>> = {},
+      now = T0
+    ) =>
+      jar(
+        valley,
+        { station: MOAT_STATION, slot: moatSlot, at: inMoat, ...over },
+        { 'slurm-jar': 1 },
+        now
+      )
+
+    it('puts one down on the floor into the jar, from down in the channel', () => {
+      expect(inChannel(moat, inMoat.x, inMoat.z)).toBe(true)
+      const r = moatJar(opened())
+      expect(r.pack).toEqual({ account: 'acct-a', kind: 'slurm', delta: 1 })
+      expect(r.jarred).toEqual({
+        type: 'slurm-jarred',
+        station: MOAT_STATION,
+        slot: moatSlot,
+        index: 0,
+        by: 'a',
+      })
+      expect(r.valley.jarred).toEqual([`${MOAT_STATION}:${moatSlot}:0`])
+      // Once.
+      expect(reason(moatJar(r.valley))).toBe('gone')
+      // Kept while it could still lie there; forgotten once it would have
+      // melted.
+      const { crawlSeconds, lingerSeconds, jarSlack, slotSeconds } =
+        CONFIG.slurms.moat
+      const life = (crawlSeconds + lingerSeconds + jarSlack) * 1000
+      const soon = moatJar(r.valley, { slot: moatSlot + 1 }, T0 + 2000)
+      expect(soon.valley.jarred).toContain(`${MOAT_STATION}:${moatSlot}:0`)
+      const later = T0 + life + 4 * slotSeconds * 1000
+      const laterSlot = Math.floor(later / 1000 / slotSeconds) - 2
+      const next = moatJar(r.valley, { slot: laterSlot }, later)
+      expect(next.valley.jarred).toEqual([`${MOAT_STATION}:${laterSlot}:0`])
+    })
+
+    it('refuses up out of the channel, with no moat, or one melted or never dropped', () => {
+      const v = opened()
+      expect(reason(moatJar(v, { at: HAVENS[0] }))).toBe('too-far')
+      expect(reason(moatJar(v, { at: null }))).toBe('too-far')
+      expect(reason(moatJar(valleyWith(join('a')).valley))).toBe('too-far')
+      expect(reason(moatJar(v, { slot: moatSlot - 100 }))).toBe('gone')
+      expect(reason(moatJar(v, { slot: moatSlot + 100 }))).toBe('gone')
+      expect(reason(moatJar(v, { index: 99 }))).toBe('gone')
+    })
   })
 })

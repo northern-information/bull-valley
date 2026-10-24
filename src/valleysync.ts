@@ -59,6 +59,7 @@ import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
 import { toWaypoints } from './waypoints.ts'
+import { jarSlurm } from './world.ts'
 import {
   giftsIn,
   newLeg,
@@ -669,7 +670,7 @@ export function wireValley(game: Game, actions: Actions): void {
     } else if (msg.type === 'slurm-jarred') {
       // Rule 36: a slurm off the lot into someone's jar; ours, its pack
       // frame follows.
-      world.shelves.jarSlurm(msg.station, msg.slot, msg.index)
+      jarSlurm(world, msg.station, msg.slot, msg.index)
       if (msg.by !== net.id) return
       s.pending.jar = false
       game.sfx?.play('jar-clink')

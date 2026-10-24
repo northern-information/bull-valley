@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EMOTE_IDS } from '../../src/emotes.ts'
+import { MOAT_STATION } from '../../src/moatslurms.ts'
 import {
   CHAT_MAX,
   CLOSE,
@@ -512,8 +513,12 @@ describe('parseClientMessage', () => {
     expect(
       parse({ type: 'jar-slurm', station: 2, slot: 9.5, index: 1 })
     ).toBeNull()
+    // The moat's go by MOAT_STATION; no other station below 0.
     expect(
-      parse({ type: 'jar-slurm', station: -1, slot: 9, index: 1 })
+      parse({ type: 'jar-slurm', station: MOAT_STATION, slot: 9, index: 1 })
+    ).toEqual({ type: 'jar-slurm', station: MOAT_STATION, slot: 9, index: 1 })
+    expect(
+      parse({ type: 'jar-slurm', station: -2, slot: 9, index: 1 })
     ).toBeNull()
     // A hello says where the stand stands, or that there is none.
     expect(parse({ ...hello, stand: null })).toEqual({ ...hello, stand: null })
