@@ -587,6 +587,7 @@ citgo_unnamed = { text = "Citgo #{n}", by = "ai" }
 payphone = { text = "Payphone at Castle Entropy", by = "ai" }
 pin = { text = "{n}. {place}. Click to lift it.", by = "ai" }
 pins = { text = "{count} of {max} waypoints", by = "ai" }
+body = { text = "Your body", by = "ai" }
 
 # The compass across the top of the screen (src/compasshud.ts).
 
