@@ -317,7 +317,7 @@ lore = { text = "Sleeps behind the Golden Wok's boards with his candles and his 
 lore = { text = "Sits cross-legged in the back of a red Jeep Wrangler beside Moab, hunched over a laptop with the hatch up, a portable radar dish on the roof cabled down to it. He helps run the Citgo portals. Whatever else he is tuning in, it is not ready yet.", by = "ai" }
 
 [book.jericho]
-lore = { text = "Sits beside the payphone on Castle Entropy's rim, twice the height of anyone who comes to him, his cloak pooled round him in tatters. Deep in his hood a small pale mask, and a candle held up to it in one bound hand. A trumpet hangs across his back, and a great horned owl keeps watch from his shoulder. The cloak was grey before its embroidery faded into it. He is kind, and he knows a way across, but not an easy one.", by = "ai" }
+lore = { text = "Sits on Castle Entropy's rim beside the payphone, straight out from the Citgo door, twice the height of anyone who comes to him, his cloak pooled round him in tatters. Deep in his hood a small pale mask, and a candle held up to it in one bound hand. A trumpet hangs across his back, and a great horned owl keeps watch from the top of his hood. The cloak was grey before its embroidery faded into it. He is kind, and he knows a way across, but not an easy one.", by = "ai" }
 
 # Erwin von Dutch, the squatter in Bull Valley Plaza (src/dealer.ts,
 # src/dealdialog.ts), and his quest (src/quests.ts).
