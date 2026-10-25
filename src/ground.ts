@@ -10,12 +10,21 @@
 // highest is not always the one underfoot: standAt answers for feet at a
 // height, the highest deck they could step onto from there.
 //
+// Each surface says what it is underfoot (its tread: a road's asphalt, a
+// shoulder's dirt, a lot's concrete, a store's tile, a deck's wood, a fire
+// escape's steel), and treadAt answers it for the deck standAt picks; the
+// bare terrain is grass. The footsteps sound it (footsteps.ts).
+//
 // Surfaces register once as the world is built. A spatial hash of square
 // cells keeps a query to the few surfaces near the point, so the player and
 // the truck can ask every frame.
 
 import { pointInPolygon, projectOnSegment } from './coords.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
+
+// What a surface is underfoot.
+export type Tread =
+  'grass' | 'dirt' | 'asphalt' | 'concrete' | 'tile' | 'wood' | 'metal'
 
 // A point with its height, as a ribbon's centreline carries it.
 interface GroundPoint extends XZ {
@@ -27,6 +36,7 @@ interface GroundPoint extends XZ {
 // it, so standing on it matches what is drawn.
 interface Segment {
   kind: 'segment'
+  tread: Tread
   a: GroundPoint
   b: GroundPoint
   half: number
@@ -38,6 +48,7 @@ interface Segment {
 // shoulder is drawn, so its deck follows the ground both ways.
 interface TrailSegment {
   kind: 'trail'
+  tread: Tread
   a: XZ
   b: XZ
   half: number
@@ -49,6 +60,7 @@ interface TrailSegment {
 // perpendicular.
 interface Patch {
   kind: 'patch'
+  tread: Tread
   x: number
   z: number
   cos: number
@@ -63,6 +75,7 @@ interface Patch {
 // patch, but its deck is `y` everywhere, the way the floor slab draws it.
 interface Floor {
   kind: 'floor'
+  tread: Tread
   x: number
   z: number
   cos: number
@@ -78,6 +91,7 @@ interface Floor {
 // short where it meets a road).
 interface Area {
   kind: 'area'
+  tread: Tread
   ring: [number, number][]
   lift: number
 }
@@ -99,13 +113,18 @@ export class Ground {
 
   // A ribbon (a road) along a centreline of points with heights, `width`
   // across, drawn `lift` above those heights.
-  addRibbon(points: readonly GroundPoint[], width: number, lift: number) {
+  addRibbon(
+    points: readonly GroundPoint[],
+    width: number,
+    lift: number,
+    tread: Tread = 'asphalt'
+  ) {
     const half = width / 2
     for (let i = 0; i < points.length - 1; i++) {
       const a = points[i]
       const b = points[i + 1]
       this.register(
-        { kind: 'segment', a, b, half, lift },
+        { kind: 'segment', tread, a, b, half, lift },
         Math.min(a.x, b.x) - half,
         Math.min(a.z, b.z) - half,
         Math.max(a.x, b.x) + half,
@@ -116,11 +135,11 @@ export class Ground {
 
   // An area inside the outline `points` (closed on itself, any shape),
   // draped `lift` above the terrain.
-  addArea(points: readonly XZ[], lift: number) {
+  addArea(points: readonly XZ[], lift: number, tread: Tread = 'concrete') {
     const xs = points.map((p) => p.x)
     const zs = points.map((p) => p.z)
     this.register(
-      { kind: 'area', ring: points.map((p) => [p.x, p.z]), lift },
+      { kind: 'area', tread, ring: points.map((p) => [p.x, p.z]), lift },
       Math.min(...xs),
       Math.min(...zs),
       Math.max(...xs),
@@ -130,13 +149,18 @@ export class Ground {
 
   // A trail along a line of points, `width` across, draped `lift` above
   // the terrain.
-  addTrail(points: readonly XZ[], width: number, lift: number) {
+  addTrail(
+    points: readonly XZ[],
+    width: number,
+    lift: number,
+    tread: Tread = 'dirt'
+  ) {
     const half = width / 2
     for (let i = 0; i < points.length - 1; i++) {
       const a = points[i]
       const b = points[i + 1]
       this.register(
-        { kind: 'trail', a, b, half, lift },
+        { kind: 'trail', tread, a, b, half, lift },
         Math.min(a.x, b.x) - half,
         Math.min(a.z, b.z) - half,
         Math.max(a.x, b.x) + half,
@@ -154,10 +178,12 @@ export class Ground {
     x0: number,
     x1: number,
     halfWidth: number,
-    lift: number
+    lift: number,
+    tread: Tread = 'concrete'
   ) {
     const patch: Patch = {
       kind: 'patch',
+      tread,
       x,
       z,
       cos,
@@ -179,10 +205,12 @@ export class Ground {
     x0: number,
     x1: number,
     halfWidth: number,
-    y: number
+    y: number,
+    tread: Tread = 'concrete'
   ) {
     this.registerRect({
       kind: 'floor',
+      tread,
       x,
       z,
       cos,
@@ -212,10 +240,25 @@ export class Ground {
   // lowest of them when every one is higher. A surface under the terrain
   // is no deck, as in heightAt.
   standAt(x: number, z: number, feetY: number, climb: number): number {
+    return this.underfoot(x, z, feetY, climb).y
+  }
+
+  // What the deck standAt picks is underfoot: its surface's tread, or
+  // grass on the bare terrain.
+  treadAt(x: number, z: number, feetY: number, climb: number): Tread {
+    return this.underfoot(x, z, feetY, climb).tread
+  }
+
+  private underfoot(
+    x: number,
+    z: number,
+    feetY: number,
+    climb: number
+  ): { y: number; tread: Tread } {
     const reach = feetY + climb
     const terrain = this.terrain(x, z)
     let best = terrain
-    const lowest = terrain
+    let tread: Tread = 'grass'
     let found = terrain <= reach
     if (!found) best = -Infinity
     for (const surface of this.cells.get(this.key(x, z)) ?? []) {
@@ -223,10 +266,11 @@ export class Ground {
       if (y === null || y < terrain) continue
       if (y <= reach && y > best) {
         best = y
+        tread = surface.tread
         found = true
       }
     }
-    return found ? best : lowest
+    return found ? { y: best, tread } : { y: terrain, tread: 'grass' }
   }
 
   heightAt(x: number, z: number): number {

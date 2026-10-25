@@ -218,3 +218,53 @@ describe('Ground.standAt', () => {
     expect(ridge.standAt(0, 0, 4, 0.6)).toBe(10)
   })
 })
+
+describe('Ground.treadAt', () => {
+  const flat = () => 0
+
+  it('is grass on the bare terrain, and each surface its own', () => {
+    const ground = new Ground(flat)
+    expect(ground.treadAt(5, 5, 0, 0.6)).toBe('grass')
+    ground.addRibbon(
+      [
+        { x: 0, z: 0, y: 0 },
+        { x: 100, z: 0, y: 0 },
+      ],
+      4,
+      0.1
+    )
+    ground.addTrail(
+      [
+        { x: 0, z: 10 },
+        { x: 100, z: 10 },
+      ],
+      2,
+      0.05
+    )
+    ground.addPatch(50, 30, 1, 0, -5, 5, 5, 0.1)
+    ground.addArea(
+      [
+        { x: 70, z: 25 },
+        { x: 80, z: 25 },
+        { x: 80, z: 35 },
+        { x: 70, z: 35 },
+      ],
+      0.1
+    )
+    ground.addFloor(20, 30, 1, 0, -2, 2, 2, 0.2, 'tile')
+    expect(ground.treadAt(50, 0, 0, 0.6)).toBe('asphalt')
+    expect(ground.treadAt(50, 10, 0, 0.6)).toBe('dirt')
+    expect(ground.treadAt(50, 30, 0, 0.6)).toBe('concrete')
+    expect(ground.treadAt(75, 30, 0, 0.6)).toBe('concrete')
+    expect(ground.treadAt(20, 30, 0, 0.6)).toBe('tile')
+  })
+
+  it('answers for the deck standAt picks among stacked ones', () => {
+    const ground = new Ground(flat)
+    ground.addFloor(5, 0, 1, 0, -5, 5, 2, 3, 'metal')
+    ground.addFloor(5, 0, 1, 0, -5, 5, 2, 6, 'wood')
+    expect(ground.treadAt(5, 0, 0, 0.6)).toBe('grass')
+    expect(ground.treadAt(5, 0, 3, 0.6)).toBe('metal')
+    expect(ground.treadAt(5, 0, 6, 0.6)).toBe('wood')
+  })
+})

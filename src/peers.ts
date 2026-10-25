@@ -39,9 +39,10 @@ import {
 } from './presence.ts'
 import type { Flashlight } from './assets.ts'
 import type { Figure, Worn } from './figure.ts'
+import type { Walker } from './footsteps.ts'
 import type { HealthBar } from './healthbar.ts'
 import type { Peer, PeerTable } from './presence.ts'
-import type { HeldWire, PeerStateWire, PeerWire } from './protocol.ts'
+import type { HeldWire, PeerPose, PeerStateWire, PeerWire } from './protocol.ts'
 
 // The name floats this far above the feet. A figure stands about 1.8 m;
 // in the Flaming Halo, the name floats over the fire.
@@ -77,9 +78,15 @@ interface Puppet {
   texture: THREE.CanvasTexture
   bar: HealthBar
   cycle: number
-  // Where they were drawn this frame, for the party list's order; null
-  // while unplaced.
-  at: { x: number; z: number } | null
+  // Where they were drawn this frame and how they stood, for the party
+  // list's order and their footsteps; null while unplaced.
+  at: {
+    x: number
+    y: number
+    z: number
+    pose: PeerPose
+    riding: boolean
+  } | null
 }
 
 // A name tag as the peers wear it, its own material and texture to
@@ -211,6 +218,24 @@ export class Peers {
     )
   }
 
+  // Every placed peer's feet as drawn this frame (footsteps.ts): on foot
+  // while walking or crouched, neither riding nor emoting.
+  walkers(): Walker[] {
+    const feet: Walker[] = []
+    for (const [id, { at }] of this.puppets) {
+      if (!at) continue
+      feet.push({
+        id,
+        x: at.x,
+        z: at.z,
+        feet: at.y,
+        walking: !at.riding && (at.pose === 'walk' || at.pose === 'crouch'),
+        quiet: at.pose === 'crouch',
+      })
+    }
+    return feet
+  }
+
   state(id: string, state: PeerStateWire, now: number, due = now): void {
     applyState(this.table, id, state, now, due)
   }
@@ -242,7 +267,13 @@ export class Peers {
         continue
       }
       group.visible = true
-      puppet.at = { x: at.x, z: at.z }
+      puppet.at = {
+        x: at.x,
+        y: at.y,
+        z: at.z,
+        pose: at.pose,
+        riding: at.riding,
+      }
       // The figure faces +Z; a player faces -Z at yaw 0.
       group.rotation.y = at.yaw + Math.PI
       group.position.set(at.x, at.y, at.z)

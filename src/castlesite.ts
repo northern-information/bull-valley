@@ -116,10 +116,20 @@ export function buildCastleSite(
   const stairs = fireEscapes(raw, place, floor)
   for (const stair of stairs) {
     for (const flight of stair.flights) {
-      ground.addRibbon([flight.a, flight.b], stair.width, 0)
+      ground.addRibbon([flight.a, flight.b], stair.width, 0, 'metal')
     }
     for (const l of stair.landings) {
-      ground.addFloor(l.x, l.z, l.cos, l.sin, l.x0, l.x1, l.halfWidth, l.y)
+      ground.addFloor(
+        l.x,
+        l.z,
+        l.cos,
+        l.sin,
+        l.x0,
+        l.x1,
+        l.halfWidth,
+        l.y,
+        'metal'
+      )
     }
     for (const rail of stair.rails) {
       walls.addWall(rail.a, rail.b, rail.half, rail.band)
@@ -137,7 +147,7 @@ export function buildCastleSite(
   }
   const decks = pipes.flatMap(pipeDecks)
   for (const deck of decks) {
-    ground.addRibbon([deck.a, deck.b], deck.width, 0)
+    ground.addRibbon([deck.a, deck.b], deck.width, 0, 'metal')
   }
 
   const moat: MoatRig = buildMoat({

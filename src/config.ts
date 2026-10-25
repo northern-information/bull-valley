@@ -31,6 +31,9 @@ export const CONFIG = {
     // under CONFIG.fall.step, so it never reads as a fall.
     jumpHeight: 0.5,
     mouseSensitivity: 0.0023,
+    // The head's bob, radians of its swing for each metre walked: a step
+    // at each half (footsteps.ts).
+    bobRate: 1.6,
     // How close a pickup must be for E to take it, across the ground; how
     // far above or below the feet it may lie (never a floor away); and how
     // far off the view, in radians, it may sit and still be the one you
@@ -422,6 +425,17 @@ export const CONFIG = {
     // A Citgo portal is heard opening only while it has opened within
     // this many seconds: the ones a raider finds open on joining are not.
     portalFreshSeconds: 3,
+    // Footsteps (footsteps.ts): a move longer than `leap` metres in one
+    // frame is no walk; none further than `hearing` is heard; a crouch's
+    // at quietGain; each sounds `rise` metres over the feet, and a landing
+    // at landRate.
+    steps: {
+      leap: 3,
+      hearing: 30,
+      quietGain: 0.45,
+      rise: 0.1,
+      landRate: 0.8,
+    },
     // A placed sound is at full loudness this close, in metres, and falls
     // away past it this fast (a Web Audio inverse model).
     refDistance: 4,

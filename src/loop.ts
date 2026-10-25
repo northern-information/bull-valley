@@ -17,6 +17,7 @@ import { EMOTES, holds } from './emotes.ts'
 import { hurts } from './fall.ts'
 import { havenNews } from './fireflies.ts'
 import { BOX_ROD, inPond, jarRoom, nearestLanding, rodIn } from './fishing.ts'
+import { footstepCues, OWN_FEET } from './footsteps.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { shakeAt } from './health.ts'
 import {
@@ -60,6 +61,7 @@ import {
 } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
+import type { Stride, Walker } from './footsteps.ts'
 import type { Game } from './game.ts'
 import type { BushSpot } from './interactions.ts'
 import type { DailyWire, PeerStateWire } from './protocol.ts'
@@ -89,6 +91,8 @@ interface Feet {
   feetY: number
   moveSpeed: number
   crouching: boolean
+  // Our own, for the footsteps (footsteps.ts).
+  walker: Walker | null
 }
 
 export function startLoop(game: Game, actions: Actions, targets: Targets) {
@@ -217,6 +221,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   let topiaryCues: Cue[] = []
   // And the portals', the same way.
   let portalHeard: ShadeCues = { cues: [], holds: [] }
+  // Every walker's stride, and the steps the last frame's feet took.
+  let strides: ReadonlyMap<string, Stride> = new Map()
+  let stepCues: Cue[] = []
   // A hard landing for the valley to hear, after where we came down.
   let landing: number | null = null
   let last = performance.now()
@@ -238,6 +245,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     let feetY: number
     let moveSpeed = 0
     let crouching = false
+    let walker: Walker | null = null
     if (s.aboard) {
       // The one place the camera leaves player.update(): ride the bed with
       // free look, keeping player.pos honest for everything that reads it.
@@ -301,9 +309,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         },
       })
       truck.update(dt, now)
+      walker = {
+        id: OWN_FEET,
+        x: player.pos.x,
+        z: player.pos.z,
+        feet: feetY,
+        walking: !s.emoting && player.fallFrom === null,
+        quiet: crouching,
+        landed: fell !== null,
+      }
     }
     truck.castShadowsNear(player.pos.x, player.pos.z)
-    return { feetY, moveSpeed, crouching }
+    return { feetY, moveSpeed, crouching, walker }
   }
 
   const stepAudio = (now: number) => {
@@ -485,6 +502,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         ...moatCues,
         ...topiaryCues,
         ...portalHeard.cues,
+        ...stepCues,
       ],
       [...swarm.heard.holds, ...keeper.heard.holds, ...portalHeard.holds],
       (x, z) => world.ground.at(x, z)
@@ -999,6 +1017,21 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // frame, so the page is not drawing two scenes at once.
   }
 
+  // Our steps and every peer's as drawn, heard with the shadows' on the
+  // next frame (footsteps.ts).
+  const stepFeet = (own: Walker | null) => {
+    const walkers = peers.walkers()
+    if (own) walkers.push(own)
+    const heard = footstepCues(
+      strides,
+      walkers,
+      (x, z, feet) => world.ground.treadAt(x, z, feet, CONFIG.fall.climb),
+      player.pos
+    )
+    strides = heard.strides
+    stepCues = heard.cues
+  }
+
   const frame = () => {
     const clock = advanceClocks()
     const feet = rideOrWalk(clock)
@@ -1018,6 +1051,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     drawMap()
     feelStrikes(clock.now)
     peers.update(clock.dt, renderAt)
+    stepFeet(feet.walker)
     hud.setParty(peers.party(camera.position, partyMates()))
     const tick = sendState(clock, feet, lit)
     stepHud(clock)

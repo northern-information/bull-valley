@@ -69,6 +69,13 @@ export type SfxId =
   | 'truck-hop-out'
   | 'ui-open'
   | 'ui-close'
+  | 'step-grass'
+  | 'step-dirt'
+  | 'step-asphalt'
+  | 'step-concrete'
+  | 'step-tile'
+  | 'step-wood'
+  | 'step-metal'
 
 // A placeholder: a wave swept from one pitch to another (Hz) over its
 // seconds, or for noise a low-pass swept the same way; `pulse` beats its
@@ -101,6 +108,11 @@ export const SFX_BASE = 'https://assets.the-rn.info/bull-valley/sfx/'
 const SHADE_WINDUP = CONFIG.shadowmen.windupSeconds
 const KEEPER_WINDUP = CONFIG.caretaker.windupSeconds
 const PHONE_DIAL = CONFIG.portal.dialSeconds
+
+// A footstep: placed, once, quiet against the valley.
+function step(placeholder: Tone): SfxSpec {
+  return { positional: true, loop: false, takes: 0, gain: 0.4, placeholder }
+}
 
 export const SFX: Record<SfxId, SfxSpec> = {
   'shadow-windup': {
@@ -569,6 +581,28 @@ export const SFX: Record<SfxId, SfxSpec> = {
     gain: 0.35,
     placeholder: { wave: 'triangle', from: 1000, to: 700, seconds: 0.06 },
   },
+  // Footsteps (footsteps.ts), every raider's at their feet, one for each
+  // tread (ground.ts): the bare terrain's grass, a shoulder's or a trail's
+  // dirt, a road's asphalt, a lot's concrete, a store's tile, a deck's
+  // wood and a fire escape's steel.
+  'step-grass': step({ wave: 'noise', from: 1800, to: 500, seconds: 0.09 }),
+  'step-dirt': step({ wave: 'noise', from: 1200, to: 250, seconds: 0.08 }),
+  'step-asphalt': step({ wave: 'noise', from: 2600, to: 500, seconds: 0.06 }),
+  'step-concrete': step({
+    wave: 'noise',
+    from: 3600,
+    to: 700,
+    seconds: 0.05,
+  }),
+  'step-tile': step({ wave: 'noise', from: 5000, to: 1200, seconds: 0.05 }),
+  'step-wood': step({ wave: 'triangle', from: 180, to: 90, seconds: 0.08 }),
+  'step-metal': step({
+    wave: 'square',
+    from: 420,
+    to: 380,
+    seconds: 0.12,
+    pulse: 40,
+  }),
 }
 
 export const SFX_IDS = Object.keys(SFX) as SfxId[]
@@ -655,12 +689,16 @@ export function toneSamples(
   return out
 }
 
-// A sound to play once where it happened, at a playback rate (pitch).
+// A sound to play once where it happened, at a playback rate (pitch):
+// at a height of its own (`y`), or over the ground there; at a loudness
+// against the sound's own (`gain`, 0 to 1), or its own.
 export interface Cue {
   id: SfxId
   x: number
+  y?: number
   z: number
   rate: number
+  gain?: number
 }
 
 // A loop to hold this frame, under a key that names what it follows: kept
