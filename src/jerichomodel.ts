@@ -23,7 +23,8 @@ import { mulberry32, range } from './rng.ts'
 // square with one corner notched off, two dashes for eyes. One hand,
 // bound at the wrist, holds a tall thin candle up into the hood's mouth,
 // its flame throwing rays, warm on his mask and his hand and glowing so
-// he can be found across the yard. Origin on the ground under him, facing
+// he can be found across the yard. A dull brass trumpet is slung across
+// his back on a strap over one shoulder. Origin on the ground under him, facing
 // +x. Call update(t) every frame with a running time, for the flame.
 
 export interface JerichoRig {
@@ -255,6 +256,69 @@ function rags(material: THREE.Material): THREE.Mesh {
   return mesh
 }
 
+// A trumpet, gone dull, its loop flat in x-y with the bell toward +x and
+// the valves up +y, the mouthpiece at -x, at a real trumpet's size: the
+// bell pipe and its flare, the crook back into the middle pipe, the
+// leadpipe and mouthpiece beside them, and the three valves with their
+// buttons.
+function buildTrumpet(): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'jericho-trumpet'
+  const brass = lambert({ color: '#a8843e', emissive: '#1e1405' })
+  const pipe = (
+    from: [number, number, number],
+    to: [number, number, number],
+    r: number
+  ) =>
+    group.add(
+      limb(brass, new THREE.Vector3(...from), new THREE.Vector3(...to), r, r)
+    )
+  pipe([-0.2, 0, 0], [0.12, 0, 0], 0.008)
+  pipe([-0.2, -0.06, 0], [0.02, -0.06, 0], 0.008)
+  pipe([-0.3, -0.03, 0.02], [0.02, -0.03, 0.02], 0.007)
+  const crook = new THREE.Mesh(
+    new THREE.TorusGeometry(0.03, 0.008, 4, 8, Math.PI),
+    brass
+  )
+  crook.rotation.z = Math.PI / 2
+  crook.position.set(-0.2, -0.03, 0)
+  group.add(crook)
+  const bell = new THREE.Mesh(
+    new THREE.LatheGeometry(
+      [
+        [0.009, 0],
+        [0.013, 0.1],
+        [0.022, 0.18],
+        [0.042, 0.24],
+        [0.062, 0.26],
+      ].map(([x, y]) => new THREE.Vector2(x, y)),
+      10
+    ),
+    lambert({ color: '#a8843e', emissive: '#1e1405', side: THREE.DoubleSide })
+  )
+  bell.rotation.z = -Math.PI / 2
+  bell.position.x = 0.12
+  group.add(bell)
+  const mouthpiece = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.007, 0.016, 0.06, 6),
+    brass
+  )
+  mouthpiece.rotation.z = -Math.PI / 2
+  mouthpiece.position.set(-0.33, -0.03, 0.02)
+  group.add(mouthpiece)
+  for (const x of [0.03, 0.06, 0.09]) {
+    pipe([x, -0.085, 0], [x, 0.04, 0], 0.012)
+    pipe([x, 0.04, 0], [x, 0.07, 0], 0.004)
+    const button = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.011, 0.011, 0.006, 6),
+      brass
+    )
+    button.position.set(x, 0.073, 0)
+    group.add(button)
+  }
+  return group
+}
+
 export function buildJericho(): JerichoRig {
   const group = new THREE.Group()
   group.name = 'jericho'
@@ -361,6 +425,27 @@ export function buildJericho(): JerichoRig {
   )
   wick.position.set(FLAME[0], 2.48, FLAME[2])
   body.add(wick)
+
+  // A trumpet slung across his back on a strap over one shoulder, its
+  // bell up behind that shoulder, twice a trumpet's size as he is twice a
+  // raider's: the loop flat to his back, the valves toward his head.
+  const strap = new THREE.Mesh(
+    new THREE.TorusGeometry(0.5, 0.02, 4, 18),
+    lambert({ color: '#3a2c22' })
+  )
+  strap.position.set(-0.02, 1.78, 0)
+  strap.rotation.x = Math.PI / 2 + 0.47
+  strap.scale.set(1.02, 1.25, 1)
+  body.add(strap)
+  const trumpet = buildTrumpet()
+  trumpet.scale.setScalar(2.2)
+  const along = new THREE.Vector3(0, 0.45, 0.89)
+  const out = new THREE.Vector3(-1, 0, 0)
+  trumpet.quaternion.setFromRotationMatrix(
+    new THREE.Matrix4().makeBasis(along, out.clone().cross(along), out)
+  )
+  trumpet.position.set(-0.57, 1.62, 0)
+  body.add(trumpet)
 
   castShadows(group)
   mergeStatic(body)
