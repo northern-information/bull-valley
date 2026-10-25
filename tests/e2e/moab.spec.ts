@@ -40,8 +40,21 @@ async function standAtMoab(page: Page): Promise<void> {
   })
 }
 
-// E at Moab: his window, waited on until it shows.
+// Whether the spawn station's Moab glows: E would open his window.
+const moabGlows = (page: Page) =>
+  page.evaluate(() => {
+    const bv = window.__bv
+    const station = bv?.world.spawnStation
+    if (!bv || !station) return false
+    const rig = bv.world.moabRigs[bv.world.fuelPoints.indexOf(station)]
+    return bv.glow === rig?.figure.group
+  })
+
+// E at Moab once he glows (E acts on the last frame's interaction, so
+// pressed before it, it does nothing): his window, waited on until it
+// shows.
 async function openMoab(page: Page) {
+  await expect.poll(() => moabGlows(page)).toBe(true)
   await page.keyboard.press('KeyE')
   const dialog = page.locator('.bv-moab')
   await expect(dialog).toBeVisible()
@@ -61,17 +74,7 @@ test('Moab Coldë trades the Flaming Halo for an ounce of gold', async ({
   await standAtMoab(page)
   // In his reach he makes his offer; he glows, and nothing else says E.
   await expect.poll(() => said(page)).toContain(copy('moab.offer'))
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const bv = window.__bv
-        const station = bv?.world.spawnStation
-        if (!bv || !station) return false
-        const rig = bv.world.moabRigs[bv.world.fuelPoints.indexOf(station)]
-        return bv.glow === rig?.figure.group
-      })
-    )
-    .toBe(true)
+  await expect.poll(() => moabGlows(page)).toBe(true)
   await expect(page.locator('.bv-prompt')).toBeHidden()
   const moab = await openMoab(page)
   // His offer is his line, and picked; the pointer is free while it is
