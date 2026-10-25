@@ -16,6 +16,7 @@ import { getItem, healsOf, isKeyItem } from '../../src/items.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import { XP, xpToReach } from '../../src/progression.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
+import { toQuests } from '../../src/quests.ts'
 import { SEASON } from '../../src/season.ts'
 import { createValley } from '../../src/sharedworld.ts'
 import { standXp } from '../../src/stand.ts'
@@ -233,6 +234,8 @@ const RECYCLER = { x: 6, z: 27 }
 // The firefly pond (rule 36), clear of every station.
 const POND = { x: -5000, z: 5000, radius: 80, landing: { x: -5060, z: 5000 } }
 const DEALER = { x: -20, z: -55 }
+const GRON = { x: 8, z: -12 }
+const DISK = { x: -120, z: -200 }
 // Where the Undercroft lies, far from everything else.
 const CROFT = { x: -7000, z: -7000, yaw: 0 }
 
@@ -264,6 +267,7 @@ const hello = (
     havens: Array.from({ length: stations }, (_, i) => ({ x: i * 1000, z: 0 })),
     metres: { width: 15059, height: 15038 },
     lairs: [],
+    lurks: [],
     maze: MAZE,
     truck: { home: { x: 10, z: 10 }, joyrideMs: 600_000 },
     stand: STAND,
@@ -273,6 +277,8 @@ const hello = (
     ponds: [POND],
     bushes: Array.from({ length: 7 }, () => ({ x: 0, z: 0 })),
     dealer: DEALER,
+    gron: GRON,
+    disk: DISK,
     undercroft: CROFT,
     moat: null,
     rings: Array.from({ length: stations }, (_, i) => ({
@@ -956,7 +962,7 @@ describe('ValleyDO', () => {
     const welcome = a
       .frames()
       .find((m): m is WelcomeMessage => m.type === 'welcome')
-    expect(welcome?.quests).toEqual({ rose: 'none' })
+    expect(welcome?.quests).toEqual(toQuests(null))
     const quest = (step: string) =>
       v.webSocketMessage(
         ws(a),

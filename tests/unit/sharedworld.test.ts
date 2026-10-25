@@ -28,6 +28,7 @@ import { inChannel } from '../../src/moat.ts'
 import { MOAT_STATION } from '../../src/moatslurms.ts'
 import { partyOf } from '../../src/party.ts'
 import { PROTOCOL_VERSION } from '../../src/protocol.ts'
+import { toQuests } from '../../src/quests.ts'
 import { FRESH_RESEARCH, priceOf } from '../../src/recycling.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import {
@@ -90,7 +91,7 @@ import type {
   PickupSpec,
   WorldMessage,
 } from '../../src/protocol.ts'
-import type { QuestStage } from '../../src/quests.ts'
+import type { QuestStage, QuestStages } from '../../src/quests.ts'
 import type { Research } from '../../src/recycling.ts'
 import type { Placed } from '../../src/shadowstep.ts'
 import type {
@@ -132,6 +133,8 @@ const ROUTES = { home: { x: 10, z: 10 }, joyrideMs: 600_000 }
 const STAND = { x: 5, z: -20 }
 const RECYCLERS = HAVENS.map(({ x, z }) => ({ x: x + 30, z: z + 40 }))
 const DEALER = { x: -30, z: -60 }
+const GRON = { x: 12, z: -40 }
+const DISK = { x: -140, z: -220 }
 // The firefly ponds (rule 36), away from every station.
 const POND = { x: 800, z: 0, radius: 100, landing: { x: 720, z: 0 } }
 const FAR_POND = { x: -800, z: 900, radius: 60, landing: { x: -760, z: 860 } }
@@ -166,7 +169,7 @@ function valleyWith(...actions: ValleyAction[]) {
   // when a test says what it holds.
   let cash = 100_00
   let pack: Inventory | null = null
-  let quest: { stage: QuestStage; pack: Inventory } | null = null
+  let quest: { stages: QuestStages; pack: Inventory } | null = null
   const out: ReturnType<typeof reduce>[] = []
   const step = (action: ValleyAction) => {
     const ctx = {
@@ -208,7 +211,10 @@ function valleyWith(...actions: ValleyAction[]) {
       pack = held
     },
     setQuest(stage: QuestStage, held: Inventory) {
-      quest = { stage, pack: held }
+      quest = { stages: { ...toQuests(null), rose: stage }, pack: held }
+    },
+    setStages(stages: Partial<QuestStages>, held: Inventory) {
+      quest = { stages: { ...toQuests(null), ...stages }, pack: held }
     },
     get now() {
       return now
@@ -229,6 +235,7 @@ const join = (id: string): ValleyAction => ({
   havens: HAVENS,
   metres: METRES,
   lairs: [],
+  lurks: [],
   maze: null,
   routes: ROUTES,
   stand: STAND,
@@ -236,6 +243,8 @@ const join = (id: string): ValleyAction => ({
   ponds: [POND, FAR_POND],
   bushes: BUSH_SPOTS,
   dealer: DEALER,
+  gron: GRON,
+  disk: DISK,
   undercroft: null,
   moat: null,
   rings: RINGS,
@@ -1290,6 +1299,100 @@ describe('rule 26: the rose quest', () => {
     const v = valleyWith(join('a'))
     v.setQuest('given', { rose: 1 })
     expect(v.step(step('a', 'lay', heart)).reply?.reason).toBe('too-far')
+  })
+})
+
+describe("rule 26: Gron's quests", () => {
+  const step = (
+    id: string,
+    quest: string,
+    s: 'accept' | 'lay' | 'find' | 'reward',
+    at: { x: number; z: number } | null
+  ): ValleyAction => ({ type: 'quest', id, quest, step: s, at })
+  const atGron = { x: GRON.x + 1, z: GRON.z }
+  const atErwin = { x: DEALER.x + 1, z: DEALER.z }
+
+  it('gives them one after another beside him, each earning quest XP', () => {
+    const v = valleyWith(join('a'))
+    v.setStages({}, {})
+    // Not yet: the errand waits on the berry.
+    expect(
+      v.step(step('a', 'gron-erwin', 'accept', atGron)).reply?.reason
+    ).toBe('not-now')
+    expect(
+      v.step(step('a', 'gron-berries', 'accept', atErwin)).reply?.reason
+    ).toBe('too-far')
+    expect(v.step(step('a', 'gron-berries', 'accept', atGron)).quest).toEqual({
+      account: 'acct-a',
+      quest: 'gron-berries',
+      step: 'accept',
+      from: 'none',
+      to: 'given',
+      change: null,
+    })
+    v.setStages({ 'gron-berries': 'given' }, {})
+    expect(
+      v.step(step('a', 'gron-berries', 'reward', atGron)).reply?.reason
+    ).toBe('not-now')
+    v.setStages({ 'gron-berries': 'given' }, { berries: 2 })
+    const berry = v.step(step('a', 'gron-berries', 'reward', atGron))
+    expect(berry.quest).toMatchObject({
+      to: 'done',
+      change: { kind: 'berries', delta: -1 },
+    })
+    expect(berry.xp).toEqual([{ account: 'acct-a', source: 'quest' }])
+  })
+
+  it('sends them to Erwin, who finishes the errand', () => {
+    const v = valleyWith(join('a'))
+    v.setStages({ 'gron-berries': 'done' }, {})
+    expect(
+      v.step(step('a', 'gron-erwin', 'accept', atGron)).quest
+    ).toMatchObject({ to: 'given', change: null })
+    v.setStages({ 'gron-berries': 'done', 'gron-erwin': 'given' }, {})
+    expect(
+      v.step(step('a', 'gron-erwin', 'reward', atGron)).reply?.reason
+    ).toBe('too-far')
+    const met = v.step(step('a', 'gron-erwin', 'reward', atErwin))
+    expect(met.quest).toMatchObject({ to: 'done', change: null })
+    expect(met.xp).toEqual([{ account: 'acct-a', source: 'quest' }])
+  })
+
+  it('takes the floppy disk for the last', () => {
+    const v = valleyWith(join('a'))
+    const before = { 'gron-berries': 'done', 'gron-erwin': 'done' } as const
+    v.setStages(before, {})
+    expect(
+      v.step(step('a', 'gron-floppy', 'accept', atGron)).quest
+    ).toMatchObject({ to: 'given' })
+    v.setStages({ ...before, 'gron-floppy': 'given' }, {})
+    // Found where it lies, one for this raider; not from beside Gron.
+    expect(v.step(step('a', 'gron-floppy', 'find', atGron)).reply?.reason).toBe(
+      'too-far'
+    )
+    expect(
+      v.step(step('a', 'gron-floppy', 'find', { x: DISK.x + 1, z: DISK.z }))
+        .quest
+    ).toMatchObject({
+      from: 'given',
+      to: 'given',
+      change: { kind: 'floppy-disk', delta: 1 },
+    })
+    v.setStages({ ...before, 'gron-floppy': 'given' }, { 'floppy-disk': 1 })
+    expect(
+      v.step(step('a', 'gron-floppy', 'reward', atGron)).quest
+    ).toMatchObject({
+      to: 'done',
+      change: { kind: 'floppy-disk', delta: -1 },
+    })
+  })
+
+  it('has no Gron to stand beside in a world opened without him', () => {
+    const v = valleyWith({ ...join('a'), gron: null } as ValleyAction)
+    v.setStages({}, {})
+    expect(
+      v.step(step('a', 'gron-berries', 'accept', atGron)).reply?.reason
+    ).toBe('too-far')
   })
 })
 
@@ -2997,6 +3100,28 @@ describe("rule 11: the shadowmen are the valley's", () => {
       expect(s.burn).toBe(0)
     }
     expect(out?.struck).toEqual([])
+  })
+
+  it('forms a lurker at each lurk the world was opened with, as a raider nears', () => {
+    const lurk = { x: 650, z: 500 }
+    const v = valleyWith(
+      { ...join('a'), lurks: [lurk] } as ValleyAction,
+      join('b')
+    ).valley
+    expect(v.world?.lurks).toEqual([lurk])
+    const out = stepShadows(
+      v,
+      createShadows(),
+      [{ id: 'b', at: state() }],
+      mulberry32(1),
+      { now: T0, dt: 0.1 }
+    )
+    // The crossings as ever, and the lurker beside them at its lurk.
+    const shadowmen = out?.message.shadowmen ?? []
+    expect(shadowmen.length).toBe(CONFIG.shadowmen.count + 1)
+    expect(
+      shadowmen.some((s) => Math.hypot(s.x - lurk.x, s.z - lurk.z) < 0.5)
+    ).toBe(true)
   })
 
   it('strikes the raider touched, then leaves them alone for the grace', () => {

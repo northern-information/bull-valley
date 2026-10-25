@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { NO_TASK } from '../../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../../src/inventory.ts'
 import { isKeyItem } from '../../src/items.ts'
+import { toQuests } from '../../src/quests.ts'
 import { FRESH_RESEARCH } from '../../src/recycling.ts'
 import { NO_PROGRESS } from '../../src/season.ts'
 import { FRESH_STAND } from '../../src/stand.ts'
@@ -78,7 +79,7 @@ function packContract(makeStore: () => PackStore): void {
       task: NO_TASK,
       xp: 0,
       stand: FRESH_STAND,
-      quests: { rose: 'none' },
+      quests: toQuests(null),
       expedition: null,
     })
     await store.change('a1', OTHER, 2)

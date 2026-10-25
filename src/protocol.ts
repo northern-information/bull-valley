@@ -46,7 +46,7 @@ import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 55
+export const PROTOCOL_VERSION = 58
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -275,6 +275,10 @@ export interface HelloMessage {
   // Bull Valley Plaza, or none; the shadow spiders come far more often
   // near them (rule 11).
   lairs: Lair[]
+  // Where the shadowmen that keep to one place lurk (industrial.ts: the
+  // industrial park's buildings), none or more: the valley forms one at
+  // each as a raider nears it (rule 11).
+  lurks: XZ[]
   // Where the corn maze lies, or null: the valley steps the Caretaker in
   // it (rule 13).
   maze: MazePlace | null
@@ -299,6 +303,12 @@ export interface HelloMessage {
   // Where the squatter in Bull Valley Plaza sits, or null: the valley
   // deals only with a raider beside him (rule 25).
   dealer: XZ | null
+  // Where Gron stands by the spawn Citgo's bush, or null: the valley takes
+  // a step of his quests only beside him (rule 26).
+  gron: XZ | null
+  // Where the floppy disk for Gron's last quest lies in the industrial
+  // park (industrial.ts parkDisk), or null: the valley gives it only there.
+  disk: XZ | null
   // Where the Undercroft lies (undercroft.ts), or null: the valley steps
   // its tunnel shades in it (rule 11).
   undercroft: MazePlace | null
@@ -507,10 +517,10 @@ interface TradeMessage {
   offer: string
 }
 
-// One step of quest `quest` (sharedworld.ts rule 26): taking the rose
-// from Erwin, laying it at the heart of the maze, or coming back to him
-// for the key. The valley answers with a QuestFrame and a PackMessage,
-// or a nack.
+// One step of quest `quest` (sharedworld.ts rule 26): taking it on from
+// its giver, laying the rose at the heart of the maze, finding the floppy
+// disk where it lies, or finishing it. The valley answers with a
+// QuestFrame and a PackMessage, or a nack.
 interface QuestMessage {
   type: 'quest'
   quest: string
@@ -1588,6 +1598,9 @@ function parseHavens(value: unknown, stations: number): XZ[] | null {
   return parseSpots(value, stations)
 }
 
+// The lurks a hello may place.
+const LURKS_MAX = 64
+
 // The spiders' lairs: at most LAIRS_MAX, each a place inside the survey
 // and a reach no wider than it.
 const LAIRS_MAX = 8
@@ -1708,6 +1721,7 @@ type HelloPlaces = Pick<
   | 'havens'
   | 'metres'
   | 'lairs'
+  | 'lurks'
   | 'maze'
   | 'truck'
   | 'stand'
@@ -1715,6 +1729,8 @@ type HelloPlaces = Pick<
   | 'ponds'
   | 'bushes'
   | 'dealer'
+  | 'gron'
+  | 'disk'
   | 'undercroft'
   | 'moat'
   | 'rings'
@@ -1727,6 +1743,7 @@ const NO_PLACES: HelloPlaces = {
   havens: [],
   metres: { width: 0, height: 0 },
   lairs: [],
+  lurks: [],
   maze: null,
   truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
   stand: null,
@@ -1734,6 +1751,8 @@ const NO_PLACES: HelloPlaces = {
   ponds: [],
   bushes: [],
   dealer: null,
+  gron: null,
+  disk: null,
   undercroft: null,
   moat: null,
   rings: [],
@@ -1754,15 +1773,18 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const havens = parseHavens(value.havens, stations)
   const metres = parseMetres(value.metres)
   const lairs = parseLairs(value.lairs)
+  const lurks = parseSpots(value.lurks, LURKS_MAX)
   const truck = parseRoutes(value.truck)
   const bushes = parseSpots(value.bushes, BUSHES_MAX)
   const rings = parseHavens(value.rings, stations)
   const recyclers = parseHavens(value.recyclers, stations)
   if (!havens || !metres || !lairs || !truck || !bushes || !rings) return null
-  if (!recyclers) return null
+  if (!recyclers || !lurks) return null
   const maze = nullable(value.maze, parseMazePlace)
   const stand = nullable(value.stand, parseXZ)
   const dealer = nullable(value.dealer, parseXZ)
+  const gron = nullable(value.gron, parseXZ)
+  const disk = nullable(value.disk, parseXZ)
   const undercroft = nullable(value.undercroft, parseMazePlace)
   const moat = nullable(value.moat, parseMazePlace)
   if (maze === undefined || stand === undefined) return null
@@ -1771,9 +1793,30 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const payphones = parseSpots(value.payphones, PAYPHONES_MAX)
   if (!payphones) return null
   if (dealer === undefined || undercroft === undefined) return null
+  if (gron === undefined || disk === undefined) return null
   if (moat === undefined) return null
-  const places = { havens, metres, lairs, maze, truck, stand, bushes, dealer }
-  return { ...places, recyclers, ponds, undercroft, moat, rings, payphones }
+  const places = {
+    havens,
+    metres,
+    lairs,
+    lurks,
+    maze,
+    truck,
+    stand,
+    bushes,
+    dealer,
+  }
+  return {
+    ...places,
+    gron,
+    disk,
+    recyclers,
+    ponds,
+    undercroft,
+    moat,
+    rings,
+    payphones,
+  }
 }
 
 // A hello. The outfit is checked by the server (characters.ts

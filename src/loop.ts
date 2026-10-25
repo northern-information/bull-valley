@@ -522,6 +522,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (world.tylerRig && world.tyler && live(world.tyler)) {
       world.tylerRig.update(time)
     }
+    // The floppy disk lies in the park for a raider on Gron's last quest
+    // who has not found it (rule 26).
+    if (world.industrial) {
+      world.industrial.disk.object.visible =
+        s.quests?.['gron-floppy'] === 'given' &&
+        (s.inventory['floppy-disk'] ?? 0) < 1
+    }
     // Erwin's rose lies at the heart for a raider who laid it (rule 26).
     if (world.portal) {
       const stage = s.quests?.rose
@@ -540,6 +547,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       // The building is long: its tube and candles flicker from a way off.
       if (live(plaza.doorAt, 60)) plaza.update(time)
     }
+    // The industrial park's last lit high bays and its fires in drums.
+    world.industrial?.update(time)
     // The topiaries move on the valley's clock, but only while this raider
     // looks at neither where one stands nor where it is going.
     if (topiaries) {
@@ -854,6 +863,16 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       ? world.portal.at
       : null
 
+  // Where the floppy disk lies, while the raider is on Gron's last quest
+  // without it (rule 26).
+  const diskSpot = () =>
+    world.industrial &&
+    s.quests?.['gron-floppy'] === 'given' &&
+    (s.inventory['floppy-disk'] ?? 0) < 1 &&
+    !s.pendingQuest
+      ? world.industrial.disk.at
+      : null
+
   // The office's door, while it will not let this raider through.
   const lockedDoor = () =>
     world.plaza &&
@@ -920,6 +939,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
           ? world.lookout.toolbox
           : null,
       heart: heartSpot(),
+      disk: diskSpot(),
       locked: lockedDoor(),
       hallucinations: s.aboard ? [] : game.hallucinations.spots(),
       raider: s.aboard

@@ -240,7 +240,7 @@ export interface GameState {
   // The Book of Shadows is open over the valley, with the pointer free for
   // it, as the pack's is.
   bookOpen: boolean
-  // The stand's dialog, or the laptop, is open: the pointer is free for it,
+  // Gron's dialog, or the stand's, is open: the pointer is free for it,
   // and the game's keys, mouse look and menu overlay stand aside until it
   // closes.
   talking: boolean
@@ -455,7 +455,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingBuys: new Set(),
     daily: null,
     onTruckRolls: [],
-    npcSaid: { marx: 0, carlsten: 0, moab: 0, tyler: 0, jericho: 0, gron: 0 },
+    npcSaid: { marx: 0, carlsten: 0, moab: 0, tyler: 0, jericho: 0 },
   }
 }
 

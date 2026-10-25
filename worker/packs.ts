@@ -144,15 +144,15 @@ export interface PackStore {
   // one not begun.
   quests(accountId: string): Promise<Record<QuestId, QuestStage>>
   // A quest's step (sharedworld.ts rule 26): `quest` from `from` to `to`,
-  // and `change` into (or, negative, out of) the pack, both or neither;
-  // false when the quest no longer stands at `from` or the pack does not
-  // hold what comes out of it.
+  // and `change` into (or, negative, out of) the pack if there is one,
+  // both or neither; false when the quest no longer stands at `from` or
+  // the pack does not hold what comes out of it.
   quest(
     accountId: string,
     quest: QuestId,
     from: QuestStage,
     to: QuestStage,
-    change: { kind: string; delta: number }
+    change: { kind: string; delta: number } | null
   ): Promise<boolean>
   // The account's Cabbage Stand (src/stand.ts), as fresh the first time,
   // and how many times it has been written: `tend` takes that back.
@@ -416,11 +416,13 @@ export class MemoryPackStore implements PackStore {
     quest: QuestId,
     from: QuestStage,
     to: QuestStage,
-    change: { kind: string; delta: number }
+    change: { kind: string; delta: number } | null
   ): Promise<boolean> {
     const key = `${accountId}/${quest}`
     if ((this.questStages.get(key) ?? 'none') !== from) return false
-    if (!(await this.change(accountId, change.kind, change.delta))) return false
+    if (change && !(await this.change(accountId, change.kind, change.delta))) {
+      return false
+    }
     this.questStages.set(key, to)
     return true
   }

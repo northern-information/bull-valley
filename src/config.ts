@@ -51,6 +51,9 @@ export const CONFIG = {
       wreck: 12,
       // From the middle of the plaza's building, out over its lot.
       plaza: 30,
+      // Past half the industrial park's width, from each of three
+      // points down its middle (industrial.ts parkRings).
+      industrial: 10,
       // From the middle of the array, which runs some 70 m a side.
       dishes: 45,
       // Past the field's own edge.
@@ -77,6 +80,22 @@ export const CONFIG = {
     speedMax: 10,
     // Respawns are spaced at least this far apart, in seconds.
     spawnInterval: 0.75,
+    // The shadowmen that keep to the industrial park's buildings
+    // (industrial.ts lurks, shadowmen.ts lurkers): one forms at each lurk
+    // once a raider comes within `wake` metres of it (out in the fog, no
+    // nearer than `clear`), drifts round it at speedMin to speedMax m/s,
+    // turning now and then (every turnSeconds or so) and back toward it
+    // past `roam`, and rushes like any other. One that bursts forms again
+    // respawnSeconds later, none in sight of it.
+    lurk: {
+      wake: 300,
+      clear: 40,
+      roam: 4,
+      speedMin: 0.5,
+      speedMax: 1.3,
+      turnSeconds: 4,
+      respawnSeconds: 90,
+    },
     // Shadowmen stay this far inside the survey edge.
     edgeInset: 30,
     // One that crosses within rushRadius of you turns and comes at rushSpeed,
@@ -721,6 +740,9 @@ export const CONFIG = {
     // How close E must be to talk to him; when the bush is in reach too,
     // the nearer of the two answers.
     reach: 2.4,
+    // How far from him the valley takes a step of his quests (quests.ts
+    // atGron): past his reach, as the last state frame lags.
+    questReach: 4,
     // He blocks like a post this wide.
     radius: 0.4,
   },
@@ -1268,6 +1290,15 @@ export const CONFIG = {
     // without the key only rattles it.
     doorReach: 2.5,
   },
+  industrial: {
+    // The industrial park behind Bull Valley Plaza (industrial.ts),
+    // station-local like the plaza: the corner of its asphalt, where the
+    // plaza's alley ends behind the Golden Wok. The park reaches back from
+    // it, away from the road, and down away from the dish array.
+    at: { x: -30, z: -46 },
+    // Trees keep this far off its asphalt.
+    treeClear: 6,
+  },
   dealer: {
     // How close Erwin von Dutch in the Golden Wok (dealer.ts, placed at
     // stripmall.ts STRIP_MALL.dealer) must be for E to deal with him.
@@ -1403,6 +1434,10 @@ export const CONFIG = {
     heartReach: 10,
     // How near the portal E lays it.
     layReach: 4,
+    // How close E must be to the floppy disk to take it, and how far from
+    // it the valley gives it (quests.ts atDisk), past that as frames lag.
+    takeReach: 2.2,
+    findReach: 5,
   },
   emotes: {
     // A raider within this many metres of one who emotes (emotes.ts) gets

@@ -34,7 +34,7 @@ import { itemLabel, itemLine } from '../../src/itemcopy.ts'
 import { healsOf, itemById } from '../../src/items.ts'
 import { outfitById } from '../../src/outfits.ts'
 import { xpToReach } from '../../src/progression.ts'
-import { stepNews, stepRefusal } from '../../src/quests.ts'
+import { stepNews, stepRefusal, toQuests } from '../../src/quests.ts'
 import {
   foundLine,
   lineName,
@@ -67,7 +67,7 @@ const welcome = (over: Partial<WelcomeMessage> = {}): ServerMessage => ({
   task: { task: DAILY_TASK.id, day: 'd', count: 0, claimed: false },
   xp: 120,
   stand: FRESH_STAND,
-  quests: { rose: 'none' },
+  quests: toQuests(null),
   health: 900,
   healthMax: 1000,
   wards: { ...NO_WARDS, high: 0.5 },
@@ -544,7 +544,7 @@ describe('the folk, the Citgo and the chat on the phone', () => {
       0
     )
     expect(s.quests.rose).toBe('given')
-    expect(s.said?.text).toBe(stepNews('accept'))
+    expect(s.said?.text).toBe(stepNews('rose', 'accept'))
     expect(
       applyFrame(
         s,
@@ -1008,7 +1008,7 @@ describe("the account's news on the phone", () => {
       50
     )
     const said = s.said
-    expect(said?.text).toBe(stepNews('accept'))
+    expect(said?.text).toBe(stepNews('rose', 'accept'))
     s = applyFrame(s, { type: 'book', found: ['rose'] }, 6, 60)
     s = applyFrame(s, { type: 'xp', xp: xpToReach(2), gained: 1 }, 6, 60)
     expect(s.said).toEqual(said)
