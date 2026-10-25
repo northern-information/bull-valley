@@ -15,6 +15,7 @@ import {
   INDUSTRIAL,
   LOAD,
   LOOT_INSET,
+  OIL,
   onParkGrounds,
   PARK_SIGN,
   parkLoot,
@@ -62,6 +63,12 @@ const { pad } = INDUSTRIAL
 
 // Whether a world point lies within `margin` of the asphalt.
 const onPad = (p: XZ, margin: number) => onParkGrounds(park, p.x, p.z, margin)
+
+// A park-local point in the world, as (x, z).
+const worldOf = (p: XZ): [number, number] => {
+  const w = parkToWorld(park, p)
+  return [w.x, w.z]
+}
 
 // The player's body, for the walls (CONFIG.player.radius).
 const BODY = CONFIG.player.radius
@@ -463,6 +470,36 @@ describe('the industrial park', () => {
     for (const [k, a] of loads.entries()) {
       for (const c of loads.slice(k + 1)) {
         expect(Math.hypot(a.x - c.x, a.z - c.z)).toBeGreaterThan(LOAD.length)
+      }
+    }
+  })
+
+  it('stains the truck courts with oil, under the lines, off the buildings', () => {
+    const { stains, paint } = INDUSTRIAL
+    expect(stains.length).toBeGreaterThanOrEqual(60)
+    // Under every stripe and bay line, each stroke over the lot.
+    const top = Math.max(...stains.map((s) => s.lift))
+    for (const line of paint) expect(line.lift).toBeGreaterThan(top)
+    for (const stroke of stains) {
+      expect(stroke.lift).toBeGreaterThan(0)
+      expect(OIL).toContain(stroke.color)
+      for (const end of [stroke.a, stroke.b]) {
+        // Out behind a building, in its court, and not under it.
+        const i = INDUSTRIAL.places.findIndex(
+          (p, k) =>
+            Math.abs(end.x - p.x) < INDUSTRIAL.buildings[k].w / 2 + 2 &&
+            end.z < p.z - INDUSTRIAL.buildings[k].d / 2 &&
+            end.z > p.z - INDUSTRIAL.buildings[k].d / 2 - 16
+        )
+        expect(
+          i,
+          `stain at (${end.x.toFixed(1)}, ${end.z.toFixed(1)})`
+        ).toBeGreaterThanOrEqual(0)
+        expect(
+          INDUSTRIAL.buildings.some((_, k) =>
+            inBuilding(park, k, ...worldOf(end))
+          )
+        ).toBe(false)
       }
     }
   })

@@ -1760,7 +1760,14 @@ interface Paint {
   b: XZ
   width: number
   color: string
+  // How far over the lot it lies, metres: the stripes over the stains.
+  lift: number
 }
+
+// The stripes and the bay lines lie this far over the lot; the oil
+// stains under them, each stroke of one a hair over the last.
+export const PAINT_OVER = 0.02
+export const STAIN_OVER = 0.008
 
 // What stands round the buildings, park-local: the park's sign out
 // front, the semi trailers backed against bays that are shut, the cars
@@ -1798,6 +1805,7 @@ function paintOf(): Paint[] {
           b: { x, z: z1 },
           width: 0.12,
           color: STRIPE,
+          lift: PAINT_OVER,
         })
       }
     }
@@ -1810,11 +1818,58 @@ function paintOf(): Paint[] {
           b: { x, z: back - 14 },
           width: 0.15,
           color: BAY_LINE,
+          lift: PAINT_OVER,
         })
       }
     })
   })
   return paint
+}
+
+// Oil, darker than the lot, in a few browns gone nearly black.
+export const OIL = ['#0d0c0b', '#12100e', '#181512'] as const
+
+// The oil stains on the truck courts, on their own seed: where the trucks
+// stood at the bays, a blotch or two out across the court before most of
+// them, and a few strays about the court. Each is a few strokes crossed
+// over one middle, each wide and short and turned its own way.
+function stainsOf(): Paint[] {
+  const stains: Paint[] = []
+  const rng = mulberry32(0x1d0011)
+  const stain = (x: number, z: number) => {
+    const strokes = 2 + Math.floor(rng() * 3)
+    for (let k = 0; k < strokes; k++) {
+      const turn = rng() * Math.PI
+      const half = range(rng, 0.4, 1.2)
+      const cx = x + range(rng, -0.5, 0.5)
+      const cz = z + range(rng, -0.5, 0.5)
+      stains.push({
+        a: { x: cx - Math.cos(turn) * half, z: cz - Math.sin(turn) * half },
+        b: { x: cx + Math.cos(turn) * half, z: cz + Math.sin(turn) * half },
+        width: range(rng, 0.4, 1.1),
+        color: OIL[Math.floor(rng() * OIL.length)],
+        lift: STAIN_OVER + k * 0.002,
+      })
+    }
+  }
+  BUILDING_LIST.forEach((b, i) => {
+    const p = placeOf(i, b)
+    const back = p.z - b.d / 2
+    for (const bx of planOf(b).bays) {
+      if (rng() < 0.2) continue
+      stain(p.x + bx + range(rng, -0.8, 0.8), back - range(rng, 3, 9))
+      if (rng() < 0.4) {
+        stain(p.x + bx + range(rng, -1, 1), back - range(rng, 9, 13))
+      }
+    }
+    for (let n = 0; n < 2; n++) {
+      stain(
+        p.x + range(rng, -b.w / 2 + 2, b.w / 2 - 2),
+        back - range(rng, 4, 14)
+      )
+    }
+  })
+  return stains
 }
 
 const CAR_COLORS = ['red', 'blue', 'white', 'burnt'] as const
@@ -2191,6 +2246,7 @@ export const INDUSTRIAL = {
   places: BUILDING_LIST.map((b, i) => placeOf(i, b)),
   pad: PAD,
   paint: paintOf(),
+  stains: stainsOf(),
   props: propsOf(),
   lamps: lampsOf(),
   wall: WALL,

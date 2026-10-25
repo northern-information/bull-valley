@@ -47,7 +47,6 @@ export interface IndustrialSite {
 }
 
 const PAD_STRIP = 4
-const PAINT_LIFT = LOT_LIFT + 0.02
 
 export function buildIndustrialSite(
   station: StoreOrigin,
@@ -86,9 +85,10 @@ export function buildIndustrialSite(
   lotMesh.receiveShadow = true
   group.add(lotMesh)
 
-  // The paint, just over the lot. Nobody stands on paint.
+  // The paint just over the lot, and the oil under it. Nobody stands on
+  // paint.
   const paint = makeRibbonAccumulator(null)
-  for (const line of INDUSTRIAL.paint) {
+  for (const line of [...INDUSTRIAL.stains, ...INDUSTRIAL.paint]) {
     const a = at(line.a.x, line.a.z)
     const b = at(line.b.x, line.b.z)
     const len = Math.hypot(b.x - a.x, b.z - a.z)
@@ -103,7 +103,7 @@ export function buildIndustrialSite(
       step: 2,
       heightAt,
       color: line.color,
-      lift: PAINT_LIFT,
+      lift: LOT_LIFT + line.lift,
     })
   }
   group.add(paint.build('industrial-paint'))
