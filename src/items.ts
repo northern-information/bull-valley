@@ -602,6 +602,13 @@ export const ITEMS = [
     category: 'key-item',
     start: 0,
   },
+  // The construction data Gron sends a raider for (quests.ts), out of
+  // the industrial park (industrial.ts DISK).
+  {
+    id: 'floppy-disk',
+    category: 'key-item',
+    start: 0,
+  },
   // Out of the tackle box on the firefly pond's landing, one an account
   // (sharedworld.ts rule 36): nothing bites without it.
   {

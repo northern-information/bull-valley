@@ -481,7 +481,11 @@ export function wireValley(game: Game, actions: Actions): void {
   const applyNack = (msg: NackMessage) => {
     if (msg.re === 'take') {
       if (msg.index !== undefined) s.pending.takes.delete(msg.index)
-      if (msg.reason !== 'gone') return
+      // Out of reach, or out of its room: said as a drop's refusal is.
+      if (msg.reason !== 'gone') {
+        hud.tell(copy('log.drop_refused'))
+        return
+      }
       const pickup =
         msg.index === undefined ? undefined : world.pickups[msg.index]
       if (pickup) actions.markTaken(pickup)
@@ -704,7 +708,7 @@ export function wireValley(game: Game, actions: Actions): void {
       if (!isQuest(msg.quest) || !isQuestStage(msg.stage)) return
       s.quests = { ...(s.quests ?? toQuests(null)), [msg.quest]: msg.stage }
       s.pendingQuest = false
-      s.dealSaid = stepNews(msg.step)
+      s.dealSaid = stepNews(msg.quest, msg.step)
       hud.tell(s.dealSaid)
     } else if (msg.type === 'book') {
       // Rule 20: written in the account's Book of Shadows.

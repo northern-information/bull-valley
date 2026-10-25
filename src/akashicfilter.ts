@@ -72,6 +72,7 @@ const ITEMS = new Set([
   'lsd',
   'adderall',
   'rose',
+  'floppy-disk',
   'flashlight-item',
   'citgo-phone',
   'marx-whistle',
@@ -113,6 +114,7 @@ const PLACES = new Set([
   'castle-moat',
   'strip-mall',
   'undercroft',
+  'warehouse',
   'cabbage-stand',
   'wreck',
 ])

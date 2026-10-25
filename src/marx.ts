@@ -126,7 +126,11 @@ export function nextChange(
   const { leg } = truck
   switch (leg.kind) {
     case 'parked':
-      if (leg.leavesAt !== null) return leg.leavesAt
+      // A bed filled while he is still driving home leaves no sooner than
+      // he is surely there.
+      if (leg.leavesAt !== null) {
+        return Math.max(leg.leavesAt, homeAt(leg, routes, cfg))
+      }
       return homeAt(leg, routes, cfg) + cfg.readSeconds * 1000
     case 'donuts':
       return leg.at + cfg.donutSeconds * 1000

@@ -97,10 +97,10 @@ export function wardsOf(
   return record[account] ?? SOBER
 }
 
-// Whether every level has faded to nothing at `time`.
+// Whether every level, the trip's too, has faded to nothing at `time`.
 export function isSober(g: WardState, time: number): boolean {
   const l = levelsAt(g, time)
-  return l.high === 0 && l.stimulated === 0 && l.drunk === 0
+  return AXES.every((axis) => l[axis] === 0)
 }
 
 // The record with `account` dosed by `amounts` at `time`, and every

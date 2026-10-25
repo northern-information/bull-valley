@@ -118,6 +118,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The heart of the maze with Erwin's rose in the pack: E lays it
   // (quests.ts).
   | { kind: 'lay' }
+  // The floppy disk in the industrial park, for a raider on Gron's last
+  // quest without it: E takes it (quests.ts).
+  | { kind: 'find' }
   // The trapdoor in the Video Vault's office: E climbs down into the
   // Undercroft (undercroft.ts); the ladder's foot below: E climbs up.
   | { kind: 'descend' }
@@ -318,6 +321,9 @@ export interface InteractionInput<P extends PickupSpot> {
   // The heart of the maze, while this raider has a rose to lay there, or
   // null.
   heart?: XZ | null
+  // Where the floppy disk lies, while this raider is on Gron's last quest
+  // without it, or null.
+  disk?: XZ | null
   // The trapdoor down to the Undercroft, and the ladder's foot up out of
   // it, or null.
   trapdoor?: XZ | null
@@ -549,6 +555,16 @@ export function resolveInteraction<P extends PickupSpot>(
     sees(heart, SIGHTS.portal)
   ) {
     return { kind: 'lay' }
+  }
+
+  const disk = input.disk
+  if (
+    disk &&
+    Math.hypot(disk.x - player.x, disk.z - player.z) <
+      CONFIG.quests.takeReach &&
+    sees(disk, SIGHTS.thing)
+  ) {
+    return { kind: 'find' }
   }
 
   const locked = input.locked
@@ -800,6 +816,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.locked')
     case 'lay':
       return copy('prompts.lay')
+    case 'find':
+      return copy('prompts.find')
     case 'descend':
       return copy('prompts.descend')
     case 'ascend':

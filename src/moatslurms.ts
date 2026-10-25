@@ -110,8 +110,10 @@ export function moatSlurmsAt(
   landY: (x: number, z: number) => number,
   cfg: MoatConfig = CONFIG.slurms.moat
 ): MoatSlurm[] {
+  // The hooks are the last of the sources; more hooks than sources is
+  // nothing to drop from.
   const edges = sources.length - hooks
-  if (sources.length === 0) return []
+  if (sources.length === 0 || edges < 0) return []
   const { gravity, splatSeconds } = CONFIG.slurms
   const life = cfg.crawlSeconds + cfg.lingerSeconds + splatSeconds
   const now = Math.floor(seconds / cfg.slotSeconds)

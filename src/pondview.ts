@@ -97,30 +97,40 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
       owned.push(g)
       return g
     }
+    // What this showing built for itself, freed when it stops: the
+    // scene's own materials, and the parts built whole for it (the rod,
+    // the bobber, the line, the fireflies). The figure's materials are
+    // figure.ts's, shared, and stay.
+    const ownedMaterials: THREE.Material[] = []
+    const mine = <T extends THREE.Material>(m: T): T => {
+      ownedMaterials.push(m)
+      return m
+    }
+    const ownedParts: THREE.Object3D[] = []
 
     const grass = new THREE.Mesh(
       keep(new THREE.PlaneGeometry(60, 60)),
-      lambert({ color: '#1d2a17' })
+      mine(lambert({ color: '#1d2a17' }))
     )
     grass.rotation.x = -Math.PI / 2
     scene.add(grass)
     const { water } = POND
     const shore = new THREE.Mesh(
       keep(new THREE.CircleGeometry(water.radius + 0.6, 24)),
-      lambert({ color: '#2b2418' })
+      mine(lambert({ color: '#2b2418' }))
     )
     shore.rotation.x = -Math.PI / 2
     shore.position.set(0, 0.005, water.z)
     scene.add(shore)
     const pond = new THREE.Mesh(
       keep(new THREE.CircleGeometry(water.radius, 24)),
-      lambert({ color: '#0d1c2a', emissive: '#050b12' })
+      mine(lambert({ color: '#0d1c2a', emissive: '#050b12' }))
     )
     pond.rotation.x = -Math.PI / 2
     pond.position.set(0, 0.01, water.z)
     scene.add(pond)
     // Reeds round the shore, and the treeline past the water.
-    const reed = lambert({ color: '#3b4a22' })
+    const reed = mine(lambert({ color: '#3b4a22' }))
     const reedGeometry = keep(new THREE.BoxGeometry(0.03, 0.9, 0.03))
     for (let i = 0; i < 40; i++) {
       const a = (i / 40) * Math.PI * 2 + Math.sin(i * 7.3) * 0.1
@@ -131,7 +141,7 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
       stem.rotation.z = Math.sin(i * 1.7) * 0.15
       scene.add(stem)
     }
-    const pine = lambert({ color: '#0f1a12' })
+    const pine = mine(lambert({ color: '#0f1a12' }))
     const pineGeometry = keep(new THREE.ConeGeometry(1.4, 5, 6))
     for (let i = 0; i < 11; i++) {
       const tree = new THREE.Mesh(pineGeometry, pine)
@@ -148,6 +158,7 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
       0x0f1e
     )
     scene.add(fireflies.group)
+    ownedParts.push(fireflies.group)
 
     // The raider on the near shore, looking out over the water, rod up.
     const figure = buildFigure(look.outfit, {
@@ -177,6 +188,7 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
       // or an axe that hand carries is put away for it.
       const lying = buildFishingRod(rod, { glow: false })
       held = lying.children[0]
+      ownedParts.push(held)
       if (figure.held) figure.held.visible = false
       figure.fists.R.getWorldPosition(fist)
       aim(held, 0)
@@ -191,6 +203,7 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
     const cast = new THREE.Vector3(POND.cast.x, 0.01, POND.cast.z)
     bobber.position.copy(cast)
     scene.add(bobber)
+    ownedParts.push(bobber)
     const linePoints = new Float32Array(3 * 3)
     const lineGeometry = keep(new THREE.BufferGeometry())
     lineGeometry.setAttribute(
@@ -203,6 +216,7 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
     )
     fishingLine.frustumCulled = false
     scene.add(fishingLine)
+    ownedParts.push(fishingLine)
 
     // Over the raider's right shoulder, out at the water.
     const camera = new THREE.PerspectiveCamera(
@@ -296,6 +310,8 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
       drawing.setAnimationLoop(null)
       worn.dispose()
       for (const g of owned) g.dispose()
+      for (const m of ownedMaterials) m.dispose()
+      for (const part of ownedParts) disposeTree(part)
       for (const fish of catches.values()) {
         fish.traverse((part) => {
           if (part instanceof THREE.Mesh) {
@@ -322,4 +338,24 @@ export function createPondView(canvas: HTMLCanvasElement): PondView {
     },
     stop,
   }
+}
+
+// Frees every geometry and material under `root`: a part built whole for
+// one showing, sharing nothing.
+function disposeTree(root: THREE.Object3D): void {
+  root.traverse((o) => {
+    if (
+      !(o instanceof THREE.Mesh) &&
+      !(o instanceof THREE.Line) &&
+      !(o instanceof THREE.Points)
+    ) {
+      return
+    }
+    const part = o as THREE.Mesh
+    part.geometry.dispose()
+    const materials = Array.isArray(part.material)
+      ? part.material
+      : [part.material]
+    for (const m of materials) m.dispose()
+  })
 }

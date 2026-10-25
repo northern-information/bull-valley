@@ -365,6 +365,14 @@ export function openLaptopDialog(options: LaptopOptions): {
   const drawExplorer = () => {
     if (explorer.hidden) return
     const all = folders()
+    // A raider's folder goes with their last file: open when it went, the
+    // explorer goes back up to the root.
+    if (folder !== null && files !== null) {
+      if (!all.some((f) => f.owner === folder)) {
+        folder = null
+        picked = null
+      }
+    }
     const here = folder === null ? null : all.find((f) => f.owner === folder)
     explorerTitle.textContent = folder ?? copy('laptop.documents')
     path.textContent =

@@ -630,7 +630,7 @@ export function applyFrame(
         quests: { ...s.quests, [msg.quest]: msg.stage },
         pending: { ...s.pending, deal: false },
       }
-      return news(next, stepNews(msg.step), now, wall)
+      return news(next, stepNews(msg.quest, msg.step), now, wall)
     }
     case 'expedition': {
       const next: DialState = {

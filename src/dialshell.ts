@@ -74,6 +74,8 @@ interface ShellOptions {
   // Fishing at the firefly pond, from the lobby's sheet (dialfish.ts).
   fish: FishActions
   openErwin: () => void
+  // Opens Gron's dialog, the quest he gives, over the shell.
+  openGron: () => void
   // Opens a Citgo's shelves in the trade window, with every Citgo's name
   // once the survey has loaded (citgomap.ts citgoNames).
   citgo: CitgoActions
@@ -555,6 +557,9 @@ export class DialShell {
         copy('outfits.squatter'),
         copy('dialup.lobby.erwin_blurb'),
         () => this.options.openErwin()
+      ),
+      card('gron', copy('outfits.gron'), copy('dialup.lobby.gron_blurb'), () =>
+        this.options.openGron()
       ),
       card('moab', copy('outfits.moab'), copy('dialup.lobby.moab_blurb'), () =>
         this.options.openMoab()

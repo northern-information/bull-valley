@@ -120,7 +120,7 @@ import type {
   ServerMessage,
   TaskWire,
 } from '../src/protocol.ts'
-import type { QuestId, QuestStage } from '../src/quests.ts'
+import type { QuestId, QuestStage, QuestStages } from '../src/quests.ts'
 import type { Research } from '../src/recycling.ts'
 import type { SeasonProgress } from '../src/season.ts'
 import type { StairPath } from '../src/shadowclimb.ts'
@@ -134,7 +134,7 @@ import type {
 } from '../src/sharedworld.ts'
 import type { StandLedger } from '../src/stand.ts'
 import type { ShadowHit } from '../src/wards.ts'
-import type { AccountStore } from './accounts.ts'
+import type { Account, AccountStore } from './accounts.ts'
 import type { CrewStore, Parted } from './crews.ts'
 import type { ExpeditionRead, Holdings, PackStore } from './packs.ts'
 
@@ -256,6 +256,9 @@ export class ValleyDO extends DurableObject<Env> {
   // When each socket was last heard from, in memory only: a socket missing
   // here (after a wake) counts as heard now.
   private heard = new WeakMap<WebSocket, number>()
+  // Sockets whose hello is still reading D1: a second hello on one of them
+  // meanwhile is dropped, or both would join and the first stay a ghost.
+  private greeting = new WeakSet<WebSocket>()
   // Raiders whose socket went, still standing for everyone else until
   // CONFIG.net.lingerMs is up (then everyone hears them leave), so a
   // reconnect that names one of its own takes it back unseen. In memory
@@ -320,7 +323,13 @@ export class ValleyDO extends DurableObject<Env> {
     if (me) {
       await this.frame(ws, attachment, me, msg)
     } else if (msg.type === 'hello' || msg.type === 'dial') {
-      await this.hello(ws, attachment, msg)
+      if (this.greeting.has(ws)) return
+      this.greeting.add(ws)
+      try {
+        await this.hello(ws, attachment, msg)
+      } finally {
+        this.greeting.delete(ws)
+      }
     } else {
       ws.close(CLOSE.malformed, 'Expected hello first')
     }
@@ -799,9 +808,11 @@ export class ValleyDO extends DurableObject<Env> {
   protected tickShadows(): void {
     try {
       this.tickShadowsUnguarded()
+      this.tickFailed = false
     } catch (err) {
-      // A throw in a timer has no request to fail; say so once a step
-      // rather than every tenth of a second.
+      // A throw in a timer has no request to fail; say so once for a run
+      // of failing steps rather than every tenth of a second, and again
+      // for the next run after a step goes through.
       if (!this.tickFailed) console.error('The shadowmen could not step', err)
       this.tickFailed = true
     }
@@ -1604,6 +1615,7 @@ export class ValleyDO extends DurableObject<Env> {
               havens: hello.havens,
               metres: hello.metres,
               lairs: hello.lairs,
+              lurks: hello.lurks,
               maze: hello.maze,
               routes: hello.truck,
               stand: hello.stand,
@@ -1611,6 +1623,8 @@ export class ValleyDO extends DurableObject<Env> {
               ponds: hello.ponds,
               bushes: hello.bushes,
               dealer: hello.dealer,
+              gron: hello.gron,
+              disk: hello.disk,
               undercroft: hello.undercroft,
               moat: hello.moat,
               rings: hello.rings,
@@ -1952,10 +1966,10 @@ export class ValleyDO extends DurableObject<Env> {
           return
         }
       } else {
-        const result = await accounts.askFriend(
-          account,
-          other.accountId,
-          Date.now()
+        // Under the account's lock: the cap is read, then the row
+        // written, and two asks from one account must not interleave.
+        const result = await this.forAccount(account, () =>
+          accounts.askFriend(account, other.accountId, Date.now())
         )
         if (result !== 'requested' && result !== 'accepted') {
           send(ws, { type: 'nack', re: op, reason: result })
@@ -2142,9 +2156,16 @@ export class ValleyDO extends DurableObject<Env> {
       send(ws, { type: 'nack', re: 'rename', reason: 'too-fast' })
       return
     }
-    const account = attachment.account
-      ? await this.accounts().get(attachment.account)
-      : null
+    let account: Account | null
+    try {
+      account = attachment.account
+        ? await this.accounts().get(attachment.account)
+        : null
+    } catch (err) {
+      console.error('The account could not be read', err)
+      send(ws, { type: 'nack', re: 'rename', reason: 'unavailable' })
+      return
+    }
     const name = normalizeName(account?.username ?? '')
     if (!isValidName(name)) {
       send(ws, { type: 'nack', re: 'rename', reason: 'no-username' })
@@ -2519,16 +2540,15 @@ export class ValleyDO extends DurableObject<Env> {
       refuse('no-such-quest')
       return
     }
-    const id = action.quest
     await this.locked(async () => {
       const packs = this.packs()
-      let quest: { stage: QuestStage; pack: Inventory }
+      let quest: { stages: QuestStages; pack: Inventory }
       try {
         const [stages, holdings] = await Promise.all([
           packs.quests(account),
           packs.get(account),
         ])
-        quest = { stage: stages[id], pack: holdings.pack }
+        quest = { stages, pack: holdings.pack }
       } catch (err) {
         console.error('The quest could not be read', err)
         refuse('unavailable')
@@ -2563,15 +2583,12 @@ export class ValleyDO extends DurableObject<Env> {
         return
       }
       await this.apply(reduced)
-      for (const socket of this.ctx.getWebSockets()) {
-        if (this.attachment(socket).account !== account) continue
-        send(socket, {
-          type: 'quest',
-          quest: step.quest,
-          step: step.step,
-          stage: step.to,
-        })
-      }
+      this.toAccount(account, {
+        type: 'quest',
+        quest: step.quest,
+        step: step.step,
+        stage: step.to,
+      })
       await this.repack(ws, null, account)
     })
   }

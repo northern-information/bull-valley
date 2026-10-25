@@ -57,7 +57,14 @@ export class DialSocial {
       actions.say(line)
     })
     this.friendActions = actions
-    this.root.append(this.log, this.form, this.party, this.friends, this.online)
+    this.root.append(
+      this.log,
+      this.form,
+      this.party,
+      this.crew,
+      this.friends,
+      this.online
+    )
   }
 
   render(s: DialState, self: Self): void {
@@ -84,7 +91,11 @@ export class DialSocial {
     this.renderFriends(s)
     this.online.replaceChildren(
       text('h3', copy('dialup.social.online'), 'bv-dial-social-head'),
-      ...[{ ...self, dialup: true }, ...s.peers].map((p) => {
+      // The raider's own row wears their crew's tag as every peer's does.
+      ...[
+        { ...self, dialup: true, crew: s.crew.crew?.tag ?? null },
+        ...s.peers,
+      ].map((p) => {
         // Rule 35: the crew's tag before the name, as on a name tag.
         const name =
           'crew' in p && p.crew

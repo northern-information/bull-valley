@@ -252,6 +252,22 @@ describe('callback', () => {
     expect(location).toBe(`${PROD}/?auth_error=access_denied`)
   })
 
+  it('spends its own round trip on a provider error, and only its own', async () => {
+    const jar = new Jar()
+    const login = await call('/auth/github/login', { jar })
+    const state = new URL(login.location ?? '').searchParams.get('state')
+    // A forged error link without the state leaves the sign-in under way.
+    await call('/auth/github/callback?error=access_denied', { jar })
+    expect(jar.cookies[COOKIE.state]).toBeDefined()
+    expect(jar.cookies[COOKIE.pkce]).toBeDefined()
+    // The provider's own answer ends it.
+    await call(`/auth/github/callback?error=access_denied&state=${state}`, {
+      jar,
+    })
+    expect(jar.cookies[COOKIE.state]).toBeUndefined()
+    expect(jar.cookies[COOKIE.pkce]).toBeUndefined()
+  })
+
   it('holds a new raider as pending until the gates are passed', async () => {
     const s = new MemoryAccountStore()
     const jar = new Jar()
@@ -680,6 +696,11 @@ describe('confirm-signup and username', () => {
     expect(await ask('taken')).toEqual({ available: false, reason: 'taken' })
     expect(await ask('ab')).toEqual({ available: false, reason: 'invalid' })
     expect(await ask('Free_1')).toEqual({ available: true })
+  })
+
+  it('names no route for a path that is not good percent-encoding', async () => {
+    const { res } = await call('/auth/username/%ZZ/available')
+    expect(res.status).toBe(404)
   })
 
   it('requires a session to choose a username', async () => {

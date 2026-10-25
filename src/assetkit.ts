@@ -143,7 +143,9 @@ export function packFlat(color: string): THREE.MeshLambertMaterial {
 //
 // A part keeps only the attributes its material reads: position and
 // normal, and uv where the material has a map. Parts that still differ
-// (a mapped part with no uv) merge only with their like.
+// (a mapped part with no uv, or one that casts or takes a shadow and one
+// that does not) merge only with their like, and the merged mesh keeps
+// their shadows, so castShadows may run before this or after.
 export function mergeStatic(root: THREE.Object3D): void {
   const nodes: THREE.Object3D[] = []
   root.traverse((node) => nodes.push(node))
@@ -156,7 +158,8 @@ export function mergeStatic(root: THREE.Object3D): void {
       if (!isMesh(child) || child.children.length > 0) continue
       if (Array.isArray(child.material)) continue
       const keep = keptAttributes(child.material, child.geometry)
-      const key = `${child.material.uuid}|${keep.join(',')}`
+      const shadows = `${child.castShadow ? 'c' : ''}${child.receiveShadow ? 'r' : ''}`
+      const key = `${child.material.uuid}|${keep.join(',')}|${shadows}`
       const group = groups.get(key) ?? { material: child.material, meshes: [] }
       group.meshes.push(child)
       groups.set(key, group)
@@ -181,7 +184,10 @@ export function mergeStatic(root: THREE.Object3D): void {
         node.remove(mesh)
         mesh.geometry.dispose()
       }
-      node.add(new THREE.Mesh(merged, material))
+      const mesh = new THREE.Mesh(merged, material)
+      mesh.castShadow = meshes[0].castShadow
+      mesh.receiveShadow = meshes[0].receiveShadow
+      node.add(mesh)
     }
   }
 }

@@ -9,6 +9,8 @@ import { onDriveIn } from './drivein.ts'
 import { buildDriveIn } from './driveinsite.ts'
 import { pondsOf } from './fishing.ts'
 import { Ground } from './ground.ts'
+import { onParkGrounds, parkRings } from './industrial.ts'
+import { buildIndustrialSite } from './industrialsite.ts'
 import { KEEP, landmarkWorldPositions } from './landmarks.ts'
 import { LOOKOUT, onLookout } from './lookout.ts'
 import { mazeToWorld } from './maze.ts'
@@ -247,6 +249,15 @@ export interface World {
   // The Undercroft under it, through the office's trapdoor; null without
   // the plaza.
   undercroft: CroftRig | null
+  // The industrial park behind the plaza (industrialsite.ts): where its
+  // lurkers keep (the hello's lurks), the floppy disk for Gron's last
+  // quest, and the flicker of what still burns inside; null without a
+  // spawn station.
+  industrial: {
+    lurks: XZ[]
+    disk: { at: XZ; object: THREE.Object3D }
+    update(t: number): void
+  } | null
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the berry bush, Gron,
@@ -467,6 +478,11 @@ export function buildWorld(
     ? buildCroft(plaza, metres, heightAt, ground, walls)
     : null
   if (croft) group.add(croft.group)
+  // The industrial park behind the plaza (industrialsite.ts).
+  const industrial = spawnStation
+    ? buildIndustrialSite(spawnStation, heightAt, ground, walls)
+    : null
+  if (industrial) group.add(industrial.group)
   group.add(
     buildTrees(
       geo,
@@ -508,6 +524,9 @@ export function buildWorld(
         (croft
           ? inUndercroft(croft.rig.place, { x, z }, CROFT_TREE_CLEAR)
           : false) ||
+        (industrial
+          ? onParkGrounds(industrial.origin, x, z, CONFIG.industrial.treeClear)
+          : false) ||
         // The lone pine stands alone among the dishes.
         (spawnStation ? insideDishArray(spawnStation, x, z) : false) ||
         onMoat(x, z) ||
@@ -532,6 +551,7 @@ export function buildWorld(
       ...roadside.lamps,
       ...stationLamps(fuel.points),
       ...(spawnStation && maze ? mazeLamps(maze, spawnStation) : []),
+      ...(industrial ? industrial.lamps : []),
     ],
     ground,
     walls
@@ -569,6 +589,8 @@ export function buildWorld(
                 count: spot.count,
               }))
             : []),
+          // And the industrial park's, building by building.
+          ...(industrial ? industrial.loot : []),
         ]
       : [],
     onMoat
@@ -654,6 +676,13 @@ export function buildWorld(
     dishes,
     plaza: plaza ? plaza.rig : null,
     undercroft: croft ? croft.rig : null,
+    industrial: industrial
+      ? {
+          lurks: industrial.lurks,
+          disk: industrial.disk,
+          update: (t) => industrial.update(t),
+        }
+      : null,
     ground,
     walls,
     facings: fuel.points.map(worldFacings),
@@ -675,6 +704,7 @@ export function buildWorld(
       dishes: dishSpots,
       plaza: plaza ? mallCenter(plaza.origin) : null,
       undercroft: croft ? croft.rig.place : null,
+      industrial: industrial ? parkRings(industrial.origin) : [],
       landmarks: landmarks.points,
       castle: castle ? castle.middle : null,
     }),

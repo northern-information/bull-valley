@@ -77,6 +77,11 @@ describe('moatSlurmsAt', () => {
     )
   })
 
+  it('drops nothing when told of more hooks than sources', () => {
+    const t = drop.start + 3
+    expect(moatSlurmsAt(SOURCES, SOURCES.length + 1, t, landY)).toEqual([])
+  })
+
   it('falls from its source to the floor', () => {
     const start = first(0.001)
     expect(start?.phase).toBe('falling')
