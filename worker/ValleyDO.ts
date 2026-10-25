@@ -167,8 +167,8 @@ const INSPECT_LIMIT: RateLimit = { count: 10, ms: 10_000 }
 // opening folders and files, and saving.
 const LAPTOP_LIMIT: RateLimit = { count: 20, ms: 10_000 }
 
-// Changes at Gron one socket may make in ten seconds; each one rebuilds a
-// figure for everyone, so the rest are nacked.
+// Changes of character at Moab one socket may make in ten seconds; each
+// one rebuilds a figure for everyone, so the rest are nacked.
 const APPEARANCE_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 // A trade with Moab: a change to the look, at its pace.
 const TRADE_LIMIT: RateLimit = APPEARANCE_LIMIT
@@ -2091,7 +2091,7 @@ export class ValleyDO extends DurableObject<Env> {
     return undefined
   }
 
-  // A new character from Gron, for everyone to see.
+  // A new character from Moab, for everyone to see.
   private async restyle(
     ws: WebSocket,
     attachment: Attachment,
