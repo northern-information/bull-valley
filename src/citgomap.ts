@@ -182,9 +182,10 @@ export class CitgoMap {
         dragged: false,
       }
     })
-    window.addEventListener('mouseup', () => {
-      // The click that ends a drag still reads it, then it is done.
-      if (!this.press?.dragged) this.press = null
+    window.addEventListener('mouseup', (e) => {
+      // The click that ends a drag on the map still reads it, then it is
+      // done; a drag let go off the map gets no click, so it ends here.
+      if (!this.press?.dragged || e.target !== this.canvas) this.press = null
     })
     this.canvas.addEventListener('mousemove', (e) => {
       const press = this.press

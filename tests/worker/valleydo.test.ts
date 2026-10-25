@@ -453,6 +453,26 @@ describe('ValleyDO', () => {
     expect(b.closeCode).toBe(CLOSE.malformed)
   })
 
+  it('lets one of two hellos sent at once join, so no ghost is left', async () => {
+    const { valley: v, state: s } = await valley()
+    const b = await join(v, s, 'Bea')
+    const a = stamped('Dave')
+    s.acceptWebSocket(a)
+    // Both reach the valley before the first has read the pack.
+    await Promise.all([
+      v.webSocketMessage(ws(a), hello()),
+      v.webSocketMessage(ws(a), hello()),
+    ])
+    expect(a.closeCode).toBeNull()
+    expect(a.frames().filter((f) => f.type === 'welcome')).toHaveLength(1)
+    // Everyone else hears of one raider come, never of a second that
+    // nothing will ever say has gone.
+    const joined = b
+      .frames()
+      .filter((f): f is PeerJoinedMessage => f.type === 'peer-joined')
+    expect(joined.map((f) => f.peer.id)).toEqual([idOf(a)])
+  })
+
   it('turns away the wrong protocol, a bad name, an unknown outfit, and a stale build', async () => {
     const { valley: v, state: s } = await valley()
     const old = stamped('Dave')
@@ -1889,6 +1909,15 @@ describe('ValleyDO', () => {
       re: 'rename',
       reason: 'no-username',
     })
+    // An account that cannot be read is said so, never left unanswered.
+    v.accountStore = Object.assign(Object.create(v.accountStore), {
+      get: () => Promise.reject(new Error('down')),
+    }) as MemoryAccountStore
+    await v.webSocketMessage(ws(a), JSON.stringify({ type: 'rename' }))
+    expect(a.last<NackMessage>()).toMatchObject({
+      re: 'rename',
+      reason: 'unavailable',
+    })
   })
 
   it("keeps the account's pack: the welcome, a berry, a pickup, a use", async () => {
@@ -2033,7 +2062,9 @@ describe('ValleyDO', () => {
       )
     try {
       const before = b.frames().length
-      v.packStore = { ...store, get: () => Promise.reject(new Error('down')) }
+      v.packStore = Object.assign(Object.create(store) as PackStore, {
+        get: () => Promise.reject(new Error('down')),
+      })
       await buy()
       expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
       v.packStore = {
@@ -2486,13 +2517,9 @@ describe('ValleyDO: corpse runs', () => {
       corpses: [],
     })
     const store = v.packStore
-    v.packStore = {
-      ...store,
-      open: (id) => store.open(id),
-      welcome: (id, season, task) => store.welcome(id, season, task),
-      get: (id) => store.get(id),
+    v.packStore = Object.assign(Object.create(store) as PackStore, {
       strip: () => Promise.reject(new Error('down')),
-    }
+    })
     const error = console.error
     console.error = () => {}
     try {
@@ -2601,13 +2628,9 @@ describe('ValleyDO: the stash', () => {
     expect(lastFrame(a)?.pack.joints).toBe(STARTING_INVENTORY.joints)
     await v.webSocketMessage(ws(a), state(5, 5))
     const store = v.packStore
-    v.packStore = {
-      ...store,
-      open: (id) => store.open(id),
-      welcome: (id, season, task) => store.welcome(id, season, task),
-      get: (id) => store.get(id),
+    v.packStore = Object.assign(Object.create(store) as PackStore, {
       stow: () => Promise.reject(new Error('down')),
-    }
+    })
     const error = console.error
     console.error = () => {}
     try {
@@ -2872,26 +2895,14 @@ describe('ValleyDO: the Cabbage Stand', () => {
     const error = console.error
     console.error = () => {}
     try {
-      v.packStore = {
-        ...store,
-        open: (id) => store.open(id),
-        welcome: (id, season, task) => store.welcome(id, season, task),
-        get: (id) => store.get(id),
+      v.packStore = Object.assign(Object.create(store) as PackStore, {
         stand: () => Promise.reject(new Error('down')),
-      }
+      })
       await v.webSocketMessage(ws(a), '{"type":"stand-collect"}')
       expect(nack(a)).toMatchObject({ reason: 'unavailable' })
-      v.packStore = {
-        ...store,
-        open: (id) => store.open(id),
-        welcome: (id, season, task) => store.welcome(id, season, task),
-        get: (id) => store.get(id),
-        stand: (id) => store.stand(id),
+      v.packStore = Object.assign(Object.create(store) as PackStore, {
         tend: () => Promise.reject(new Error('down')),
-        expedition: (id) => store.expedition(id),
-        embark: (id, rev, run) => store.embark(id, rev, run),
-        homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
-      }
+      })
       await v.webSocketMessage(
         ws(a),
         '{"type":"stand-stock","kind":"cabbage","count":1}'
@@ -2903,17 +2914,9 @@ describe('ValleyDO: the Cabbage Stand', () => {
         '{"type":"stand-stock","kind":"cabbage","count":1}'
       )
       expect(nack(a)).toMatchObject({ reason: 'unavailable' })
-      v.packStore = {
-        ...store,
-        open: (id) => store.open(id),
-        welcome: (id, season, task) => store.welcome(id, season, task),
-        get: (id) => store.get(id),
-        stand: (id) => store.stand(id),
+      v.packStore = Object.assign(Object.create(store) as PackStore, {
         tend: () => Promise.resolve(false),
-        expedition: (id) => store.expedition(id),
-        embark: (id, rev, run) => store.embark(id, rev, run),
-        homecoming: (id, rev, haul) => store.homecoming(id, rev, haul),
-      }
+      })
       await v.webSocketMessage(
         ws(a),
         '{"type":"stand-stock","kind":"cabbage","count":1}'
@@ -3922,7 +3925,9 @@ describe("ValleyDO: Moab's trade", () => {
     console.error = () => {}
     try {
       const before = b.frames().length
-      v.packStore = { ...store, get: () => Promise.reject(new Error('down')) }
+      v.packStore = Object.assign(Object.create(store) as PackStore, {
+        get: () => Promise.reject(new Error('down')),
+      })
       await v.webSocketMessage(ws(a), trade())
       expect(a.last<NackMessage>()).toMatchObject({ reason: 'unavailable' })
       v.packStore = {
@@ -4066,15 +4071,9 @@ describe('ValleyDO: the Book of Shadows', () => {
     })
     const b = await join(v, s, 'B')
     const store = v.packStore
-    v.packStore = {
-      ...store,
-      open: (id) => store.open(id),
-      welcome: (id, season, task) => store.welcome(id, season, task),
-      get: (id) => store.get(id),
-      season: (id, season) => store.season(id, season),
-      book: (id) => store.book(id),
+    v.packStore = Object.assign(Object.create(store) as PackStore, {
       discover: () => Promise.reject(new Error('down')),
-    }
+    })
     const error = console.error
     console.error = () => {}
     try {

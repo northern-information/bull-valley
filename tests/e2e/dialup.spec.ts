@@ -402,6 +402,10 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
 
   // A line said on the phone reaches the valley.
   await page.locator('.bv-dial-tab[data-tab="social"]').click()
+  // The crew has its place on the tab, as the party does.
+  await expect(page.locator('.bv-dial-crew')).toContainText(
+    copy('crew.heading')
+  )
   await page.locator('.bv-dial-say-field').fill('hello from the phone')
   await page.getByRole('button', { name: copy('dialup.social.send') }).click()
   await expect(page.locator('.bv-dial-log')).toContainText(

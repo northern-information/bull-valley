@@ -297,11 +297,17 @@ class AuthHandler {
 
   async route(): Promise<Response> {
     const { method } = this.request
-    const parts = this.url.pathname
-      .slice(AUTH_PATH.length)
-      .split('/')
-      .filter(Boolean)
-      .map(decodeURIComponent)
+    // A path that is not good percent-encoding names no route.
+    let parts: string[]
+    try {
+      parts = this.url.pathname
+        .slice(AUTH_PATH.length)
+        .split('/')
+        .filter(Boolean)
+        .map(decodeURIComponent)
+    } catch {
+      return notFound()
+    }
 
     // SameSite=Lax keeps the cookies off cross-site POSTs already; the
     // Origin check is belt and braces for the mutations.
@@ -590,7 +596,23 @@ class AuthHandler {
   private async callback(provider: OAuthProvider): Promise<Response> {
     const query = this.url.searchParams
     const error = query.get('error')
-    if (error) return this.landing({ error })
+    if (error) {
+      // Our own round trip (its state matches) is spent here as at every
+      // other end; a forged error link clears nothing of a sign-in under way.
+      const ours =
+        !!this.cookies[COOKIE.state] &&
+        this.cookies[COOKIE.state] === query.get('state')
+      return withCookies(
+        this.landing({ error }),
+        ours
+          ? [
+              this.clear(COOKIE.state),
+              this.clear(COOKIE.pkce),
+              this.clear(COOKIE.link),
+            ]
+          : []
+      )
+    }
     const code = query.get('code')
     if (!code) return json({ error: copy('auth.missing_code') }, 400)
     const state = this.cookies[COOKIE.state]

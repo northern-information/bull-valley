@@ -86,6 +86,13 @@ export function mountModem(
   root.addEventListener('pointerdown', onTap)
 
   const frame = () => {
+    // Taken off the page (the line refused for good, dialmain.ts): let go
+    // of the sound and the fog. Nothing waits on it, so done never comes.
+    if (!root.isConnected) {
+      audio?.close()
+      fog?.stop()
+      return
+    }
     const now = performance.now()
     const v = view(modem, now)
     prompt.textContent = v.waiting

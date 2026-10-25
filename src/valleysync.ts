@@ -462,7 +462,11 @@ export function wireValley(game: Game, actions: Actions): void {
   const applyNack = (msg: NackMessage) => {
     if (msg.re === 'take') {
       if (msg.index !== undefined) s.pending.takes.delete(msg.index)
-      if (msg.reason !== 'gone') return
+      // Out of reach, or out of its room: said as a drop's refusal is.
+      if (msg.reason !== 'gone') {
+        hud.tell(copy('log.drop_refused'))
+        return
+      }
       const pickup =
         msg.index === undefined ? undefined : world.pickups[msg.index]
       if (pickup) actions.markTaken(pickup)

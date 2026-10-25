@@ -325,19 +325,22 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
     })
   }
 
-  // The item under the pointer turns in place of the one picked.
-  let hovered: string | null = null
+  // The item under the pointer turns in place of the one picked. A row
+  // taken off the page (the pay side redrawn after a trade) never hears
+  // the pointer leave, so it turns nothing once it is gone.
+  let hovered: { row: HTMLElement; kind: string } | null = null
   const turnsOnHover = (row: HTMLElement, kind: string | undefined) => {
     if (!kind) return
     row.addEventListener('pointerenter', () => {
-      hovered = kind
+      hovered = { row, kind }
       refresh()
     })
     row.addEventListener('pointerleave', () => {
-      if (hovered === kind) hovered = null
+      if (hovered?.row === row) hovered = null
       refresh()
     })
   }
+  const hoveredKind = () => (hovered?.row.isConnected ? hovered.kind : null)
 
   // His side: a row per good, picked as a radio.
   const goodRows = options.goods.map((good) => {
@@ -412,9 +415,12 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
     offerList.replaceChildren(...offerRows.map((r) => r.row))
   }
 
-  // What is wanted, and what is on the table for it.
+  // What is wanted, and what is on the table for it: nothing, when he has
+  // no goods at all (a shelf not yet heard of).
   const firstOpen = () =>
-    options.goods.find((g) => g.out() === null)?.id ?? options.goods[0].id
+    options.goods.find((g) => g.out() === null)?.id ??
+    options.goods[0]?.id ??
+    ''
   let want: string = options.pick ?? firstOpen()
   let offer: Inventory = {}
   let shown: string | null = null
@@ -497,7 +503,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
 
     // The table, the item in it turning.
     const good = options.goods.find((g) => g.id === want) ?? null
-    turn(hovered ?? good?.kind ?? null)
+    turn(hoveredKind() ?? good?.kind ?? null)
     const out = good?.out() ?? null
     const need = good?.worth ?? 0
     const worth = cash ? Math.min(held, need) : offerWorth(offer, worthOf)

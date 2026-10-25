@@ -130,8 +130,14 @@ export class D1CrewStore implements CrewStore {
     } catch (err) {
       const message = err instanceof Error ? err.message : ''
       if (/CHECK constraint failed/i.test(message)) return 'short'
-      if (/UNIQUE constraint failed/i.test(message)) {
-        return /tag/i.test(message) ? 'tag-taken' : 'name-taken'
+      // SQLite names the column: only the crew's own tag or name is
+      // taken; any other clash (the account already in a crew) is not
+      // the raider's to fix by picking again.
+      if (/UNIQUE constraint failed: crews\.tag/i.test(message)) {
+        return 'tag-taken'
+      }
+      if (/UNIQUE constraint failed: crews\.name/i.test(message)) {
+        return 'name-taken'
       }
       throw err
     }

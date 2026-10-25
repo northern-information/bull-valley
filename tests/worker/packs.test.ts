@@ -236,6 +236,21 @@ function packContract(makeStore: () => PackStore): void {
     expect(after.pack[OTHER]).toBe(before.pack[OTHER] + 200)
   })
 
+  it('pays a reward into a wallet never opened from the starting cash', async () => {
+    const store = makeStore()
+    await store.score(
+      'a1',
+      's',
+      { kills: 2, claimed: true },
+      { cash: 100_00, kind: OTHER, count: 1 }
+    )
+    expect((await store.get('a1')).cash).toBe(STARTING_CASH + 100_00)
+    const tasked = makeStore()
+    const day = '2026-01-01'
+    await tasked.scoreTask('a1', 't', { day, count: 5, claimed: true }, 5_00)
+    expect((await tasked.get('a1')).cash).toBe(STARTING_CASH + 5_00)
+  })
+
   it('writes each Book of Shadows entry once, in the order found', async () => {
     const store = makeStore()
     await store.open('a1')
