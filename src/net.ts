@@ -83,6 +83,8 @@ interface NetIdentity {
   ponds: PondPlace[]
   // Where the squatter deals (rule 25), or null.
   dealer: XZ | null
+  // Where Gron stands (rule 26), or null.
+  gron: XZ | null
   // Where the Undercroft lies (rule 11: the tunnel shades), or null.
   undercroft: MazePlace | null
   // Where the moat lies (rule 11: the ground the shadowmen walk), or null.
@@ -292,6 +294,7 @@ export class NetClient {
           ponds: identity.ponds,
           bushes: identity.bushes,
           dealer: identity.dealer,
+          gron: identity.gron,
           undercroft: identity.undercroft,
           moat: identity.moat,
           rings: identity.rings,

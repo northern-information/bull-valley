@@ -46,7 +46,7 @@ import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 55
+export const PROTOCOL_VERSION = 56
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -299,6 +299,9 @@ export interface HelloMessage {
   // Where the squatter in Bull Valley Plaza sits, or null: the valley
   // deals only with a raider beside him (rule 25).
   dealer: XZ | null
+  // Where Gron stands by the spawn Citgo's bush, or null: the valley takes
+  // a step of his quests only beside him (rule 26).
+  gron: XZ | null
   // Where the Undercroft lies (undercroft.ts), or null: the valley steps
   // its tunnel shades in it (rule 11).
   undercroft: MazePlace | null
@@ -1715,6 +1718,7 @@ type HelloPlaces = Pick<
   | 'ponds'
   | 'bushes'
   | 'dealer'
+  | 'gron'
   | 'undercroft'
   | 'moat'
   | 'rings'
@@ -1734,6 +1738,7 @@ const NO_PLACES: HelloPlaces = {
   ponds: [],
   bushes: [],
   dealer: null,
+  gron: null,
   undercroft: null,
   moat: null,
   rings: [],
@@ -1763,6 +1768,7 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const maze = nullable(value.maze, parseMazePlace)
   const stand = nullable(value.stand, parseXZ)
   const dealer = nullable(value.dealer, parseXZ)
+  const gron = nullable(value.gron, parseXZ)
   const undercroft = nullable(value.undercroft, parseMazePlace)
   const moat = nullable(value.moat, parseMazePlace)
   if (maze === undefined || stand === undefined) return null
@@ -1771,9 +1777,19 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const payphones = parseSpots(value.payphones, PAYPHONES_MAX)
   if (!payphones) return null
   if (dealer === undefined || undercroft === undefined) return null
+  if (gron === undefined) return null
   if (moat === undefined) return null
   const places = { havens, metres, lairs, maze, truck, stand, bushes, dealer }
-  return { ...places, recyclers, ponds, undercroft, moat, rings, payphones }
+  return {
+    ...places,
+    gron,
+    recyclers,
+    ponds,
+    undercroft,
+    moat,
+    rings,
+    payphones,
+  }
 }
 
 // A hello. The outfit is checked by the server (characters.ts

@@ -3560,7 +3560,7 @@ canvas {
   grid-row: 3;
 }
 
-.bv-npc-ui--wide > .bv-trade-quest,
+.bv-npc-ui--wide > .bv-npc-quest,
 .bv-npc-ui--wide > .bv-trade-panel {
   grid-column: 1 / -1;
 }
