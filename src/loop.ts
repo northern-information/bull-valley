@@ -26,6 +26,7 @@ import {
   inHand,
   SCOOP,
   scoopPose,
+  swingPose,
   toolOf,
 } from './held.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
@@ -340,7 +341,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (held !== s.held) {
       if (s.held === 'rod') game.fishHud.giveUp()
       s.held = held
-      s.flashlight = { up: held === 'jar' || held === 'rod', lift: 0 }
+      s.flashlight = {
+        up: held === 'jar' || held === 'rod' || held === 'torch',
+        lift: 0,
+      }
     }
     s.flashlight = stepHand(s.flashlight, dt)
     if (s.using && time - s.using.at >= useSeconds()) s.using = null
@@ -365,10 +369,28 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     ) {
       s.scoopAt = null
     }
+    // The torch's swing, its blow sent to the valley as it lands on the
+    // topiary it was aimed at (rule 39), and done with once the arm is
+    // back.
+    if (s.swingAt !== null) {
+      const into = time - s.swingAt
+      if (s.swingTarget !== null && into >= CONFIG.torch.hitAt) {
+        if (s.held === 'torch' && !s.aboard) {
+          net.send({ type: 'torch', index: s.swingTarget })
+        }
+        s.swingTarget = null
+      }
+      if (s.held !== 'torch' || into >= CONFIG.torch.swingSeconds) {
+        s.swingAt = null
+        s.swingTarget = null
+      }
+    }
     hands.update({
       left: ease(s.flashlight.lift),
       cast: s.castAt === null ? 0 : castPose(time - s.castAt).tilt,
       scoop: scoopPose(s.scoopAt === null ? -1 : time - s.scoopAt),
+      swing: swingPose(s.swingAt === null ? -1 : time - s.swingAt),
+      time,
       held:
         s.held === 'rod' ? (rodIn(s.inventory) ?? BOX_ROD) : (s.held ?? 'none'),
       right: ease(using),
@@ -469,7 +491,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   }
 
   // What stands in the valley and moves on its own clock.
-  const stepScenery = ({ now, time }: FrameClock, feetY: number) => {
+  const stepScenery = ({ now, time, dt }: FrameClock, feetY: number) => {
     // Gron's rain falls on its own clock, Moab's fire burns on it too, the
     // wreck smoulders and blinks on it, and the plaza's last tube flickers.
     if (world.gronRig && world.gron && live(world.gron)) {
@@ -505,12 +527,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     // The topiaries move on the valley's clock, but only while this raider
     // looks at neither where one stands nor where it is going.
     if (topiaries) {
-      topiaryCues = topiaries.update(net.clock.serverNow(now) / 1000, {
-        camera,
-        eye: player.pos,
-        overCorn: world.lookout?.on(player.pos.x, player.pos.z) ?? false,
-        blocked: world.walls.between,
-      })
+      topiaryCues = topiaries.update(
+        net.clock.serverNow(now) / 1000,
+        {
+          camera,
+          eye: player.pos,
+          overCorn: world.lookout?.on(player.pos.x, player.pos.z) ?? false,
+          blocked: world.walls.between,
+        },
+        s.world?.topiaries ?? null,
+        time,
+        dt
+      )
     }
     if (world.wreck && live(world.wreck.group.position)) {
       world.wreck.update(time)
@@ -871,6 +899,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       trapdoor: world.undercroft?.hatch ?? null,
       ladder: world.undercroft?.foot ?? null,
       lookout: lookoutSpot(),
+      // Rule 39: the toolbox, while the pack holds no torch.
+      toolbox:
+        world.lookout && (s.inventory.torch ?? 0) < 1
+          ? world.lookout.toolbox
+          : null,
       heart: heartSpot(),
       locked: lockedDoor(),
       hallucinations: s.aboard ? [] : game.hallucinations.spots(),

@@ -205,3 +205,21 @@ export function toolsIn(
       useOf(kind, false) !== null
   )
 }
+
+// What a 'topiary-hit' or 'topiary-burned' snapshot says (sharedworld.ts
+// rule 39): which topiary took the blow, whether the blow was this
+// raider's, and whether it burned it away; null for any other.
+export function topiaryNews(
+  msg: Pick<WorldMessage, 'reason' | 'by' | 'index'>,
+  me: string | null
+): { index: number; mine: boolean; burned: boolean } | null {
+  if (msg.reason !== 'topiary-hit' && msg.reason !== 'topiary-burned') {
+    return null
+  }
+  if (msg.index === undefined) return null
+  return {
+    index: msg.index,
+    mine: me !== null && msg.by === me,
+    burned: msg.reason === 'topiary-burned',
+  }
+}

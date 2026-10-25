@@ -1,5 +1,6 @@
 // The player's own hands in first person, hung off the camera: the left
-// holds the flashlight, or the slurm jar or a rod in its place (held.ts),
+// holds the flashlight, or the slurm jar, a rod or the torch in its place
+// (held.ts),
 // the right holds up whatever was just used. Each
 // comes up from below the frame by its lift (hands.ts) and goes back down
 // out of view. The forearms are the outfit's own (figure.ts buildForearm).
@@ -11,22 +12,23 @@
 // count, and every lit material's program, stays the same.
 
 import * as THREE from 'three'
+import { motionOf } from './assetkit.ts'
 import { buildFlashlight, buildPickup, meshBounds } from './assets.ts'
 import { setBathTorch } from './bathglow.ts'
 import { CONFIG } from './config.ts'
 import { buildForearm } from './figure.ts'
 import { GLOW_LAYER } from './glow.ts'
-import { buildHeldJar, buildHeldRod } from './heldmodels.ts'
+import { buildHeldJar, buildHeldRod, buildHeldTorch } from './heldmodels.ts'
 import type { Flashlight } from './assets.ts'
-import type { ScoopPose } from './held.ts'
+import type { ScoopPose, SwingPose } from './held.ts'
 import type { OutfitId } from './outfits.ts'
 
 interface HandsFrame {
   // 0 out of view, 1 held up: hands.ts lifts, already eased.
   left: number
   right: number
-  // What the left hand holds: 'flashlight', 'jar', a rod's kind, or
-  // 'none'.
+  // What the left hand holds: 'flashlight', 'jar', 'torch', a rod's kind,
+  // or 'none'.
   held: string
   // A cast's swing of the left arm, radians (held.ts castPose): back, up
   // over the shoulder, positive; forward, toward the water, negative.
@@ -34,6 +36,11 @@ interface HandsFrame {
   // The jar's scoop (held.ts scoopPose): the arm's dip and sweep, the
   // jar's tip in the fist, and the hand's reach out ahead.
   scoop: ScoopPose
+  // The torch's swing (held.ts swingPose): the arm's chop and its sweep
+  // across.
+  swing: SwingPose
+  // A running time, seconds, for the torch's fire.
+  time: number
   // What the right hand holds, or null for an empty hand.
   kind: string | null
   // The flashlight is lit.
@@ -113,7 +120,17 @@ export class FirstPersonHands {
     this.dress(outfitId)
   }
 
-  update({ left, right, held, cast, scoop, kind, on }: HandsFrame): void {
+  update({
+    left,
+    right,
+    held,
+    cast,
+    scoop,
+    swing,
+    time,
+    kind,
+    on,
+  }: HandsFrame): void {
     this.holdLeft(held)
     this.flashlight.setOn(on)
     this.light.intensity = on ? CONFIG.flashlight.intensity : 0
@@ -132,6 +149,11 @@ export class FirstPersonHands {
     this.left.rotation.x += scoop.tilt
     this.left.position.z -= scoop.reach
     if (this.inLeft?.kind === 'jar') this.inLeft.object.rotation.x = -scoop.tip
+    // The chop draws the forearm back up and brings it down across the
+    // view, to the right.
+    this.left.rotation.x += swing.tilt
+    this.left.rotation.y -= swing.sweep
+    if (this.inLeft) motionOf(this.inLeft.object)?.(time)
     this.hold(right > 0 ? kind : null)
     place(this.right, RIGHT, right)
     this.holder.quaternion.copy(this.right.quaternion).invert()
@@ -157,8 +179,8 @@ export class FirstPersonHands {
     }
   }
 
-  // What the left fist holds: the flashlight, or the jar or a rod in its
-  // place, or nothing in sight ('none': the phone, the whistle, a pack).
+  // What the left fist holds: the flashlight, or the jar, a rod or the
+  // torch in its place, or nothing in sight ('none': the phone, the whistle, a pack).
   private holdLeft(held: string): void {
     this.flashlight.group.visible = held === 'flashlight'
     const kind = held === 'flashlight' || held === 'none' ? null : held
@@ -171,7 +193,9 @@ export class FirstPersonHands {
       object =
         kind === 'jar'
           ? buildHeldJar(-1, LEFT_SCALE)
-          : buildHeldRod(kind, -1, LEFT_SCALE)
+          : kind === 'torch'
+            ? buildHeldTorch(-1, TORCH_SCALE, TORCH_TIP)
+            : buildHeldRod(kind, -1, LEFT_SCALE)
       object.traverse((o) => {
         o.castShadow = false
       })
@@ -201,6 +225,10 @@ export class FirstPersonHands {
 // What the left fist holds in first person, shrunk toward the eye as
 // the right hand's items are.
 const LEFT_SCALE = 0.6
+// The torch, nearer the eye than a rod is long, smaller still, and leaning
+// out ahead of the fist, its fire up in the top left of the view.
+const TORCH_SCALE = 0.4
+const TORCH_TIP = 0.45
 
 // A hand at its lift: down out of view at 0, at its spot at 1.
 function place(arm: THREE.Group, spot: Arm, lift: number): void {

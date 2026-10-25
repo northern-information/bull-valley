@@ -1,8 +1,12 @@
 // Pure: the topiaries. The hedge animals of The Shining's Overlook (the
 // novel's, two lions, a dog, a rabbit and a buffalo) stand in the corn
 // maze, each broadside across a corridor so nothing gets past it. They are
-// not shadows: no beam burns them, they never strike, and nothing is kept.
-// They are there to frighten and to stand in the way. Each has its own
+// not shadows: no beam burns them and they never strike. They are there
+// to frighten and to stand in the way, and only fire harms them: a torch
+// out of the toolbox at the lookout's foot (CONFIG.torch) takes a bite out
+// of one a swing, and burned to nothing it grows back a few minutes later
+// (`hitTopiary`, `regrow`; the valley keeps each one's health,
+// sharedworld.ts rule 39). Each has its own
 // spots in the maze, and on the valley's clock it moves from one to
 // another (`topiariesAt`), every client reading the same clock putting it
 // in the same place with nothing on the wire. But no raider ever sees one
@@ -17,10 +21,12 @@
 
 import { theMaze } from './caretaker.ts'
 import { CONFIG } from './config.ts'
-import { cellPoint, mazeGates } from './maze.ts'
+import { pointSegmentDistance } from './coords.ts'
+import { cellPoint, mazeGates, mazeToWorld } from './maze.ts'
 import { mulberry32 } from './rng.ts'
 import type { MazeMap } from './caretaker.ts'
 import type { XZ } from './interfaces.ts'
+import type { MazePlace } from './maze.ts'
 
 type TopiaryConfig = typeof CONFIG.topiaries
 
@@ -187,4 +193,163 @@ export function spotOfGate(gate: string): number | null {
   if (!isTopiaryGate(gate)) return null
   const id = Number(gate.slice(GATE.length))
   return Number.isInteger(id) && id >= 0 ? id : null
+}
+
+// The game's own spots and each animal's share of them, worked out once.
+let dealt: { spots: TopiarySpot[]; pools: TopiarySpot[][] } | null = null
+
+export function theTopiaries(): {
+  spots: TopiarySpot[]
+  pools: TopiarySpot[][]
+} {
+  if (!dealt) {
+    const spots = topiarySpots()
+    dealt = { spots, pools: dealSpots(spots) }
+  }
+  return dealt
+}
+
+// Whether a topiary grown back (or never placed) may show itself at the
+// spot the clock has it at: only where the raider does not see it, and
+// not on them.
+export function mayAppear(
+  due: TopiaryStand | null,
+  sees: (spot: TopiarySpot) => boolean,
+  inTheWay: (spot: TopiarySpot) => boolean
+): boolean {
+  return due !== null && !sees(due.spot) && !inTheWay(due.spot)
+}
+
+// --- Fire ------------------------------------------------------------------
+
+// How one topiary stands, as the valley keeps it: its health, and while it
+// is burned away, when (valley ms) it grows back; null while it stands.
+export interface TopiaryHealth {
+  hp: number
+  back: number | null
+}
+
+export function freshTopiaries(
+  hp: number = CONFIG.topiaries.hp
+): TopiaryHealth[] {
+  return TOPIARIES.map(() => ({ hp, back: null }))
+}
+
+// Whether a topiary is burned away.
+export function burnedAway(health: TopiaryHealth | undefined): boolean {
+  return health !== undefined && health.back !== null
+}
+
+// What one swing of a torch takes off, on the valley's roll (0 to 1):
+// CONFIG.torch.damage, give or take its spread, never less than one.
+export function torchDamage(roll: number, cfg = CONFIG.torch): number {
+  const k = 1 - cfg.spread + 2 * cfg.spread * Math.min(1, Math.max(0, roll))
+  return Math.max(1, Math.round(cfg.damage * k))
+}
+
+// Topiary `index` after a swing that takes `damage`: burned away at
+// nothing, to grow back `regrowSeconds` on; null when there is no such
+// topiary or it is already burned away.
+export function hitTopiary(
+  list: readonly TopiaryHealth[],
+  index: number,
+  damage: number,
+  now: number,
+  cfg: TopiaryConfig = CONFIG.topiaries
+): { list: TopiaryHealth[]; burned: boolean } | null {
+  const was = list[index]
+  if (!was || was.back !== null) return null
+  const hp = Math.max(0, was.hp - damage)
+  const burned = hp === 0
+  const next = list.map((h, i) =>
+    i === index
+      ? { hp, back: burned ? now + cfg.regrowSeconds * 1000 : null }
+      : h
+  )
+  return { list: next, burned }
+}
+
+// The topiaries at `now`: every one whose time has come grown back whole;
+// null when none has.
+export function regrow(
+  list: readonly TopiaryHealth[],
+  now: number,
+  hp: number = CONFIG.topiaries.hp
+): TopiaryHealth[] | null {
+  if (!list.some((h) => h.back !== null && h.back <= now)) return null
+  return list.map((h) =>
+    h.back !== null && h.back <= now ? { hp, back: null } : h
+  )
+}
+
+// When the next burned topiary grows back, or null with none burned.
+export function nextRegrowth(list: readonly TopiaryHealth[]): number | null {
+  let at: number | null = null
+  for (const h of list) {
+    if (h.back !== null && (at === null || h.back < at)) at = h.back
+  }
+  return at
+}
+
+// How far a world point lies from a spot's spine (the line it stands
+// along, across the corridor), with the maze where `place` puts it.
+export function spineDistance(
+  place: MazePlace,
+  spot: TopiarySpot,
+  at: XZ
+): number {
+  const a = mazeToWorld(place, spot.a)
+  const b = mazeToWorld(place, spot.b)
+  return pointSegmentDistance(at.x, at.z, a.x, a.z, b.x, b.z)
+}
+
+// Whether a raider at `at` could have reached topiary `index` with a
+// torch: within `reach` of the spine of one of its spots. The valley asks
+// it of a swing; where the animal stands as the raider saw it is the
+// client's, so any spot of its own does.
+export function inTorchReach(
+  place: MazePlace,
+  index: number,
+  at: XZ,
+  reach: number,
+  pools: readonly TopiarySpot[][] = theTopiaries().pools
+): boolean {
+  return (pools[index] ?? []).some(
+    (spot) => spineDistance(place, spot, at) <= reach
+  )
+}
+
+// The topiary a swing from `at`, looking along `dir` (unit, level), lands
+// on: of the ones standing, by their spines in the world (null for one not
+// standing), the nearest within `reach` that lies ahead of the raider, or
+// close enough to touch whichever way they face. Null with none.
+export function swingTarget(
+  spines: readonly ({ a: XZ; b: XZ } | null)[],
+  at: XZ,
+  dir: XZ,
+  reach: number
+): number | null {
+  let best: number | null = null
+  let bestD = Infinity
+  spines.forEach((spine, i) => {
+    if (!spine) return
+    const { a, b } = spine
+    const d = pointSegmentDistance(at.x, at.z, a.x, a.z, b.x, b.z)
+    if (d > reach || d >= bestD) return
+    // The nearest point of the spine, and whether it lies ahead.
+    const dx = b.x - a.x
+    const dz = b.z - a.z
+    const len2 = dx * dx + dz * dz || 1
+    const t = Math.max(
+      0,
+      Math.min(1, ((at.x - a.x) * dx + (at.z - a.z) * dz) / len2)
+    )
+    const px = a.x + dx * t - at.x
+    const pz = a.z + dz * t - at.z
+    const ahead = (px * dir.x + pz * dir.z) / (Math.hypot(px, pz) || 1)
+    if (d > CONFIG.topiaries.gateHalf + 0.6 && ahead < 0.35) return
+    best = i
+    bestD = d
+  })
+  return best
 }

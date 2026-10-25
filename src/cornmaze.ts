@@ -20,6 +20,7 @@ import {
   lookoutToWorld,
   lookoutWalls,
   onLookout,
+  toolboxOf,
 } from './lookout.ts'
 import {
   cellPoint,
@@ -36,6 +37,7 @@ import {
 import { paintTrailField } from './mudart.ts'
 import { toWorld } from './store.ts'
 import { placeTopiaries } from './topiaryrig.ts'
+import { buildToolbox, TOOLBOX } from './torchmodel.ts'
 import { makeMudAccumulator, MUD_LIFT } from './worldsurfaces.ts'
 import type { CornPiece, MazeSignSize } from './assets.ts'
 import type { Ground } from './ground.ts'
@@ -386,9 +388,27 @@ function placeLookout(
   const facing = (dx: number, dz: number) => Math.atan2(-dx, -dz)
   const foot = lookoutToWorld(maze, LADDER_FOOT)
   const top = lookoutToWorld(maze, LADDER_TOP)
+  // The toolbox the torches come out of (sharedworld.ts rule 39), against
+  // the tower's -x face, its front (+Z) turned out that way, blocking along
+  // its length.
+  const box = toolboxOf(maze)
+  const toolbox = buildToolbox()
+  toolbox.position.set(box.x, ground.at(box.x, box.z), box.z)
+  // Local +Z to lookout -x, (-cos, -sin): a Three yaw turns +Z to (sin, cos).
+  toolbox.rotation.y = Math.atan2(-cos, -sin)
+  group.add(toolbox)
+  const along = TOOLBOX.width / 2
+  walls.addWall(
+    { x: box.x - sin * along, z: box.z + cos * along },
+    { x: box.x + sin * along, z: box.z - cos * along },
+    TOOLBOX.depth / 2,
+    undefined,
+    true
+  )
   return {
     foot: { ...foot, yaw: facing(cos, sin) },
     top: { ...top, yaw: facing(-sin, cos) },
     on: (x, z) => onLookout(maze, { x, z }),
+    toolbox: box,
   }
 }

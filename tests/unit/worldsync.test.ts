@@ -12,6 +12,7 @@ import {
   seatOf,
   settledBy,
   toolsIn,
+  topiaryNews,
 } from '../../src/worldsync.ts'
 import type { Leg } from '../../src/marx.ts'
 import type { Portal } from '../../src/portals.ts'
@@ -30,6 +31,7 @@ const world = (leg: Leg, riders: string[] = []): WorldWire => ({
   portals: [],
   truck: { leg, riders },
   members: [],
+  topiaries: [],
 })
 const parked = (leavesAt: number | null = null): Leg => ({
   kind: 'parked',
@@ -325,5 +327,31 @@ describe('tools', () => {
     // Carried already, a pack of cigarettes, or nothing new: none.
     expect(toolsIn({ 'zebco-33': 1 }, { 'zebco-33': 1 })).toEqual([])
     expect(toolsIn({}, { marlboro: 20 })).toEqual([])
+  })
+})
+
+describe('a topiary under the torch (rule 39)', () => {
+  it('names the topiary struck, whose blow it was, and whether it burned', () => {
+    expect(
+      topiaryNews({ reason: 'topiary-hit', by: 'me', index: 2 }, 'me')
+    ).toEqual({
+      index: 2,
+      mine: true,
+      burned: false,
+    })
+    expect(
+      topiaryNews({ reason: 'topiary-burned', by: 'you', index: 0 }, 'me')
+    ).toEqual({ index: 0, mine: false, burned: true })
+    expect(topiaryNews({ reason: 'topiary-hit', index: 1 }, null)?.mine).toBe(
+      false
+    )
+  })
+
+  it('says nothing of any other snapshot', () => {
+    expect(
+      topiaryNews({ reason: 'taken', by: 'me', index: 2 }, 'me')
+    ).toBeNull()
+    expect(topiaryNews({ reason: 'topiary-back' }, 'me')).toBeNull()
+    expect(topiaryNews({ reason: 'topiary-hit' }, 'me')).toBeNull()
   })
 })

@@ -1,16 +1,32 @@
 import { describe, expect, it } from 'vitest'
 import { clearBetween, mazeMap, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
-import { cellPoint, mazeGates, SHINING_MAZE } from '../../src/maze.ts'
 import {
+  cellPoint,
+  mazeGates,
+  mazeToWorld,
+  SHINING_MAZE,
+} from '../../src/maze.ts'
+import {
+  burnedAway,
   dealSpots,
+  freshTopiaries,
+  hitTopiary,
+  inTorchReach,
   isTopiaryGate,
+  mayAppear,
   mayMove,
+  nextRegrowth,
+  regrow,
+  spineDistance,
   spotOfGate,
+  swingTarget,
+  theTopiaries,
   TOPIARIES,
   topiariesAt,
   topiaryGate,
   topiarySpots,
+  torchDamage,
 } from '../../src/topiaries.ts'
 import type { TopiaryStand } from '../../src/topiaries.ts'
 
@@ -171,5 +187,139 @@ describe('the corridor gates', () => {
     expect(isTopiaryGate('lock:office')).toBe(false)
     expect(spotOfGate('lock:office')).toBeNull()
     expect(spotOfGate('topiary:x')).toBeNull()
+  })
+})
+
+describe('a topiary grown back', () => {
+  const due: TopiaryStand = { spot: spots[0], away: true }
+  it('shows itself only where it is not seen, and not on the raider', () => {
+    expect(
+      mayAppear(
+        due,
+        () => false,
+        () => false
+      )
+    ).toBe(true)
+    expect(
+      mayAppear(
+        due,
+        () => true,
+        () => false
+      )
+    ).toBe(false)
+    expect(
+      mayAppear(
+        due,
+        () => false,
+        () => true
+      )
+    ).toBe(false)
+    expect(
+      mayAppear(
+        null,
+        () => false,
+        () => false
+      )
+    ).toBe(false)
+  })
+})
+
+describe('the torch on a topiary', () => {
+  it('works out the spots once', () => {
+    expect(theTopiaries()).toBe(theTopiaries())
+    expect(theTopiaries().pools).toEqual(pools)
+  })
+
+  it('stands every one whole', () => {
+    const list = freshTopiaries()
+    expect(list).toHaveLength(TOPIARIES.length)
+    expect(list.every((h) => h.hp === cfg.hp && h.back === null)).toBe(true)
+    expect(burnedAway(list[0])).toBe(false)
+    expect(burnedAway(undefined)).toBe(false)
+    expect(nextRegrowth(list)).toBeNull()
+  })
+
+  it('takes the damage, give or take its spread, never none', () => {
+    const { damage, spread } = CONFIG.torch
+    expect(torchDamage(0.5)).toBe(damage)
+    expect(torchDamage(0)).toBe(Math.round(damage * (1 - spread)))
+    expect(torchDamage(1)).toBe(Math.round(damage * (1 + spread)))
+    expect(torchDamage(5)).toBe(torchDamage(1))
+    expect(torchDamage(0, { ...CONFIG.torch, damage: 0 })).toBe(1)
+  })
+
+  it('takes a blow off one, and burns it away at nothing', () => {
+    const list = freshTopiaries()
+    const hit = hitTopiary(list, 1, 30, 1000)
+    expect(hit?.burned).toBe(false)
+    expect(hit?.list[1]).toEqual({ hp: cfg.hp - 30, back: null })
+    expect(hit?.list[0]).toBe(list[0])
+    const burned = hitTopiary(hit?.list ?? [], 1, cfg.hp, 2000)
+    expect(burned?.burned).toBe(true)
+    expect(burned?.list[1]).toEqual({
+      hp: 0,
+      back: 2000 + cfg.regrowSeconds * 1000,
+    })
+    // Burned away, or no such one: nothing to hit.
+    expect(hitTopiary(burned?.list ?? [], 1, 10, 3000)).toBeNull()
+    expect(hitTopiary(list, 99, 10, 3000)).toBeNull()
+  })
+
+  it('grows each back whole when its time comes', () => {
+    const burned = [
+      { hp: 0, back: 5000 },
+      { hp: 40, back: null },
+      { hp: 0, back: 9000 },
+    ]
+    expect(nextRegrowth(burned)).toBe(5000)
+    expect(regrow(burned, 4000)).toBeNull()
+    expect(regrow(burned, 5000)).toEqual([
+      { hp: cfg.hp, back: null },
+      { hp: 40, back: null },
+      { hp: 0, back: 9000 },
+    ])
+  })
+
+  it('reaches one from beside any of its own spots, and no further', () => {
+    const place = { x: 500, z: -200, yaw: 0.6 }
+    const spot = pools[2][0]
+    const on = mazeToWorld(place, spot)
+    expect(spineDistance(place, spot, on)).toBeCloseTo(0)
+    expect(inTorchReach(place, 2, on, 1)).toBe(true)
+    const away = mazeToWorld(place, { x: spot.x, z: spot.z + 5 })
+    expect(inTorchReach(place, 2, away, 3)).toBe(false)
+    expect(inTorchReach(place, 2, away, 6)).toBe(true)
+    expect(inTorchReach(place, 99, on, 1)).toBe(false)
+  })
+})
+
+describe('where a swing lands', () => {
+  const spine = { a: { x: 0, z: -2 }, b: { x: 0, z: 2 } }
+  const reach = CONFIG.torch.reach
+  it('lands on the one ahead within reach', () => {
+    expect(swingTarget([spine], { x: 2, z: 0 }, { x: -1, z: 0 }, reach)).toBe(0)
+  })
+
+  it('misses one behind, or out of reach, or not standing', () => {
+    expect(
+      swingTarget([spine], { x: 2, z: 0 }, { x: 1, z: 0 }, reach)
+    ).toBeNull()
+    expect(
+      swingTarget([spine], { x: reach + 1, z: 0 }, { x: -1, z: 0 }, reach)
+    ).toBeNull()
+    expect(
+      swingTarget([null], { x: 2, z: 0 }, { x: -1, z: 0 }, reach)
+    ).toBeNull()
+  })
+
+  it('lands on one close enough to touch whichever way the raider faces', () => {
+    expect(swingTarget([spine], { x: 1, z: 0 }, { x: 1, z: 0 }, reach)).toBe(0)
+  })
+
+  it('lands on the nearest of two', () => {
+    const far = { a: { x: -2, z: -2 }, b: { x: -2, z: 2 } }
+    expect(swingTarget([far, spine], { x: 2, z: 0 }, { x: -1, z: 0 }, 5)).toBe(
+      1
+    )
   })
 })

@@ -306,11 +306,15 @@ export interface MazePortal {
 
 // The lookout tower by the corn maze's gate (lookout.ts): where E climbs
 // up (the ladder's foot) and where it climbs down (the top, on the deck),
-// each where the climb leaves you, and whether a point is up on the deck.
+// each where the climb leaves you, whether a point is up on the deck, and
+// the toolbox at its foot.
 export interface LookoutRig {
   foot: Spawn
   top: Spawn
   on(x: number, z: number): boolean
+  // The toolbox at its foot the torches come out of (sharedworld.ts rule
+  // 39).
+  toolbox: XZ
 }
 
 // Beacon markers for the hand-placed landmarks, color-coded so they read

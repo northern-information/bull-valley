@@ -123,6 +123,7 @@ import { STORE_LAYOUT } from './store.ts'
 import { STRIP_MALL } from './stripmall.ts'
 import { TOPIARIES } from './topiaries.ts'
 import { buildTopiary } from './topiarymodel.ts'
+import { buildToolbox } from './torchmodel.ts'
 import { buildTunnelShade } from './tunnelshademodel.ts'
 import { buildTrapdoor, buildUndercroft } from './undercroftmodel.ts'
 import { buildWreck } from './wreck.ts'
@@ -474,6 +475,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'Fishing rod',
     build: () => buildPickup('fishing-rod'),
   },
+  { id: 'torch', label: 'Torch', build: () => buildPickup('torch') },
   {
     id: 'slurm-jar',
     label: 'Slurm jar',
@@ -498,6 +500,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildPickup('nightcrawlers'),
   },
   { id: 'tackle-box', label: 'Tackle box', build: () => buildTackleBox() },
+  { id: 'toolbox', label: 'Toolbox of torches', build: () => buildToolbox() },
   {
     id: 'picnic-table',
     label: 'Picnic table',

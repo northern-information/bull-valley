@@ -4,19 +4,20 @@
 // holds while the pack does. Every ability is a thing in a slot: the
 // flashlight lit or put out, the Citgo phone dialed, Marx's whistle
 // blown, Erwin von Dutch's slurm jar's catch, a rod's cast (and its
-// reel), and anything usable used. One at a time, so holding the
+// reel), a torch's swing at a topiary, and anything usable used. One at a time, so holding the
 // flashlight means holding nothing else. The tool the hand shows goes out
 // on the state frame so everyone sees it, and the valley lets only a
 // raider whose flashlight is lit burn a shadow with it (shadowstep.ts
 // shadowRaiders). No three.js, no DOM.
 
+import { CONFIG } from './config.ts'
 import { BAITS, BOX_ROD } from './fishing.ts'
 import { HOTBAR_SLOTS } from './hotbar.ts'
 import { isRod } from './items.ts'
 import type { Bait } from './fishing.ts'
 import type { Hotbar } from './hotbar.ts'
 
-export const TOOLS = ['flashlight', 'jar', 'rod'] as const
+export const TOOLS = ['flashlight', 'jar', 'rod', 'torch'] as const
 export type Tool = (typeof TOOLS)[number]
 
 export function isTool(value: unknown): value is Tool {
@@ -24,21 +25,22 @@ export function isTool(value: unknown): value is Tool {
 }
 
 // The tool a kind is in the hand, as the hand rigs draw it and the state
-// frame says it: the flashlight, the jar, or any rod; null for the rest,
-// which the hand holds out of sight.
+// frame says it: the flashlight, the jar, any rod, or the torch; null for
+// the rest, which the hand holds out of sight.
 export function toolOf(kind: string | null): Tool | null {
   if (kind === 'flashlight') return 'flashlight'
   if (kind === 'slurm-jar') return 'jar'
+  if (kind === 'torch') return 'torch'
   if (kind === BOX_ROD || (kind !== null && isRod(kind))) return 'rod'
   return null
 }
 
 // What the left click does with a kind in hand: light the flashlight (or
-// put it out), catch with the jar, cast or reel the rod, dial the phone,
-// blow the whistle, use anything usable (`usable`, items.ts canUse as the
-// pack reads it), or nothing.
+// put it out), catch with the jar, cast or reel the rod, swing the torch,
+// dial the phone, blow the whistle, use anything usable (`usable`,
+// items.ts canUse as the pack reads it), or nothing.
 export type HandUse =
-  'light' | 'catch' | 'cast' | 'dial' | 'whistle' | 'use' | null
+  'light' | 'catch' | 'cast' | 'swing' | 'dial' | 'whistle' | 'use' | null
 
 export function useOf(kind: string | null, usable: boolean): HandUse {
   if (kind === null) return null
@@ -49,6 +51,8 @@ export function useOf(kind: string | null, usable: boolean): HandUse {
       return 'catch'
     case 'rod':
       return 'cast'
+    case 'torch':
+      return 'swing'
   }
   if (kind === 'citgo-phone') return 'dial'
   if (kind === 'marx-whistle') return 'whistle'
@@ -124,6 +128,46 @@ export function castPose(seconds: number, cfg: typeof CAST = CAST): CastPose {
         ? cfg.up - (cfg.up + cfg.down) * between(seconds, cfg.back, cfg.whip)
         : -cfg.down * (1 - between(seconds, cfg.whip, cfg.settle))
   return { tilt, fly: between(seconds, cfg.release, cfg.lands) }
+}
+
+// A torch's swing, as the 3D valley draws it: the arm draws back up over
+// the shoulder, chops down and across past where it rests, and comes back
+// up. The blow lands as the chop passes rest (CONFIG.torch.hitAt).
+export const SWING = {
+  // Seconds: the draw back ends, the chop ends, the arm is back.
+  back: 0.14,
+  chop: 0.3,
+  settle: CONFIG.torch.swingSeconds,
+  // How far back and how far down past rest the arm turns, radians, and
+  // how far across it sweeps.
+  up: 0.9,
+  down: 0.7,
+  across: 0.5,
+} as const
+
+export interface SwingPose {
+  // The arm's turn from where it rests: back (positive) or down.
+  tilt: number
+  // How far it has swept across, radians.
+  sweep: number
+}
+
+// The swing `seconds` after the click: at rest before 0 and once back.
+export function swingPose(
+  seconds: number,
+  cfg: typeof SWING = SWING
+): SwingPose {
+  if (seconds < 0 || seconds >= cfg.settle) return { tilt: 0, sweep: 0 }
+  if (seconds < cfg.back) {
+    const k = between(seconds, 0, cfg.back)
+    return { tilt: cfg.up * k, sweep: 0 }
+  }
+  if (seconds < cfg.chop) {
+    const k = between(seconds, cfg.back, cfg.chop)
+    return { tilt: cfg.up - (cfg.up + cfg.down) * k, sweep: cfg.across * k }
+  }
+  const k = between(seconds, cfg.chop, cfg.settle)
+  return { tilt: -cfg.down * (1 - k), sweep: cfg.across * (1 - k) }
 }
 
 // A scoop, as the 3D valley draws it: the jar hand dips down and out at

@@ -5,6 +5,7 @@
 // Three glue that reads it every frame.
 
 import * as THREE from 'three'
+import { motionOf } from './assetkit.ts'
 import { disposeTree } from './assets.ts'
 import { canvas, EGGSHELL, MONO, text } from './canvas.ts'
 import { copy } from './copy.ts'
@@ -17,7 +18,14 @@ import {
   buildFigure,
 } from './figure.ts'
 import { BOX_ROD } from './fishing.ts'
-import { buildHeldJar, buildHeldRod } from './heldmodels.ts'
+import {
+  buildHealthBar,
+  disposeHealthBar,
+  drawHealthBar,
+  setHealthBar,
+  stepHealthBar,
+} from './healthbar.ts'
+import { buildHeldJar, buildHeldRod, buildHeldTorch } from './heldmodels.ts'
 import { flashlightArm, samplePose, strideOf, stridePose } from './poses.ts'
 import {
   applyHealth,
@@ -31,6 +39,7 @@ import {
 } from './presence.ts'
 import type { Flashlight } from './assets.ts'
 import type { Figure, Worn } from './figure.ts'
+import type { HealthBar } from './healthbar.ts'
 import type { Peer, PeerTable } from './presence.ts'
 import type { HeldWire, PeerStateWire, PeerWire } from './protocol.ts'
 
@@ -41,14 +50,8 @@ const LABEL_OVER_HALO = 2.25
 // The label canvas: power-of-two sides, drawn once per peer.
 const LABEL_W = 128
 const LABEL_H = 32
-// Their geometrie, a thin bar just under the name: canvas pixels, drawn
-// again only when the share moves a pixel.
-const BAR_W = 64
-const BAR_H = 4
+// Their geometrie, a thin bar just under the name (healthbar.ts).
 const BAR_UNDER = 0.17
-// Given back, the bar climbs to its new share over this long rather than
-// snapping; a loss lands at once.
-const RISE_SECONDS = 0.6
 // The party list (partyhud.ts) names this many, nearest first.
 const PARTY_MAX = 6
 
@@ -77,52 +80,6 @@ interface Puppet {
   // Where they were drawn this frame, for the party list's order; null
   // while unplaced.
   at: { x: number; z: number } | null
-}
-
-interface HealthBar {
-  sprite: THREE.Sprite
-  texture: THREE.CanvasTexture
-  ctx: CanvasRenderingContext2D
-  // The share drawn now, and the share the valley last said.
-  shown: number
-  target: number
-  // The fill in canvas pixels as last drawn.
-  drawn: number
-}
-
-function buildHealthBar(): HealthBar {
-  const art = canvas([BAR_W, BAR_H])
-  const texture = new THREE.CanvasTexture(art.c)
-  texture.magFilter = THREE.NearestFilter
-  texture.minFilter = THREE.NearestFilter
-  texture.colorSpace = THREE.SRGBColorSpace
-  const material = new THREE.SpriteMaterial({
-    map: texture,
-    transparent: true,
-    depthWrite: false,
-    fog: true,
-  })
-  const sprite = new THREE.Sprite(material)
-  sprite.scale.set(0.6, 0.6 * (BAR_H / BAR_W), 1)
-  return { sprite, texture, ctx: art.ctx, shown: 1, target: 1, drawn: -1 }
-}
-
-// The bar as Elden Ring draws it: a dull gilt hairline round a dark well,
-// filled in deep crimson.
-function drawHealthBar(bar: HealthBar): void {
-  const inner = BAR_W - 2
-  const fill = Math.round(inner * Math.max(0, Math.min(1, bar.shown)))
-  if (fill === bar.drawn) return
-  bar.drawn = fill
-  const { ctx } = bar
-  ctx.clearRect(0, 0, BAR_W, BAR_H)
-  ctx.fillStyle = 'rgb(150 130 100 / 70%)'
-  ctx.fillRect(0, 0, BAR_W, BAR_H)
-  ctx.fillStyle = 'rgb(10 6 5 / 85%)'
-  ctx.fillRect(1, 1, inner, BAR_H - 2)
-  ctx.fillStyle = '#9e1b14'
-  ctx.fillRect(1, 1, fill, BAR_H - 2)
-  bar.texture.needsUpdate = true
 }
 
 // A name tag as the peers wear it, its own material and texture to
@@ -211,10 +168,7 @@ export class Peers {
     const peer = applyHealth(this.table, id, health, max)
     const puppet = this.puppets.get(id)
     if (!peer || !puppet) return
-    const bar = puppet.bar
-    bar.target = peer.health / peer.max
-    if (bar.target < bar.shown) bar.shown = bar.target
-    drawHealthBar(bar)
+    setHealthBar(puppet.bar, peer.health / peer.max)
   }
 
   // The raiders placed in the valley, nearest `from` first, as the party
@@ -276,11 +230,9 @@ export class Peers {
     this.time += dt
     for (const [id, puppet] of this.puppets) {
       // Their bar climbs to what was given back.
-      const bar = puppet.bar
-      if (bar.shown < bar.target) {
-        bar.shown = Math.min(bar.target, bar.shown + dt / RISE_SECONDS)
-        drawHealthBar(bar)
-      }
+      stepHealthBar(puppet.bar, dt)
+      // A torch in their fist burns.
+      if (puppet.held) motionOf(puppet.held.object)?.(this.time)
       const peer = this.table.get(id)
       const at = peer ? samplePeer(peer, renderAt) : null
       const group = puppet.figure.group
@@ -347,8 +299,8 @@ export class Peers {
     })
   }
 
-  // What a peer's left fist holds: the flashlight, or the jar or a rod in
-  // its place, or nothing in sight ('none'). Which rod is not sent; every
+  // What a peer's left fist holds: the flashlight, or the jar, a rod or the
+  // torch in its place, or nothing in sight ('none'). Which rod is not sent; every
   // peer's is the box's.
   private hold(puppet: Puppet, held: HeldWire | null): void {
     puppet.flashlight.group.visible = held === null
@@ -359,7 +311,12 @@ export class Peers {
     }
     puppet.held = null
     if (!held || held === 'none') return
-    const object = held === 'jar' ? buildHeldJar(1) : buildHeldRod(BOX_ROD, 1)
+    const object =
+      held === 'jar'
+        ? buildHeldJar(1)
+        : held === 'torch'
+          ? buildHeldTorch(1)
+          : buildHeldRod(BOX_ROD, 1)
     puppet.figure.fists.L.add(object)
     puppet.held = { kind: held, object }
   }
@@ -377,8 +334,7 @@ export class Peers {
     puppet.worn.dispose()
     puppet.label.material.dispose()
     puppet.texture.dispose()
-    puppet.bar.sprite.material.dispose()
-    puppet.bar.texture.dispose()
+    disposeHealthBar(puppet.bar)
     this.puppets.delete(id)
   }
 }

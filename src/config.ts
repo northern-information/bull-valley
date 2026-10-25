@@ -1512,7 +1512,7 @@ export const CONFIG = {
   // The topiaries (topiaries.ts): the hedge animals of The Shining's
   // Overlook, two lions, a dog, a rabbit and a buffalo, standing broadside
   // across the maze's corridors. Not shadows: no beam burns them and they
-  // never strike. They stand in corridors `minWidth` to `maxWidth` metres
+  // never strike; only a torch harms them (CONFIG.torch). They stand in corridors `minWidth` to `maxWidth` metres
   // across, at least `clearOfHeart` from the portal and `clearOfGate` from
   // the gate, the spots `spacing` apart. Every `slotSeconds` on the valley's
   // clock each moves to another of its spots (staggered, so they never all
@@ -1534,6 +1534,30 @@ export const CONFIG = {
     hearRange: 30,
     length: 3.5,
     gateHalf: 0.7,
+    // Each stands `hp` whole, the valley's to keep (sharedworld.ts rule
+    // 39); burned to nothing, it grows back `regrowSeconds` later, where
+    // the clock has it then, while nobody looks. The fire on it as it goes
+    // burns `burnSeconds`. Its bar shows over it within `barRange` once it
+    // is hurt.
+    hp: 100,
+    regrowSeconds: 180,
+    burnSeconds: 2.5,
+    barRange: 30,
+  },
+  // The torch (held.ts, sharedworld.ts rule 39): out of the toolbox at the
+  // lookout's foot, one an account, within `toolboxReach` of it. A swing
+  // takes `swingSeconds`, lands at `hitAt` into it on a topiary whose
+  // spine is within `reach` (the valley allows `slack` more, the raider's
+  // last state frame being a beat behind), and takes `damage` off it, give
+  // or take `spread` on the valley's roll. It harms nothing else.
+  torch: {
+    toolboxReach: 1.8,
+    swingSeconds: 0.6,
+    hitAt: 0.22,
+    reach: 2.6,
+    slack: 2,
+    damage: 20,
+    spread: 0.15,
   },
   // The Caretaker: one floating shade that walks the corn maze's paths
   // (caretaker.ts, sharedworld.ts rule 13). It patrols out to a random

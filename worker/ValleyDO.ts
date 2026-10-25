@@ -439,6 +439,19 @@ export class ValleyDO extends DurableObject<Env> {
       case 'jar-slurm':
         await this.withPack(ws, account, { ...msg, id, at })
         return
+      // Rule 39.
+      case 'toolbox':
+        await this.withPack(ws, account, { type: 'toolbox', id, at })
+        return
+      case 'torch':
+        await this.withPack(ws, account, {
+          type: 'torch',
+          id,
+          index: msg.index,
+          at,
+          roll: this.roll(),
+        })
+        return
       case 'cast':
         await this.withPack(ws, account, {
           type: 'cast',
@@ -2151,14 +2164,24 @@ export class ValleyDO extends DurableObject<Env> {
 
   // Rule 36: a rod out of the tackle box or a cast, with the pack read
   // first, so the valley knows the rod and the bait are in it; rule 38: a
-  // whistle or a portal, the whistle or the phone. A pack that cannot be
+  // whistle or a portal, the whistle or the phone; rule 39: a torch out of
+  // the toolbox, or a swing of one. A pack that cannot be
   // read is refused.
   private withPack(
     ws: WebSocket,
     account: string | null,
     action: Extract<
       ValleyAction,
-      { type: 'tackle' | 'cast' | 'jar-slurm' | 'call' | 'open-portal' }
+      {
+        type:
+          | 'tackle'
+          | 'cast'
+          | 'jar-slurm'
+          | 'call'
+          | 'open-portal'
+          | 'toolbox'
+          | 'torch'
+      }
     >
   ): Promise<boolean> {
     return this.locked(async () => {
@@ -3369,6 +3392,7 @@ function unwrittenNack(action: ValleyAction): NackMessage | null {
     case 'cast':
     case 'reel':
     case 'jar-slurm':
+    case 'toolbox':
       return { type: 'nack', re: action.type, reason }
     default:
       return null
