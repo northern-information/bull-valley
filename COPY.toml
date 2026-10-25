@@ -309,7 +309,7 @@ lore = { text = "Reads at his tailgate by the Citgo, does donuts across the road
 lore = { text = "Behind the counter at every Citgo at once. Friendly. Knows more about the outages than he says.", by = "ai" }
 
 [book.gron]
-lore = { text = "Stands under his own raincloud by the berry bush.", by = "ai" }
+lore = { text = "Stands under his own raincloud by the berry bush, and sends raiders out into the valley one errand at a time.", by = "ai" }
 
 [book.moab]
 lore = { text = "A burning skeleton in a red trench coat, his back to his burning horse, under every Citgo sign. He deals in gold, and he can put you in a new body.", by = "ai" }
@@ -405,6 +405,46 @@ rose_placed = { text = "You lay the rose at the heart of the maze. Something in 
 rose_rewarded = { text = "Erwin von Dutch drops a brass key on a red tag into your palm. It says BACK.", by = "ai" }
 too_far = { text = "Not here.", by = "ai" }
 not_now = { text = "\"Not now.\"", by = "ai" }
+# Gron's quests, one after another (src/quests.ts, src/grondialog.ts):
+# a berry off a bush, Erwin next door, and the floppy disk.
+xp_prize = { text = "Reward · {xp} XP", by = "ai" }
+gron_step_word = { text = "Gron's Word", by = "ai" }
+gron_step_word_where = { text = "By the Berry Bush", by = "ai" }
+gron_step_back = { text = "Bring It Back", by = "ai" }
+gron_step_back_where = { text = "To Gron", by = "ai" }
+berries_title = { text = "Quest · Pick Berries", by = "ai" }
+berries_step_pick = { text = "Pick a Berry", by = "ai" }
+berries_step_pick_where = { text = "Any Bush, Once a Day", by = "ai" }
+berries_offer = { text = "\"The bush beside me gives one berry a day to whoever asks it. Ask it. Bring me what it gives you.\"", by = "ai" }
+berries_accept = { text = "I'll Pick One", by = "ai" }
+berries_waiting = { text = "\"A berry. Off a bush. E, while it hangs there.\"", by = "ai" }
+berries_ready = { text = "\"You found one. Give it here.\"", by = "ai" }
+berries_reward = { text = "Hand Over a Berry", by = "ai" }
+berries_done = { text = "\"Good. The bushes know you now.\"", by = "ai" }
+berries_given = { text = "Gron points his chin at the berry bush and says nothing else.", by = "ai" }
+berries_finished = { text = "Gron holds the berry up under his raincloud until it is wet, then eats it.", by = "ai" }
+erwin_title = { text = "Quest · Next Door", by = "ai" }
+erwin_step_find = { text = "Find Erwin", by = "ai" }
+erwin_step_find_where = { text = "The Golden Wok, Next Door", by = "ai" }
+erwin_offer = { text = "\"Next door, past the lot, the Golden Wok. Erwin von Dutch sleeps behind its boards. Tell him Gron sent you.\"", by = "ai" }
+erwin_accept = { text = "I'll Find Him", by = "ai" }
+erwin_waiting = { text = "\"The Golden Wok. Candles behind the boards. Go.\"", by = "ai" }
+erwin_ready = { text = "\"Gron sent you? Of course he did. He sends everyone eventually.\"", by = "ai" }
+erwin_reward = { text = "Gron Sent Me", by = "ai" }
+erwin_done = { text = "\"You found him. He'll trade you anything but the truth.\"", by = "ai" }
+erwin_given = { text = "\"The Golden Wok. Tell him Gron sent you.\"", by = "ai" }
+erwin_finished = { text = "Erwin von Dutch looks at you a long time. \"Tell Gron I said nothing.\"", by = "ai" }
+floppy_title = { text = "Quest · Construction Data", by = "ai" }
+floppy_step_find = { text = "Find the Floppy Disk", by = "ai" }
+floppy_step_find_where = { text = "The Industrial Zone", by = "ai" }
+floppy_offer = { text = "\"Out in the industrial zone they drew up what they meant to build here. It is on a 3.5-inch floppy disk. Bring me the construction data and I will show you what the kingdom was meant to be.\"", by = "ai" }
+floppy_accept = { text = "I'll Find It", by = "ai" }
+floppy_waiting = { text = "\"The industrial zone. A floppy disk. The construction data is on it.\"", by = "ai" }
+floppy_ready = { text = "\"That is it. Give it here.\"", by = "ai" }
+floppy_reward = { text = "Hand Over the Disk", by = "ai" }
+floppy_done = { text = "\"Every night the kingdom crumbles. Now I know how it was built.\"", by = "ai" }
+floppy_given = { text = "\"A 3.5-inch floppy disk. The industrial zone. Go.\"", by = "ai" }
+floppy_finished = { text = "Gron turns the floppy disk over in his hands, reading the label in the rain.", by = "ai" }
 
 # The game's own lines in the chat log (src/actions.ts, src/valleysync.ts,
 # src/loop.ts, src/shop.ts).
@@ -1086,9 +1126,12 @@ curse_8 = { text = "I'm not paid enough for slurms.", by = "ai" }
 # When a raider squashes the last one before he gets to it.
 thanks = { text = "Oh, thanks!", by = "ai" }
 
-# Gron by the berry bush: E has him say his next line (src/npcs.ts).
+# Gron by the berry bush (src/grondialog.ts): one of the says_ lines
+# greets you at random over the quest he gives ([quests]).
 
 [gron]
+eyebrow = { text = "Quests", by = "ai" }
+where = { text = "· By the Berry Bush", by = "ai" }
 says_1 = { text = "I can make you anything you want.", by = "tyler" }
 says_2 = { text = "Castle Entropy is over yonder tonight.", by = "tyler" }
 says_3 = { text = "Every night the kingdom crumbles...", by = "tyler" }
@@ -1557,6 +1600,10 @@ blurb = { text = "Erwin von Dutch wants it laid at the heart of the corn maze. D
 label = { text = "Video Vault Key", by = "ai" }
 blurb = { text = "A brass key on a red tag that says BACK, from Erwin von Dutch for the rose. It opens the office behind the Video Vault, for whoever carries it.", by = "ai" }
 
+[items.floppy-disk]
+label = { text = "Construction Data", by = "ai" }
+blurb = { text = "A navy 3.5\" floppy disk out of the industrial zone, its label typed over in a hand no one uses anymore. Gron wants it.", by = "ai" }
+
 [items.fishing-rod]
 label = { text = "Fishing Rod", by = "ai" }
 blurb = { text = "Six feet of fiberglass and a spinning reel, out of the tackle box at the firefly pond. Nothing bites without it.", by = "ai" }
@@ -1721,6 +1768,7 @@ banked = { text = "{amount} banked", by = "ai" }
 citgo = { text = "Citgo", by = "ai" }
 citgo_blurb = { text = "The shelves of every Citgo you've stood at. {count} found.", by = "ai" }
 erwin_blurb = { text = "Barters out of the Golden Wok. No fiat currency.", by = "ai" }
+gron_blurb = { text = "Gives quests, one after another, by the berry bush.", by = "ai" }
 moab_blurb = { text = "Burns under every Citgo sign. Trades for gold and changes your character.", by = "ai" }
 audio_blurb = { text = "How loud the music and the sounds play, kept on your account.", by = "ai" }
 

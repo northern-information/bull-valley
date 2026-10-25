@@ -213,11 +213,15 @@
 //    the valley in D1 beside the pack. Erwin von Dutch gives a raider out
 //    of the bed beside him a rose (again, if it was lost); laid at the
 //    heart of the maze where the world was opened with it, he gives them
-//    the Video Vault's back-room key. Each step is judged against where
-//    the raider's last state frame put them and what the pack holds
+//    the Video Vault's back-room key. Gron, where the world was opened
+//    with him (SharedWorld.gron), gives his quests one after another, each
+//    once the last is done: bring him a berry, find Erwin (who finishes
+//    it), and bring him the floppy disk from the industrial zone. Each
+//    step is judged against where the raider's last state frame put them,
+//    the account's stage on every quest and what the pack holds
 //    (ValleyContext.quest in, Reduced.quest out); the valley writes the
-//    stage and the pack together, or neither. The key earns quest XP
-//    (rule 22).
+//    stage and the pack together, or neither. Every quest finished earns
+//    quest XP (rule 22).
 // 27. Buffs (buffs.ts): every account's wards (wardlevels.ts) are kept
 //    by the valley (Valley.wards, on its clock in seconds, only the
 //    accounts not sober), dosed by each use once the pack has given the
@@ -515,7 +519,7 @@ import {
 } from './party.ts'
 import { fieldEnd, freeSlot, nextClose, openAt, ringEnd } from './portals.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
-import { atHeart, isQuest, QUESTS, questStep } from './quests.ts'
+import { atGron, atHeart, isQuest, QUESTS, questStep } from './quests.ts'
 import {
   affordsResearch,
   atRecycler,
@@ -582,7 +586,7 @@ import type {
   WorldReason,
   WorldWire,
 } from './protocol.ts'
-import type { QuestId, QuestStage, QuestStep } from './quests.ts'
+import type { QuestId, QuestStage, QuestStages, QuestStep } from './quests.ts'
 import type { Research, ResearchLine } from './recycling.ts'
 import type { StandLedger } from './stand.ts'
 import type { TopiaryHealth } from './topiaries.ts'
@@ -646,6 +650,8 @@ interface SharedWorld {
   // 25).
   dealer: XZ | null
   dealerStock: DealerStock
+  // Where Gron stands, or null (rule 26: his quests are taken beside him).
+  gron: XZ | null
   // Where the Undercroft lies, or null (rule 11: the tunnel shades).
   undercroft: MazePlace | null
   // Where Castle Entropy's moat lies, or null (rule 11: the valley cuts it
@@ -772,6 +778,7 @@ export type ValleyAction =
       ponds: PondPlace[]
       bushes: XZ[]
       dealer: XZ | null
+      gron: XZ | null
       undercroft: MazePlace | null
       moat: MazePlace | null
       rings: XZ[]
@@ -983,9 +990,9 @@ export interface ValleyContext {
   // a portal: the raider's pack and cosmetics, as the valley just read
   // them.
   holdings?: { pack: Inventory; cosmetics: readonly CosmeticId[] }
-  // For a quest's step: where the account stands on it, and its pack, as
-  // the valley just read them.
-  quest?: { stage: QuestStage; pack: Inventory }
+  // For a quest's step: where the account stands on every quest, and its
+  // pack, as the valley just read them.
+  quest?: { stages: QuestStages; pack: Inventory }
   // For tending the stand: the account's ledger, pack and wallet (cents),
   // as the valley just read them.
   stand?: { ledger: StandLedger; pack: Inventory; cash: number }
@@ -1027,7 +1034,7 @@ export interface Reduced {
     step: QuestStep
     from: QuestStage
     to: QuestStage
-    change: { kind: string; delta: number }
+    change: { kind: string; delta: number } | null
   }
   // Rule 25: a barter that stands once the valley has taken `give` (kind
   // -> units) out of the account's pack and put `take` in, together.
@@ -1818,6 +1825,7 @@ function onJoin(
         bushes: action.bushes,
         dealer: action.dealer,
         dealerStock: freshDealerStock(),
+        gron: action.gron,
         undercroft: action.undercroft,
         moat: action.moat,
         rings: action.rings,
@@ -2224,13 +2232,14 @@ function onQuest(
     : null
   const step = questStep(
     QUESTS[action.quest],
-    quest.stage,
+    quest.stages,
     action.step,
     quest.pack,
     {
-      // Rule 29: dialed in, Erwin is a call away; the heart of the maze
-      // is not (laying the rose takes a body, bodiless).
-      atDealer: !!member.dialup || atDealer(action.at, world.dealer),
+      // Rule 29: dialed in, Erwin and Gron are a call away; the heart of
+      // the maze is not (laying the rose takes a body, bodiless).
+      atErwin: !!member.dialup || atDealer(action.at, world.dealer),
+      atGron: !!member.dialup || atGron(action.at, world.gron),
       atHeart: atHeart(action.at, heart),
     }
   )
@@ -2241,7 +2250,7 @@ function onQuest(
       account: member.account,
       quest: action.quest,
       step: action.step,
-      from: quest.stage,
+      from: quest.stages[action.quest],
       to: step.stage,
       change: step.change,
     },

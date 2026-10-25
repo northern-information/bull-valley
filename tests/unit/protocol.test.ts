@@ -55,6 +55,7 @@ const hello = {
   ],
   bushes: [0, 1, 2].map((i) => ({ x: 6 + i, z: -30 })),
   dealer: { x: -10, z: -60 },
+  gron: { x: 4, z: -9 },
   undercroft: { x: -7000, z: -7000, yaw: 0 },
   moat: { x: 400, z: 30, yaw: 0.35 },
   rings: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100 + 2, z: i + 14 })),
@@ -291,6 +292,7 @@ describe('parseClientMessage', () => {
       ponds: _ponds,
       bushes: _bushes,
       dealer: _dealer,
+      gron: _gron,
       undercroft: _undercroft,
       moat: _moat,
       rings: _rings,
@@ -311,6 +313,7 @@ describe('parseClientMessage', () => {
       ponds: [],
       bushes: [],
       dealer: null,
+      gron: null,
       undercroft: null,
       moat: null,
       rings: [],
@@ -347,6 +350,7 @@ describe('parseClientMessage', () => {
       ponds: [],
       bushes: [],
       dealer: null,
+      gron: null,
       undercroft: null,
       moat: null,
       rings: [],
@@ -355,6 +359,8 @@ describe('parseClientMessage', () => {
     // The current version still requires them all.
     expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()
     expect(parse({ ...hello, dealer: 'wick' })).toBeNull()
+    expect(parse({ ...hello, gron: 'gron' })).toBeNull()
+    expect(parse({ ...hello, gron: null })).toEqual({ ...hello, gron: null })
     expect(
       parse({ ...hello, moat: { place: hello.maze, floor: 'deep' } })
     ).toBeNull()

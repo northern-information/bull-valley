@@ -426,6 +426,7 @@ async function boot() {
     stand: world.stand ? world.stand.at : null,
     recyclers: world.recyclers.map(({ at }) => at),
     dealer: world.plaza ? world.plaza.dealer.at : null,
+    gron: world.gron,
     undercroft: world.undercroft?.place ?? null,
     moat: world.castle?.place ?? null,
     rings: world.rings,

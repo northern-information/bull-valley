@@ -123,8 +123,6 @@ export function createTargets(game: Game): Targets {
             return world.tylerRig?.figure.group ?? null
           case 'jericho':
             return world.jerichoRig?.body ?? null
-          case 'gron':
-            return world.gronRig?.figure.group ?? null
         }
         break
       default:
