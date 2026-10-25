@@ -12,7 +12,8 @@ import type { Vec3 } from './interfaces.ts'
 // rusted cleaver dragged in one hand and a hooked chain in the other.
 // Origin at the floor under it, facing +Z. update takes how fast it is
 // walking (m/s): the Warden's heavy step is drawn from it, never a run.
-// setBurn pales it and shakes it as a beam burns it.
+// setBurn pales it and shakes it as a beam burns it, and its arms (the
+// Warden's legs and trunk too) thrash, wilder the nearer it is to bursting.
 export interface TunnelShadeRig {
   group: THREE.Group
   update(t: number, speed?: number): void
@@ -85,15 +86,22 @@ function buildShade(): TunnelShadeRig {
     )
   }
   const base = sway.map((m) => m.rotation.x)
+  const tilt = sway.map((m) => m.rotation.z)
+  let thrash = 0
   return {
     group,
     update(t) {
       sway.forEach((m, i) => {
-        m.rotation.x = base[i] + Math.sin(t * 1.7 + i) * 0.12
+        m.rotation.x =
+          base[i] +
+          Math.sin(t * 1.7 + i) * 0.12 +
+          Math.sin(t * 14 + i * 2) * 1.2 * thrash
+        m.rotation.z = tilt[i] + Math.sin(t * 10 + i) * 0.6 * thrash
       })
     },
     setBurn(next) {
       const burn = Math.max(0, Math.min(1, next))
+      thrash = burn * burn
       body.color.copy(SHADE_BODY).lerp(SHADE_PALE, burn)
       body.opacity = 0.94 - burn * 0.4
     },
@@ -456,6 +464,8 @@ function buildWarden(seed: number): TunnelShadeRig {
   let phase = 0
   let last = 0
   let walk = 0
+  // How hard it thrashes as it burns (setBurn).
+  let thrash = 0
   const hemBase = hem.map((m) => m.rotation.x)
   const update = (t: number, speed = 0) => {
     // A blink across the chamber is no stride.
@@ -496,6 +506,17 @@ function buildWarden(seed: number): TunnelShadeRig {
       m.rotation.x = Math.sin(t * 1.3 + i * 0.4) * (0.06 + walk * 0.1)
     })
     chain.rotation.x = Math.sin(t * 1.1) * 0.08 + walk * step * 0.25
+    // Burning, it thrashes: the arms flung up and about, the legs
+    // kicking, the trunk heaving.
+    if (thrash > 0) {
+      right.shoulder.rotation.x += Math.sin(t * 9.1) * 1.1 * thrash
+      right.shoulder.rotation.z += Math.sin(t * 7.3 + 1) * 0.6 * thrash
+      left.shoulder.rotation.x += Math.sin(t * 10.2 + 2) * 1.1 * thrash
+      left.shoulder.rotation.z -= Math.sin(t * 8.1) * 0.6 * thrash
+      legs[0].rotation.x += Math.sin(t * 8.7) * 0.5 * thrash
+      legs[1].rotation.x += Math.sin(t * 9.4 + 2) * 0.5 * thrash
+      trunk.rotation.z = Math.sin(t * 5.2) * 0.2 * thrash
+    }
     hem.forEach((m, i) => {
       m.rotation.x =
         hemBase[i] + Math.sin(t * 1.6 + i * 1.3) * 0.08 + walk * step * 0.15
@@ -507,6 +528,7 @@ function buildWarden(seed: number): TunnelShadeRig {
     update,
     setBurn(next) {
       const burn = Math.max(0, Math.min(1, next))
+      thrash = burn * burn
       coat.color.copy(COAT).lerp(PALE, burn)
       coat.opacity = 0.96 - burn * 0.4
       for (const { m, from } of lit) m.color.copy(from).lerp(PALE, burn)

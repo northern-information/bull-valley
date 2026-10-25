@@ -19,6 +19,7 @@ import {
   buildFlashlight,
   buildLockerDoors,
   buildSlurm,
+  burnLoopAt,
   disposeTree,
   isMesh,
   meshBounds,
@@ -110,7 +111,12 @@ function sampleFigure(outfitId: OutfitId): THREE.Group {
 // up and lunging at the view. `frame` says, at each moment, how fast it
 // walks and how far through a strike it is.
 function sampleShadowmanDoing(
-  frame: (t: number) => { speed: number; windup: number; lunge: number }
+  frame: (t: number) => {
+    speed: number
+    windup: number
+    lunge: number
+    burn?: number
+  }
 ): THREE.Group {
   const rig = buildShadowman(2.8, 0xd06)
   const group = new THREE.Group()
@@ -134,6 +140,16 @@ function sampleShadowman(): THREE.Group {
 
 function sampleShadowmanWalking(): THREE.Group {
   return sampleShadowmanDoing(() => ({ speed: 1.6, windup: 0, lunge: 0 }))
+}
+
+// Held in a beam from nothing to bursting, thrashing harder as it goes.
+function sampleShadowmanBurning(): THREE.Group {
+  return sampleShadowmanDoing((t) => ({
+    speed: 0,
+    windup: 0,
+    lunge: 0,
+    burn: burnLoopAt(t),
+  }))
 }
 
 function sampleShadowmanStriking(): THREE.Group {
@@ -323,6 +339,11 @@ const ASSETS: AkashicAsset[] = [
     id: 'shadowman-striking',
     label: 'Shadowman: winding up and lunging',
     build: sampleShadowmanStriking,
+  },
+  {
+    id: 'shadowman-burning',
+    label: 'Shadowman: burning in a beam, thrashing',
+    build: sampleShadowmanBurning,
   },
   { id: 'mist', label: 'Ground mist', build: sampleMist },
 ]

@@ -1539,19 +1539,36 @@ export const CONFIG = {
     // the clock has it then, while nobody looks. Burned to nothing it dies
     // over `deathSeconds` (topiaries.ts deathPose): it bursts into flame,
     // falls onto its back, kicks, and burns down to ash. Its bar shows
-    // over it within `barRange` once it is hurt.
+    // over it as every enemy's does (CONFIG.healthBars).
     hp: 100,
     regrowSeconds: 180,
     deathSeconds: 4.5,
-    barRange: 30,
+  },
+  // The Elden Ring bar over an enemy (healthbar.ts, enemybars.ts): every
+  // shadow, the Caretaker, the tunnel shades and the Warden, and the
+  // topiaries. It shows once it is hurt (a beam on it, a hit it stands, a
+  // torch's blow), to a raider within `range` metres, `over` metres above
+  // the top of its body, `perMetre` as wide as the body is tall (never
+  // under `minWidth` or over `maxWidth`).
+  healthBars: {
+    range: 30,
+    over: 0.35,
+    perMetre: 0.35,
+    minWidth: 0.5,
+    maxWidth: 1.8,
   },
   // The torch (held.ts, sharedworld.ts rule 39): out of the toolbox at the
   // lookout's foot, one an account, within `toolboxReach` of it. A swing
   // takes `swingSeconds`, lands at `hitAt` into it on a topiary whose
   // spine is within `reach` (the valley allows `slack` more, the raider's
   // last state frame being a beat behind), and takes `damage` off it, give
-  // or take `spread` on the valley's roll. It harms nothing else.
+  // or take `spread` on the valley's roll. Held lit, its fire is a light
+  // as well (sharedworld.ts rule 11): a shadowman, spider or spiderling
+  // within `lightRadius` of the holder burns at `burnRate` of a beam's
+  // pace, and to the Caretaker it is one of the two lights it takes.
   torch: {
+    lightRadius: 3.5,
+    burnRate: 0.5,
     toolboxReach: 1.8,
     swingSeconds: 0.6,
     hitAt: 0.22,
@@ -1567,9 +1584,10 @@ export const CONFIG = {
   // within senseRadius whether it can see them or not, it hunts at
   // huntSpeed (faster than a walk, slower than a sprint), and gives up
   // forgetSeconds after it last saw them. Its touch at touchRadius is a
-  // strike, as a shadowman's. Two raiders' beams on it at once for
-  // burnSeconds burn it, and it forms again at the heart respawnSeconds
-  // later; one beam alone does nothing. It floats hover metres over the
+  // strike, as a shadowman's. Two raiders' lights on it at once (a beam,
+  // or a torch held close, CONFIG.torch) for burnSeconds burn it, and it
+  // forms again at the heart respawnSeconds later; one alone does
+  // nothing. It floats hover metres over the
   // paths, and a beam is aimed at chestHeight over the holder's feet.
   caretaker: {
     patrolSpeed: 2.2,

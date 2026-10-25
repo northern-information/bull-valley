@@ -2812,6 +2812,22 @@ describe("rule 11: the shadowmen are the valley's", () => {
     expect(r.y).toBe(12.5)
   })
 
+  it('lights a raider holding a torch all round, with no beam', () => {
+    const v = valley()
+    const [torch, bare] = shadowRaiders(
+      v,
+      createShadows(),
+      [
+        { id: 'a', at: state({ held: 'torch' }) },
+        { id: 'b', at: state({ light: true }) },
+      ],
+      T0
+    )
+    expect(torch.torch).toBe(true)
+    expect(torch.beam).toBeNull()
+    expect(bare.torch).toBe(false)
+  })
+
   it('aims a beam only for a raider whose light is on', () => {
     const v = valley()
     const [dark, lit] = shadowRaiders(

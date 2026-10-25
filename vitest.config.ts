@@ -66,6 +66,7 @@ const THREE_AND_DOM = [
   'donutwakerig',
   'drinkmodels',
   'dropmeshes',
+  'enemybars',
   'entry',
   'figure',
   'fire',

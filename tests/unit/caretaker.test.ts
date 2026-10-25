@@ -294,6 +294,42 @@ describe('the Caretaker', () => {
       expect(ct.burn).toBe(0)
     })
 
+    // A raider holding a torch beside it (CONFIG.torch lightRadius).
+    const torch = (id: string): Raider => ({
+      id,
+      ...world({ x: heart.x + 1, z: heart.z - 1 }),
+      vulnerable: false,
+      beam: null,
+      torch: true,
+    })
+
+    it('takes a torch held close as the second light', () => {
+      const ct = createCaretaker(map)
+      let burnedBy: string[] = []
+      const steps = stepUntil(
+        ct,
+        [lit('a', 0), torch('b')],
+        (out) => {
+          burnedBy = out.burnedBy
+          return out.burst !== null
+        },
+        100,
+        0.05
+      )
+      expect(steps).toBeGreaterThan(0)
+      expect(burnedBy).toEqual(['a', 'b'])
+    })
+
+    it('does nothing with one torch alone', () => {
+      const ct = createCaretaker(map)
+      stepCaretaker(ct, mulberry32(1), {
+        dt: CONFIG.caretaker.burnSeconds,
+        raiders: [torch('b')],
+        place,
+      })
+      expect(ct.burn).toBe(0)
+    })
+
     it('cools off when the second beam drops', () => {
       const ct = createCaretaker(map)
       const rng = mulberry32(1)

@@ -193,6 +193,8 @@ export function buildShadowSpider(height = 5.6, seed = 0x5b1d): ShadowSpider {
 
   let phase = range(rng, 0, Math.PI * 2)
   let shown = 0
+  // A running time for its thrashing as it burns.
+  let clock = 0
   const update: ShadowSpider['update'] = ({
     dt,
     speed,
@@ -223,12 +225,23 @@ export function buildShadowSpider(height = 5.6, seed = 0x5b1d): ShadowSpider {
     body.rotation.x =
       Math.sin(phase * 2 + 1) * 0.02 * shown - 0.5 * rear + 0.3 * slam
     body.updateMatrix()
+    // Burning, it thrashes: its legs flail up and out on their own beats,
+    // wilder the nearer it is to bursting, and its body bucks.
+    const thrash = Math.min(1, burn) ** 2
+    clock += dt
+    body.position.y += Math.abs(Math.sin(clock * 11)) * 0.06 * H * thrash
+    body.rotation.z += Math.sin(clock * 9.3) * 0.25 * thrash
+    body.updateMatrix()
     for (const [i, leg] of legs.entries()) {
       const p = phase + leg.set * Math.PI
+      const flail = Math.sin(clock * (13 + i * 1.9) + i * 1.7) * thrash
       const swing = Math.sin(p) * stride * Math.max(0.2, shown)
       // The front pair raised over the windup, then struck down ahead.
       const front = i < 2
-      const up = Math.max(0, Math.cos(p)) * lift + (front ? 0.45 * H * rear : 0)
+      const up =
+        Math.max(0, Math.cos(p)) * lift +
+        (front ? 0.45 * H * rear : 0) +
+        Math.max(0, flail) * 0.7 * H
       hip
         .set(
           Math.sin(leg.hipTurn) * 0.08 * H,
@@ -237,7 +250,10 @@ export function buildShadowSpider(height = 5.6, seed = 0x5b1d): ShadowSpider {
         )
         .applyMatrix4(body.matrix)
       foot.set(
-        Math.sin(leg.turn) * leg.reach * (front ? 1 - 0.4 * rear : 1),
+        Math.sin(leg.turn) *
+          leg.reach *
+          (front ? 1 - 0.4 * rear : 1) *
+          (1 + 0.45 * flail),
         up,
         Math.cos(leg.turn) * leg.reach +
           swing +
@@ -261,6 +277,16 @@ export function buildShadowSpider(height = 5.6, seed = 0x5b1d): ShadowSpider {
   }
   update({ dt: 0, speed: 0, burn: 0, perception: false })
   return { group, update }
+}
+
+// Anything that burns, over and over in Akashic: a beam on it from
+// nothing to bursting over BURN_LOOP.burn seconds, a beat at the last, and
+// again.
+const BURN_LOOP = { burn: 2.5, hold: 0.5 }
+
+export function burnLoopAt(t: number): number {
+  const at = t % (BURN_LOOP.burn + BURN_LOOP.hold)
+  return Math.min(1, at / BURN_LOOP.burn)
 }
 
 // Anything that strikes, over and over in Akashic: a stride, the windup,
