@@ -154,8 +154,8 @@ export class Peers {
     return true
   }
 
-  // A peer changed their name at Gron, their character or a cosmetic at
-  // Moab, or reached a new level: a new figure and label, where they already stand. Unknown ids are ignored.
+  // A peer changed their name (Your Name), their character or a cosmetic
+  // at Moab, or reached a new level: a new figure and label, where they already stand. Unknown ids are ignored.
   updated(wire: PeerWire): void {
     const peer = applyUpdated(this.table, wire)
     if (!peer) return

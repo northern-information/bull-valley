@@ -193,7 +193,7 @@ export async function setUsername(
   }
 }
 
-// A new username for an account that has one: Gron's doing. Same rules and
+// A new username for an account that has one: Your Name's doing. Same rules and
 // outcomes as choosing the first; the session cookie is reissued with it.
 export async function renameUsername(
   username: string,
@@ -305,7 +305,7 @@ export async function usernameAvailable(
 
 // What to say of a username check: whether the name is free (null when
 // the valley could not say), the status line, and its tone. The sign-in
-// step and Gron's dialog show the same lines.
+// step and Your Name show the same lines.
 interface Availability {
   available: boolean | null
   line: string

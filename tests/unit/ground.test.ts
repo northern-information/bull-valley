@@ -218,3 +218,28 @@ describe('Ground.standAt', () => {
     expect(ridge.standAt(0, 0, 4, 0.6)).toBe(10)
   })
 })
+
+describe('Ground.lieAt', () => {
+  // The moat's floor at 0 and a pipe's deck along the wall 4 m over it.
+  const ground = new Ground(() => 0)
+  ground.addRibbon(
+    [
+      { x: 0, z: 0, y: 4 },
+      { x: 10, z: 0, y: 4 },
+    ],
+    1,
+    0
+  )
+
+  it('lays a thing on the deck under the feet it came from', () => {
+    expect(ground.lieAt(5, 0, 0)).toBe(0)
+    expect(ground.lieAt(5, 0, 4)).toBe(4)
+    // Off a raider in the air over the floor, the floor.
+    expect(ground.lieAt(5, 0, 1.5)).toBe(0)
+  })
+
+  it('lays it on the highest ground with no height told', () => {
+    expect(ground.lieAt(5, 0)).toBe(4)
+    expect(ground.lieAt(5, 0)).toBe(ground.at(5, 0))
+  })
+})

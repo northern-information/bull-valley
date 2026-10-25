@@ -1,9 +1,8 @@
-// Talking to Gron (sharedworld.ts rule 9): a dialog over the valley that
-// changes the name the valley knows you by. Your Name takes a new
-// username, checked as you type with the same rules as the first one
-// (account.ts) and saved with PUT /auth/username; the caller tells the
-// valley. Your character is Moab Coldë's to change (moabdialog.ts,
-// lookpanel.ts).
+// Your Name, from Settings (the main menu's, the pause overlay's, and
+// Dial-Up's lobby): a dialog that changes the name the valley knows you
+// by. It takes a new username, checked as you type with the same rules as
+// the first one (account.ts), and saves it with PUT /auth/username; the
+// caller tells the valley (sharedworld.ts rule 9).
 
 import { isValidUsername, USERNAME_MAX } from './account.ts'
 import { availabilityOf, renameUsername, usernameAvailable } from './auth.ts'
@@ -11,63 +10,48 @@ import { copy } from './copy.ts'
 import { finder, setStatus } from './dom.ts'
 import { closesDialog } from './npcdialog.ts'
 
-interface GronDialogOptions {
+interface NameDialogOptions {
   username: string
   // The new username is saved; tell the valley.
   onRenamed: (username: string) => void
 }
 
-// What Gron says when you walk up; one at random.
-const gronSays = () => [
-  copy('gron.says_1'),
-  copy('gron.says_2'),
-  copy('gron.says_3'),
-]
-
 // How long typing pauses before the name is checked.
 const CHECK_DELAY_MS = 300
 
 // Mounts the dialog over everything and resolves once it is closed.
-export function openGronDialog({
+export function openNameDialog({
   username,
   onRenamed,
-}: GronDialogOptions): Promise<void> {
+}: NameDialogOptions): Promise<void> {
   const root = document.createElement('div')
-  root.className = 'bv-account bv-gron'
+  root.className = 'bv-account bv-name'
   root.setAttribute('role', 'dialog')
   root.setAttribute('aria-modal', 'true')
-  root.setAttribute('aria-labelledby', 'bv-gron-title')
+  root.setAttribute('aria-labelledby', 'bv-name-title')
   root.innerHTML = `
-    <div class="bv-account-ui bv-gron-ui">
-      <h2 id="bv-gron-title">${copy('outfits.gron')}</h2>
-      <p class="bv-account-lede bv-gron-says"></p>
-      <form class="bv-gron-part" data-bv="gron-name" novalidate>
-        <h3>${copy('gron.your_name')}</h3>
+    <div class="bv-account-ui bv-name-ui">
+      <h2 id="bv-name-title">${copy('name.title')}</h2>
+      <form class="bv-name-part" data-bv="name-form" novalidate>
         <label class="bv-field">
           <span>${copy('username.field')}</span>
-          <input type="text" data-bv="gron-username" maxlength="${USERNAME_MAX}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-describedby="bv-gron-name-status">
+          <input type="text" data-bv="name-username" maxlength="${USERNAME_MAX}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" aria-describedby="bv-name-status">
         </label>
-        <p class="bv-account-status" id="bv-gron-name-status" data-bv="gron-name-status" aria-live="polite">${copy('signin.rules')}</p>
-        <button type="submit" class="bv-btn" data-bv="gron-rename" disabled>${copy('gron.change_name')}</button>
+        <p class="bv-account-status" id="bv-name-status" data-bv="name-status" aria-live="polite">${copy('signin.rules')}</p>
+        <button type="submit" class="bv-btn" data-bv="name-rename" disabled>${copy('name.change_name')}</button>
       </form>
-      <button type="button" class="bv-btn" data-bv="gron-close">${copy('gron.close')}</button>
+      <button type="button" class="bv-btn" data-bv="name-close">${copy('name.close')}</button>
     </div>`
   document.body.appendChild(root)
 
   const find = finder(root)
-  const says = find<HTMLParagraphElement>('.bv-gron-says')
-  const nameForm = find<HTMLFormElement>('[data-bv="gron-name"]')
-  const input = find<HTMLInputElement>('[data-bv="gron-username"]')
-  const nameStatus = find<HTMLParagraphElement>('[data-bv="gron-name-status"]')
-  const renameBtn = find<HTMLButtonElement>('[data-bv="gron-rename"]')
-  const closeBtn = find<HTMLButtonElement>('[data-bv="gron-close"]')
-
-  const lines = gronSays()
-  says.textContent = lines[Math.floor(Math.random() * lines.length)]
+  const nameForm = find<HTMLFormElement>('[data-bv="name-form"]')
+  const input = find<HTMLInputElement>('[data-bv="name-username"]')
+  const nameStatus = find<HTMLParagraphElement>('[data-bv="name-status"]')
+  const renameBtn = find<HTMLButtonElement>('[data-bv="name-rename"]')
+  const closeBtn = find<HTMLButtonElement>('[data-bv="name-close"]')
 
   return new Promise<void>((resolve) => {
-    // --- Your Name ---------------------------------------------------------
-
     let current = username
     let available: boolean | null = null
     let checking: ReturnType<typeof setTimeout> | null = null
@@ -90,7 +74,7 @@ export function openGronDialog({
       if (checking !== null) clearTimeout(checking)
       checking = null
       if (name === current) {
-        setStatus(nameStatus, copy('gron.name_now'), null)
+        setStatus(nameStatus, copy('name.name_now'), null)
       } else if (!isValidUsername(name)) {
         setStatus(nameStatus, copy('signin.rules'), name ? 'bad' : null)
       } else if (isOwn(name)) {
@@ -123,7 +107,7 @@ export function openGronDialog({
       if (result.ok) {
         current = name
         available = null
-        setStatus(nameStatus, copy('gron.renamed', { name }), 'ok')
+        setStatus(nameStatus, copy('name.renamed', { name }), 'ok')
         onRenamed(name)
       } else if ('taken' in result) {
         available = false
@@ -134,10 +118,8 @@ export function openGronDialog({
       refreshName()
     }
 
-    // --- The dialog --------------------------------------------------------
-
     // The game listens on the document too, and pointer lock is off while
-    // Gron talks, so its keys do nothing; E closes the dialog.
+    // the dialog is open, so its keys do nothing; E closes it.
     const onKey = (e: KeyboardEvent) => {
       if (!closesDialog(e)) return
       e.preventDefault()

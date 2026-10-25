@@ -630,6 +630,11 @@ export const CONFIG = {
     // before everyone hears them leave, so a reconnect inside it takes
     // their place back and no one sees them go.
     lingerMs: 20_000,
+    // Rule 2: where a raider on foot stands is kept this often as they
+    // walk (once they have moved this many metres), so a tab that closed
+    // without a word comes back near where it was.
+    placeEveryMs: 3000,
+    placeMoved: 1,
     // How long the "signed out" line sits in the chat log before the page
     // reloads to the sign-in card.
     signedOutReloadMs: 2500,

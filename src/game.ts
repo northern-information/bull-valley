@@ -240,7 +240,7 @@ export interface GameState {
   // The Book of Shadows is open over the valley, with the pointer free for
   // it, as the pack's is.
   bookOpen: boolean
-  // Gron's dialog, or the stand's, is open: the pointer is free for it,
+  // The stand's dialog, or the laptop, is open: the pointer is free for it,
   // and the game's keys, mouse look and menu overlay stand aside until it
   // closes.
   talking: boolean
@@ -455,7 +455,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingBuys: new Set(),
     daily: null,
     onTruckRolls: [],
-    npcSaid: { marx: 0, carlsten: 0, moab: 0, tyler: 0, jericho: 0 },
+    npcSaid: { marx: 0, carlsten: 0, moab: 0, tyler: 0, jericho: 0, gron: 0 },
   }
 }
 
@@ -503,8 +503,8 @@ export interface Game {
   hands: FirstPersonHands
   // The line in the water over the view, while the rod fishes.
   fishHud: FishHud
-  // The account and outfit from the titles; Gron changes the name and
-  // Moab the outfit.
+  // The account and outfit from the titles; Your Name changes the name
+  // and Moab the outfit.
   pick: Titles
   // The phone, dialing Citgo portals (Q).
   phone: Phone

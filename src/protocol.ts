@@ -46,7 +46,7 @@ import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 55
+export const PROTOCOL_VERSION = 56
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -705,9 +705,9 @@ interface AppearanceMessage {
   outfit: OutfitId
 }
 
-// Gron changed this raider's username (PUT /auth/username). The frame names
-// nothing: the valley reads the account's new username itself, so a client
-// can never claim a name.
+// Your Name changed this raider's username (PUT /auth/username). The
+// frame names nothing: the valley reads the account's new username itself,
+// so a client can never claim a name.
 interface RenameMessage {
   type: 'rename'
 }
@@ -1092,8 +1092,8 @@ export interface PeerJoinedMessage {
   peer: PeerWire
 }
 
-// A raider already here changed their name at Gron or their character at
-// Moab. Sent to everyone, the raider included, so their own name follows
+// A raider already here changed their name (Your Name) or their character
+// at Moab. Sent to everyone, the raider included, so their own name follows
 // the valley's.
 export interface PeerUpdatedMessage {
   type: 'peer-updated'

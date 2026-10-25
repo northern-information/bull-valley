@@ -96,7 +96,7 @@ describe('peer table', () => {
     expect(applyLeft(peers, 'a')).toBe(false)
   })
 
-  it('takes a new name and character from Gron, keeping where they are', () => {
+  it('takes a new name and character, keeping where they are', () => {
     const peers = createPeerTable()
     applyJoined(peers, wire('a', false), 0)
     applyState(peers, 'a', at(1, 1), 100)

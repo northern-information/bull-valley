@@ -82,7 +82,7 @@ const THREE_AND_DOM = [
   'glow',
   'graveart',
   'gravestones',
-  'grondialog',
+  'namedialog',
   'hallucinationrig',
   'industrialart',
   'industrialmodel',

@@ -123,6 +123,8 @@ export function createTargets(game: Game): Targets {
             return world.tylerRig?.figure.group ?? null
           case 'jericho':
             return world.jerichoRig?.body ?? null
+          case 'gron':
+            return world.gronRig?.figure.group ?? null
         }
         break
       default:
@@ -169,7 +171,7 @@ export function createTargets(game: Game): Targets {
         eye: [camera.position.x, camera.position.y, camera.position.z],
         dir: [look.x, look.y, look.z],
         feet: player.groundY,
-        groundAt: world.ground.at,
+        groundAt: world.ground.lieAt,
         heightOf,
       }
     },
