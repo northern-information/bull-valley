@@ -42,6 +42,7 @@ import {
   isCash,
   QUARTERS,
 } from './drops.ts'
+import { fetchFilms, openFilmDialog } from './filmdialog.ts'
 import { finishById } from './finishes.ts'
 import { openFishDialog } from './fishdialog.ts'
 import { inPond } from './fishing.ts'
@@ -780,6 +781,32 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
           s.pending.cook = true
           s.cookSaid = null
           net.send({ type: 'cook', kind, count })
+        },
+      })
+    )
+  }
+
+  // E at the projector in the drive-in's booth: the films in the bucket,
+  // and the one on the screen, the pointer free for them as at the
+  // campfire (rule 41). The list is asked for as the dialog opens; the
+  // valley's answer to a thread shows in it as it lands.
+  const projector = () => {
+    if (s.talking || !s.world) return
+    s.reelSaid = null
+    let films: readonly string[] | null = null
+    void fetchFilms().then((list) => {
+      films = list
+    })
+    withDialog(() =>
+      openFilmDialog({
+        films: () => films,
+        showing: () => s.world?.reel?.film ?? null,
+        pending: () => s.pending.thread,
+        said: () => s.reelSaid,
+        onThread: (film) => {
+          s.pending.thread = true
+          s.reelSaid = null
+          net.send({ type: 'thread', film })
         },
       })
     )
@@ -1565,6 +1592,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'cook':
         cook()
+        return
+      case 'projector':
+        projector()
         return
       case 'fish':
         fish()

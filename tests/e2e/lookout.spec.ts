@@ -6,7 +6,9 @@ import type { Page } from '@playwright/test'
 // The lookout tower by the corn maze's gate: E at the ladder's foot puts a
 // raider up on the deck, out of every shadow's reach, and E at its top puts
 // them back down at the foot. The toolbox beside the foot hands out the
-// torch, and a swing of it takes a bite out of a topiary (rule 39).
+// torch, and a swing of it takes a bite out of a topiary (rule 39). Past
+// the maze's far end, E at the drive-in's projector threads a reel for
+// the whole valley (rule 41).
 
 const onDeck = (page: Page) =>
   page.evaluate(() => {
@@ -87,4 +89,41 @@ test('climbs the lookout and back down, and takes a torch to a topiary', async (
       page.evaluate((i) => window.__bv?.valley?.topiaries[i]?.hp, which)
     )
     .toBeLessThan(CONFIG.topiaries.hp)
+
+  // The drive-in past the maze's far end: in the booth, facing the
+  // projector, E opens the reels on the shelf, and threading one puts it
+  // on the valley's screen.
+  const projector = await page.evaluate(() => {
+    const bv = window.__bv
+    const at = bv?.world.driveIn?.projector
+    const place = bv?.world.mazePlace
+    if (!bv || !at || !place) throw new Error('no drive-in')
+    // Back toward the booth's door (drive-in-local -z, the maze's own z).
+    bv.player.relocate(
+      at.x + Math.sin(place.yaw) * 1.4,
+      at.z - Math.cos(place.yaw) * 1.4,
+      0
+    )
+    return at
+  })
+  await faceSpot(page, projector.x, projector.z, 1.2)
+  await expect(prompt).toHaveText(copy('prompts.projector'))
+  await page.keyboard.press('KeyE')
+  const booth = page.locator('.bv-films')
+  await expect(booth).toBeVisible()
+  await expect(booth.locator('[data-bv="films-now"]')).toHaveText(
+    copy('drive_in.nothing_showing')
+  )
+  await booth
+    .locator('[data-film="test-reel.mp4"] [data-bv="film-thread"]')
+    .click()
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.valley?.reel?.film))
+    .toBe('test-reel.mp4')
+  await expect(booth.locator('[data-bv="films-now"]')).toHaveText('test-reel')
+  await expect(page.locator('.bv-chat')).toContainText(
+    copy('log.threaded', { film: 'test-reel' })
+  )
+  await page.keyboard.press('KeyE')
+  await expect(booth).toBeHidden()
 })

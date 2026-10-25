@@ -550,6 +550,12 @@ recycle_offline = { text = "No signal. The machine is dark.", by = "ai" }
 recycle_refused = { text = "The machine will not take that right now.", by = "ai" }
 cooked = { text = "You cook {count} × {fish} over the campfire: {food}.", by = "ai" }
 cook_far = { text = "You are too far from the campfire.", by = "ai" }
+threaded = { text = "You thread {film}. It plays on the big screen for everyone, over and over.", by = "ai" }
+threaded_other = { text = "{name} threads {film} at the drive-in.", by = "ai" }
+threaded_someone = { text = "Someone threads {film} at the drive-in.", by = "ai" }
+thread_far = { text = "You are too far from the projector.", by = "ai" }
+thread_offline = { text = "The projector will not run while you are offline.", by = "ai" }
+thread_refused = { text = "The projector chews the film and spits it out.", by = "ai" }
 cook_short = { text = "You do not have that many to cook.", by = "ai" }
 cook_offline = { text = "No signal. The fire is out.", by = "ai" }
 cook_refused = { text = "That will not cook right now.", by = "ai" }
@@ -678,6 +684,7 @@ stand = { text = "E — Tend Your Stand", by = "ai" }
 recycle = { text = "E — Recycling Center", by = "ai" }
 fish = { text = "E — Tackle Box", by = "ai" }
 cook = { text = "E — Campfire", by = "ai" }
+projector = { text = "E — Projector", by = "ai" }
 jar_slurm = { text = "E — Catch the Slurm", by = "ai" }
 cast = { text = "Click — Cast with {bait}", by = "ai" }
 cast_no_bait = { text = "No Bait — Dig at the Tackle Box", by = "ai" }
@@ -1234,6 +1241,24 @@ cook_one = { text = "Cook One", by = "ai" }
 cook_all = { text = "Cook All", by = "ai" }
 cooked = { text = "Cooked", by = "ai" }
 cooked_meta = { text = "In Your Pack", by = "ai" }
+close = { text = "Close", by = "ai" }
+
+# The projector in the drive-in's booth past the corn maze (src/filmdialog.ts).
+
+[drive_in]
+title = { text = "Projector", by = "ai" }
+eyebrow = { text = "Bull Valley Drive-In", by = "ai" }
+where = { text = "· Projection Booth", by = "ai" }
+says = { text = "The lamp house is still warm. Nobody has paid for a ticket here in forty years, and the cars out there never left. Thread a reel and it runs till someone threads another.", by = "ai" }
+showing = { text = "Now Showing", by = "ai" }
+showing_meta = { text = "For Everyone, On Loop", by = "ai" }
+nothing_showing = { text = "Nothing. The screen is dark.", by = "ai" }
+films = { text = "Reels", by = "ai" }
+films_meta = { text = "{count} on the Shelf", by = "ai" }
+loading = { text = "Counting the cans…", by = "ai" }
+none = { text = "The shelf is empty. No reels in the can.", by = "ai" }
+thread = { text = "Thread It", by = "ai" }
+rethread = { text = "Start Over", by = "ai" }
 close = { text = "Close", by = "ai" }
 
 # What Moab Coldë says under the Citgo sign when you press E beside him.

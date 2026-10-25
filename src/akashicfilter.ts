@@ -106,6 +106,8 @@ const PLACES = new Set([
   'citgo-interior',
   'corn-maze',
   'lookout',
+  'drive-in-screen',
+  'drive-in-booth',
   'castle-entropy',
   'castle-entropy-tomorrow',
   'castle-entropy-crumbling',

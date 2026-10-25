@@ -10,6 +10,7 @@ import {
   freshDealerStock,
   goodOf,
 } from '../../src/dealer.ts'
+import { projectorOf } from '../../src/drivein.ts'
 import { DIME_CENTS } from '../../src/drops.ts'
 import { embark, outcomeOf } from '../../src/expeditions.ts'
 import { fightOf, quickestMs } from '../../src/fishing.ts'
@@ -5017,5 +5018,103 @@ describe('rule 39: the topiaries and the torch', () => {
     })
     expect(restored.world?.topiaries).toEqual(freshTopiaries())
     expect(restored.world?.swings).toEqual({})
+  })
+})
+
+describe('rule 41: the drive-in reel', () => {
+  const projector = projectorOf(MAZE)
+  const FILM = 'carnival of souls.mp4'
+  const thread = (
+    over: Partial<Extract<ValleyAction, { type: 'thread' }>> = {}
+  ) =>
+    ({
+      type: 'thread',
+      id: 'a',
+      film: FILM,
+      at: projector,
+      ...over,
+    }) as ValleyAction
+  const reason = (r: Reduced) => r.reply?.reason
+  const inMaze = () =>
+    valleyWith(
+      { ...join('a'), maze: MAZE } as ValleyAction,
+      {
+        ...join('b'),
+        maze: MAZE,
+      } as ValleyAction
+    )
+
+  it('shows nothing until a film is threaded', () => {
+    const v = inMaze()
+    expect(v.valley.reel).toBeNull()
+    expect(toWire(v.valley)?.reel).toBeNull()
+  })
+
+  it('threads a film from its start, now, for everyone', () => {
+    const v = inMaze()
+    v.tick(5000)
+    const r = v.step(thread())
+    expect(reasons(r)).toEqual(['threaded'])
+    expect(r.broadcast[0]).toMatchObject({ by: 'a' })
+    expect(r.broadcast[0].world?.reel).toEqual({ film: FILM, since: v.now })
+    expect(r.valley.reel).toEqual({ film: FILM, since: v.now })
+    // Another, later, takes its place, and starts it over.
+    v.tick(1000)
+    const again = v.step(thread({ id: 'b', film: 'night.mp4' }))
+    expect(again.valley.reel).toEqual({ film: 'night.mp4', since: v.now })
+  })
+
+  it('threads from beside the projector, within its slack, and no farther', () => {
+    const v = inMaze()
+    const { projectorReach, slack } = CONFIG.driveIn
+    const near = {
+      x: projector.x + projectorReach + slack - 0.1,
+      z: projector.z,
+    }
+    expect(reasons(v.step(thread({ at: near })))).toEqual(['threaded'])
+    const far = {
+      x: projector.x + projectorReach + slack + 0.1,
+      z: projector.z,
+    }
+    expect(reason(v.step(thread({ at: far })))).toBe('too-far')
+    expect(reason(v.step(thread({ at: null })))).toBe('too-far')
+    expect(v.valley.reel?.since).toBe(T0)
+  })
+
+  it('refuses a film it could never show, and one with no drive-in', () => {
+    expect(reason(inMaze().step(thread({ film: '../x.mp4' })))).toBe('no-film')
+    expect(reason(inMaze().step(thread({ film: 'x.avi' })))).toBe('no-film')
+    const none = valleyWith(join('a'))
+    expect(reason(none.step(thread()))).toBe('too-far')
+    expect(reason(none.step(thread({ id: 'nobody' })))).toBe('not-in-valley')
+  })
+
+  it('has no booth for a raider dialed in', () => {
+    const v = inMaze()
+    v.step({
+      type: 'dial',
+      id: 'p',
+      account: 'acct-p',
+      name: 'P',
+      outfit: 'coleman',
+      level: 1,
+    })
+    expect(reason(v.step(thread({ id: 'p' })))).toBe('dialup')
+    expect(v.valley.reel).toBeNull()
+  })
+
+  it('keeps the reel through a world opened afresh', () => {
+    const v = inMaze()
+    v.step(thread())
+    const stored = {
+      ...v.valley,
+      world: { ...v.valley.world, version: PROTOCOL_VERSION - 1 },
+    } as Valley
+    const restored = restoreValley(stored)
+    expect(restored.world).toBeNull()
+    expect(restored.reel).toEqual({ film: FILM, since: T0 })
+    // An older valley, from before the drive-in, has none.
+    const { reel: _, ...older } = v.valley
+    expect(restoreValley(older).reel).toBeNull()
   })
 })

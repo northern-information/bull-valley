@@ -1,7 +1,7 @@
 // The Cloudflare Worker in front of the game. Static assets are served
 // before this runs (run_worker_first is off), so only requests with no file
 // behind them arrive here: the account routes are answered in place, the
-// WebSocket route goes to the valley's Durable Object, and anything else is
+// drive-in's films come out of R2, the WebSocket route goes to the valley's Durable Object, and anything else is
 // handed to the assets binding for its 404.
 
 import { VALLEY_NAME, VALLEY_PARAM, WS_PATH } from '../src/protocol.ts'
@@ -14,6 +14,7 @@ import {
 } from './auth.ts'
 import { D1AccountStore } from './d1accounts.ts'
 import { isDevHost } from './env.ts'
+import { handleFilms, isFilmsPath } from './films.ts'
 import { limiterFrom } from './ratelimit.ts'
 import { ValleyDO } from './ValleyDO.ts'
 import type { WorkerEnv } from './env.ts'
@@ -42,6 +43,8 @@ export default {
         limit: limiterFrom(env),
       })
     }
+    // The drive-in's films, out of R2 (films.ts).
+    if (isFilmsPath(url.pathname)) return handleFilms(request, env.FILMS)
     if (url.pathname === WS_PATH) {
       if (request.headers.get('Upgrade') !== 'websocket') {
         return new Response('Expected a WebSocket upgrade', { status: 426 })

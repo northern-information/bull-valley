@@ -27,6 +27,7 @@ function env(overrides: Partial<WorkerEnv> = {}): WorkerEnv {
     GITHUB_CLIENT_ID: 'gh-id',
     GITHUB_CLIENT_SECRET: 'gh-secret',
     DB: {} as unknown as D1Database,
+    FILMS: {} as unknown as R2Bucket,
     // The limits are injected per call (`limit`); these are never reached.
     AUTH_STRICT: {} as unknown as RateLimit,
     AUTH_LOOSE: {} as unknown as RateLimit,

@@ -5,6 +5,8 @@ import { buildCastleSite } from './castlesite.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
 import { buildCornMaze, mazeFrame, mazeLamps, mazePlaceOf } from './cornmaze.ts'
+import { onDriveIn } from './drivein.ts'
+import { buildDriveIn } from './driveinsite.ts'
 import { pondsOf } from './fishing.ts'
 import { Ground } from './ground.ts'
 import { onParkGrounds, parkRings } from './industrial.ts'
@@ -75,6 +77,7 @@ import type { Sight } from './book.ts'
 import type { CastleSite } from './castlesite.ts'
 import type { YardSpot } from './castleyard.ts'
 import type { DonutField } from './donuts.ts'
+import type { DriveInSite } from './driveinsite.ts'
 import type { GronRig, MoabRig, TylerRig } from './figure.ts'
 import type { Geo, HeightAt, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
@@ -272,6 +275,9 @@ export interface World {
   // The hedge animals in the corn maze (topiaries.ts), update(t) on the
   // valley's clock; null without a spawn station.
   topiaries: TopiaryRig | null
+  // The drive-in past the maze's far end (driveinsite.ts), its film run
+  // by driveinrig.ts; null without a spawn station.
+  driveIn: DriveInSite | null
   // Where the corn maze lies, for the Caretaker (caretaker.ts); null
   // without a spawn station.
   mazePlace: MazePlace | null
@@ -487,6 +493,13 @@ export function buildWorld(
       (x, z) =>
         (maze ? maze.covers(x, z, CONFIG.maze.treeClear) : false) ||
         (spawnStation
+          ? onDriveIn(
+              mazePlaceOf(spawnStation),
+              { x, z },
+              CONFIG.driveIn.treeClear
+            )
+          : false) ||
+        (spawnStation
           ? onLookout(
               mazePlaceOf(spawnStation),
               { x, z },
@@ -593,6 +606,10 @@ export function buildWorld(
     lookout = corn.lookout
     topiaries = corn.topiaries
   }
+  const driveIn = spawnStation
+    ? buildDriveIn(mazePlaceOf(spawnStation), heightAt, ground, walls)
+    : null
+  if (driveIn) group.add(driveIn.group)
 
   const spawn: Spawn = spawnStation
     ? { x: spawnStation.x + 5, z: spawnStation.z + 5, yaw: 0 }
@@ -674,6 +691,7 @@ export function buildWorld(
     portal,
     lookout,
     topiaries,
+    driveIn,
     mazePlace,
     donutField,
     sights: bookSights({
