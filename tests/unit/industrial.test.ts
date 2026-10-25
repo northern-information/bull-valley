@@ -15,6 +15,7 @@ import {
   INDUSTRIAL,
   LOOT_INSET,
   onParkGrounds,
+  PARK_SIGN,
   parkLoot,
   parkLurks,
   parkMiddle,
@@ -22,6 +23,7 @@ import {
   parkRings,
   parkToWorld,
   propBoxes,
+  propSigns,
   TRAILER,
   waysOf,
   worksWalls,
@@ -361,6 +363,30 @@ describe('the industrial park', () => {
         (w) => w.name.startsWith('bay-') && Math.abs(p.x + w.x - prop.x) < 0.01
       )
       expect(bay?.open).toBe(false)
+    }
+  })
+
+  it('stands its sign out front, where the alley from the plaza comes in', () => {
+    const signs = INDUSTRIAL.props.filter((p) => p.kind === 'sign')
+    expect(signs).toHaveLength(1)
+    const [sign] = signs
+    // At the asphalt's edge toward the plaza, a lamp's reach from the
+    // nearest lamp, and read on both faces.
+    expect(sign.x).toBeGreaterThan(-PARK_SIGN.length)
+    for (const lamp of INDUSTRIAL.lamps) {
+      expect(Math.hypot(lamp.x - sign.x, lamp.z - sign.z)).toBeGreaterThan(5)
+    }
+    const faces = propSigns(sign)
+    expect(faces.map((f) => f.art)).toEqual(['park-sign', 'park-sign'])
+    expect(propBoxes(sign).length).toBeGreaterThan(0)
+    // Its face, turned by its yaw, looks out toward the plaza (+x) and
+    // up the alley (+z) at once.
+    const out = { x: Math.cos(sign.yaw), z: -Math.sin(sign.yaw) }
+    expect(out.x).toBeGreaterThan(0.5)
+    expect(out.z).toBeGreaterThan(0.5)
+    // Nothing else is painted.
+    for (const prop of INDUSTRIAL.props.filter((p) => p.kind !== 'sign')) {
+      expect(propSigns(prop)).toEqual([])
     }
   })
 

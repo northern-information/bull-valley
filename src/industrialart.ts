@@ -231,6 +231,24 @@ const PAINTERS: Record<
   'bay-3': () => bayNumber(3),
   'bay-4': () => bayNumber(4),
   'bay-5': () => bayNumber(5),
+  'park-sign': () => {
+    // The park's own, on its monument out front: the developer's green,
+    // its name in cream, the number in a roundel of its own.
+    const art = canvas([512, 168], '#24402e')
+    const { ctx, w, h } = art
+    ctx.strokeStyle = '#d8cca0'
+    ctx.lineWidth = 4
+    ctx.strokeRect(8, 8, w - 16, h - 16)
+    text(ctx, 'BULL VALLEY', w / 2 - 40, 54, w - 180, 34, SERIF, '#e9dfbf')
+    text(ctx, 'INDUSTRIAL PARK', w / 2 - 40, 112, w - 170, 40, SANS, '#e9dfbf')
+    ctx.fillStyle = '#d8b02a'
+    ctx.beginPath()
+    ctx.arc(w - 72, h / 2, 46, 0, Math.PI * 2)
+    ctx.fill()
+    text(ctx, '#4', w - 72, h / 2 + 2, 70, 48, SANS, '#1a1a1a')
+    weather(art, 0x1a0e, 1.2)
+    return art
+  },
 }
 
 // A bay's number, stencilled big on a yellow board.

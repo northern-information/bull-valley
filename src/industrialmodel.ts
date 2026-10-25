@@ -11,6 +11,7 @@ import {
   buildingSigns,
   INDUSTRIAL,
   propBoxes,
+  propSigns,
 } from './industrial.ts'
 import { isWorksCutOut, paintWorksArt } from './industrialart.ts'
 import { applyPS1 } from './ps1.ts'
@@ -206,6 +207,14 @@ export function buildIndustrial(placing: IndustrialPlacing): IndustrialRig {
       .makeTranslation(...at)
       .multiply(new THREE.Matrix4().makeRotationY(prop.yaw))
     for (const box of propBoxes(prop)) add(box, place)
+    const signs = propSigns(prop)
+    if (signs.length === 0) continue
+    // Its panels turned with it.
+    const frame = new THREE.Group()
+    frame.position.set(...at)
+    frame.rotation.y = prop.yaw
+    for (const sign of signs) frame.add(signMesh(sign, [0, 0, 0], painted))
+    group.add(frame)
   }
   let tube: THREE.MeshBasicMaterial | null = null
   let flame: THREE.MeshBasicMaterial | null = null

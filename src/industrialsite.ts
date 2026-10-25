@@ -7,6 +7,7 @@ import {
   DRUMS,
   INDUSTRIAL,
   PALLET_HEAP,
+  PARK_SIGN,
   parkLoot,
   parkLurks,
   parkOrigin,
@@ -148,8 +149,17 @@ export function buildIndustrialSite(
       continue
     }
     props.push({ prop, at: [prop.x, y, prop.z] })
-    if (prop.kind === 'trailer' || prop.kind === 'car') {
-      const size = prop.kind === 'trailer' ? TRAILER : CAR
+    if (
+      prop.kind === 'trailer' ||
+      prop.kind === 'car' ||
+      prop.kind === 'sign'
+    ) {
+      const size =
+        prop.kind === 'trailer'
+          ? TRAILER
+          : prop.kind === 'car'
+            ? CAR
+            : PARK_SIGN
       const reach = size.length / 2 - size.width / 2
       walls.addWall(along(prop, -reach), along(prop, reach), size.width / 2)
     } else {

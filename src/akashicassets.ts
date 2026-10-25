@@ -753,6 +753,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     },
   },
   {
+    id: 'park-sign',
+    label: 'The sign out front of Bull Valley Industrial Park #4',
+    build: () => buildWorksProp({ kind: 'sign', x: 0, z: 0, yaw: 0 }),
+  },
+  {
     id: 'semi-trailer',
     label: 'A semi trailer left at a bay in the industrial park',
     build: () => buildWorksProp({ kind: 'trailer', x: 0, z: 0, yaw: 0 }),

@@ -101,6 +101,7 @@ export type WorksArtId =
   | 'bay-3'
   | 'bay-4'
   | 'bay-5'
+  | 'park-sign'
   | Extract<MallArtId, 'graffiti-eye' | 'graffiti-tag'>
 
 // One painted panel, `size` wide and tall, centred at `center` a hair off
@@ -1597,12 +1598,12 @@ interface Paint {
   color: string
 }
 
-// What stands round the buildings, park-local: the semi trailers backed
-// against bays that are shut, the cars left in the stalls, a dumpster at
-// each building's west wall by its back corner, pallets heaped and drums
-// out by the bays.
+// What stands round the buildings, park-local: the park's sign out
+// front, the semi trailers backed against bays that are shut, the cars
+// left in the stalls, a dumpster at each building's west wall by its back
+// corner, pallets heaped and drums out by the bays.
 export interface WorksProp extends XZ {
-  kind: 'trailer' | 'car' | 'dumpster' | 'pallets' | 'drums'
+  kind: 'sign' | 'trailer' | 'car' | 'dumpster' | 'pallets' | 'drums'
   // rotation.y in the park's frame: the prop's own +Z turned to (sin, cos).
   yaw: number
   color?: 'red' | 'blue' | 'white' | 'burnt'
@@ -1650,8 +1651,13 @@ function paintOf(): Paint[] {
 
 const CAR_COLORS = ['red', 'blue', 'white', 'burnt'] as const
 
+// The park's sign out front: at the edge of the asphalt where the
+// plaza's alley comes in, between the edge drive's lamps, its faces
+// turned (yaw) to look up the alley and out toward the plaza at once.
+const PARK_SIGN_AT = { x: -3, z: -56, yaw: -Math.PI / 4 }
+
 function propsOf(): WorksProp[] {
-  const props: WorksProp[] = []
+  const props: WorksProp[] = [{ kind: 'sign', ...PARK_SIGN_AT }]
   const rng = mulberry32(0x1d0ff)
   BUILDING_LIST.forEach((b, i) => {
     const p = placeOf(i, b)
@@ -1716,6 +1722,14 @@ export const TRAILER = { width: 2.6, length: 13.6, height: 4.0, deck: 1.25 }
 export const CAR = { width: 1.9, length: 4.8, height: 1.4 }
 export const PALLET_HEAP = { width: 1.3, length: 1.3, height: 1.2 }
 export const DRUMS = { radius: 1.0 }
+// The park's sign: a panel between two block piers on a concrete base,
+// `length` along its own z, `width` through, `height` to its cap.
+export const PARK_SIGN = {
+  width: 0.7,
+  length: 4.8,
+  height: 2.6,
+  panel: { length: 3.8, bottom: 0.8, top: 2.3 },
+}
 
 // Every prop as boxes in its own frame (its middle on the ground, its
 // length along +Z), for industrialmodel.ts to draw.
@@ -1827,10 +1841,80 @@ export function propBoxes(prop: WorksProp): WorksBox[] {
           0,
         ]),
       ]
+    case 'sign': {
+      const { width, length, height, panel } = PARK_SIGN
+      const hl = length / 2
+      const pier = (length - panel.length) / 2
+      return [
+        span(
+          'base',
+          [-width / 2 - 0.15, width / 2 + 0.15],
+          [0, 0.3],
+          [-hl - 0.15, hl + 0.15],
+          'slab'
+        ),
+        span(
+          'pier-a',
+          [-width / 2, width / 2],
+          [0, height],
+          [-hl, -hl + pier],
+          'block'
+        ),
+        span(
+          'pier-b',
+          [-width / 2, width / 2],
+          [0, height],
+          [hl - pier, hl],
+          'block'
+        ),
+        span(
+          'panel',
+          [-0.15, 0.15],
+          [panel.bottom, panel.top],
+          [-hl + pier, hl - pier],
+          'trim'
+        ),
+        span(
+          'cap',
+          [-width / 2 - 0.05, width / 2 + 0.05],
+          [height, height + 0.12],
+          [-hl - 0.05, hl + 0.05],
+          'slab'
+        ),
+      ]
+    }
     case 'dumpster':
       // Drawn by plazamodel.ts buildDumpster, the plaza's own.
       return []
   }
+}
+
+// A prop's painted panels in its own frame: the park's sign reads on both
+// faces; nothing else is painted.
+export function propSigns(prop: WorksProp): WorksSign[] {
+  if (prop.kind !== 'sign') return []
+  const { panel } = PARK_SIGN
+  const y = (panel.bottom + panel.top) / 2
+  const size: [number, number] = [
+    panel.length - 0.1,
+    panel.top - panel.bottom - 0.1,
+  ]
+  return [
+    {
+      name: 'park-sign-out',
+      art: 'park-sign',
+      center: [0.16, y, 0],
+      size,
+      turn: [0, Math.PI / 2, 0],
+    },
+    {
+      name: 'park-sign-in',
+      art: 'park-sign',
+      center: [-0.16, y, 0],
+      size,
+      turn: [0, -Math.PI / 2, 0],
+    },
+  ]
 }
 
 function lampsOf(): (XZ & { toward: XZ })[] {
