@@ -84,6 +84,7 @@ import {
   findsPay,
   giftsOwed,
   healthFor,
+  inTheBed,
   maxFor,
   placeOf,
   reduce,
@@ -224,11 +225,13 @@ export class ValleyDO extends DurableObject<Env> {
   private laptopRate = new WeakMap<WebSocket, RateWindow>()
   private inspectRate = new WeakMap<WebSocket, RateWindow>()
   private dropRate = new WeakMap<WebSocket, RateWindow>()
-  // Rule 2: when and where each socket's place was last kept.
+  // Rule 2: when and where each socket's place was last kept, and
+  // whether the valley had it in the bed at its last state frame.
   private placeKept = new WeakMap<
     WebSocket,
     { t: number; x: number; z: number }
   >()
+  private rode = new WeakMap<WebSocket, boolean>()
   private discoverRate = new WeakMap<WebSocket, RateWindow>()
   private markRate = new WeakMap<WebSocket, RateWindow>()
   // Rules 11 and 13, in memory only: gone whenever the object sleeps.
@@ -354,9 +357,13 @@ export class ValleyDO extends DurableObject<Env> {
       case 'ping':
         send(ws, { type: 'pong', t: msg.t, serverNow: Date.now() })
         return
-      case 'hop-out':
+      case 'hop-out': {
+        const aboard = inTheBed(this.valley, id)
         await this.act(ws, { type: 'hop-out', id })
+        // Rule 2: where they land is kept with their next frame.
+        if (aboard && !inTheBed(this.valley, id)) this.rode.set(ws, true)
         return
+      }
       case 'board':
         await this.act(ws, { type: 'board', id, at })
         return
@@ -1698,12 +1705,17 @@ export class ValleyDO extends DurableObject<Env> {
   private keepPlace(ws: WebSocket, id: string, at: PeerStateWire): void {
     const now = Date.now()
     const kept = this.placeKept.get(ws)
-    if (kept && now - kept.t < CONFIG.net.placeEveryMs) return
-    if (
-      kept &&
-      Math.hypot(at.x - kept.x, at.z - kept.z) < CONFIG.net.placeMoved
-    ) {
-      return
+    // Down off the truck (hopped out, or let off where it went): kept at
+    // once, wherever the last place was kept. The valley's bed says so,
+    // never the frame's word.
+    const aboard = inTheBed(this.valley, id)
+    const landed = this.rode.get(ws) === true && !aboard
+    this.rode.set(ws, aboard)
+    if (!landed && kept) {
+      if (now - kept.t < CONFIG.net.placeEveryMs) return
+      if (Math.hypot(at.x - kept.x, at.z - kept.z) < CONFIG.net.placeMoved) {
+        return
+      }
     }
     this.placeKept.set(ws, { t: now, x: at.x, z: at.z })
     void this.locked(async () => {
