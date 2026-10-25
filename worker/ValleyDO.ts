@@ -495,6 +495,10 @@ export class ValleyDO extends DurableObject<Env> {
       case 'deal':
         await this.barter(ws, attachment, { ...msg, id, at })
         return
+      // Rule 40: written as a barter is.
+      case 'cook':
+        await this.barter(ws, attachment, { ...msg, id, at })
+        return
       case 'discover':
         await this.discover(ws, account, msg.entries)
         return
@@ -1586,7 +1590,7 @@ export class ValleyDO extends DurableObject<Env> {
               maze: hello.maze,
               routes: hello.truck,
               stand: hello.stand,
-              wreck: hello.wreck,
+              recyclers: hello.recyclers,
               ponds: hello.ponds,
               bushes: hello.bushes,
               dealer: hello.dealer,
@@ -2505,19 +2509,20 @@ export class ValleyDO extends DurableObject<Env> {
     })
   }
 
-  // A barter with Erwin von Dutch, alone (rule 25): no other frame runs
-  // between reading the pack, judging the deal against it, and writing
-  // both sides of it. On success everyone sees his stock go down, and the
-  // account's sockets get the pack.
+  // A barter with Erwin von Dutch, alone (rule 25), or fish cooked over
+  // the campfire (rule 40), written the same way: no other frame runs
+  // between reading the pack, judging the change against it, and writing
+  // both sides of it. On success everyone sees his stock go down, the
+  // account's sockets hear what cooked, and they get the pack.
   private async barter(
     ws: WebSocket,
     attachment: Attachment,
-    action: Extract<ValleyAction, { type: 'deal' }>
+    action: Extract<ValleyAction, { type: 'deal' | 'cook' }>
   ): Promise<void> {
     const { account } = attachment
     if (!account) return
     const refuse = (reason: string) => {
-      send(ws, { type: 'nack', re: 'deal', reason, item: action.kind })
+      send(ws, { type: 'nack', re: action.type, reason, item: action.kind })
     }
     await this.locked(async () => {
       const packs = this.packs()
@@ -2553,6 +2558,15 @@ export class ValleyDO extends DurableObject<Env> {
       }
       await this.apply(reduced)
       for (const msg of reduced.broadcast) this.broadcast(msg, null)
+      const cooked = reduced.cooked
+      if (cooked) {
+        this.toAccount(account, {
+          type: 'cooked',
+          kind: cooked.kind,
+          count: cooked.count,
+          into: cooked.into,
+        })
+      }
       await this.repack(ws, null, account)
     })
   }

@@ -35,6 +35,8 @@ function categoryName(category: ItemCategory): string {
       return copy('stats.material')
     case 'fish':
       return copy('stats.fish')
+    case 'food':
+      return copy('stats.food')
     case 'rod':
       return copy('stats.rod')
     case 'key-item':

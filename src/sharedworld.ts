@@ -286,15 +286,17 @@
 //    in there is no laptop (`dialup`).
 // 32. Empties (recycling.ts): once the pack has given up a unit used or
 //    passed (rules 10 and 27), what it leaves goes into the same pack, under
-//    Materials: a drink its can or its bottle, the last cigarette out of a
-//    pack the pack (emptyOf, from what the pack holds after). Dialed in the
-//    same.
-// 33. The Recycling Center at the wreck (recycling.ts): every account keeps
-//    its own research, a level on each line, in D1. A raider out of the bed
-//    whose last state frame put them beside the wreck (the world was opened
-//    with where it is, SharedWorld.wreck), or dialed in from anywhere, buys
-//    a line's next level (a line never ends) with the empties it costs (ValleyContext.research
-//    in, Reduced.research out); the valley writes the level and takes the
+//    Materials: a drink its can, its glass bottle or its plastic one, the
+//    last cigarette out of a pack the pack, the last pill out of a pill
+//    bottle the bottle (emptyOf, from what the pack holds after). Dialed in
+//    the same.
+// 33. The Recycling Center at the recycling machine (recycling.ts): every
+//    account keeps its own research, a level on each line, in D1. A raider
+//    out of the bed whose last state frame put them beside any Citgo's
+//    machine (the world was opened with where each stands,
+//    SharedWorld.recyclers), or dialed in from anywhere, buys a line's next level (a line never ends)
+//    with the empties it costs (ValleyContext.research in,
+//    Reduced.research out); the valley writes the level and takes the
 //    empties out of the pack together, or neither. Research is the
 //    account's alone and never reaches the shared world: loose change
 //    (`dimes`) gives a raider taking up dimes a burst left (Drop.burst,
@@ -396,12 +398,22 @@
 //    shadowRaiders from the state frame's `held`), and it is one of the
 //    Caretaker's two lights (rule 13). Dialed in, there is neither toolbox
 //    nor topiary.
+// 40. The campfire (cooking.ts): every firefly pond has one by its landing
+//    (campfireOf, from where the world was opened with each pond). A raider
+//    out of the bed whose last state frame put them beside one, or dialed
+//    in from anywhere, cooks a count of one raw fish (a `cook` action):
+//    the valley reads the pack, refuses a kind that does not cook or a
+//    count the pack does not hold, and takes the fish out and puts what
+//    they cook into in together, or neither, as a barter with Erwin is
+//    written (ValleyContext.holdings in, Reduced.barter and Reduced.cooked
+//    out). Every socket on the account hears what cooked, then the pack.
 
 import { bountyOf, GIFTS } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
 import { heartPoint, theMaze } from './caretaker.ts'
 import { citgoAt, findPhone, NO_CITGOS, visit } from './citgos.ts'
 import { CONFIG } from './config.ts'
+import { atCampfire, cookedOf } from './cooking.ts'
 import { insideRing } from './coords.ts'
 import { corpseWire, isEmpty, keysOff, spilledDimes } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
@@ -499,7 +511,7 @@ import { PROTOCOL_VERSION } from './protocol.ts'
 import { atHeart, isQuest, QUESTS, questStep } from './quests.ts'
 import {
   affordsResearch,
-  atWreck,
+  atRecycler,
   emptyOf,
   extraDimes,
   priceOf,
@@ -537,6 +549,7 @@ import type { Hurt } from './fall.ts'
 import type { Angler, Bait, PondPlace } from './fishing.ts'
 import type { Burial, Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
+import type { ItemId } from './items.ts'
 import type { Lair } from './lairs.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
@@ -613,8 +626,9 @@ interface SharedWorld {
   routes: TruckRoutes
   // Where the Cabbage Stand stands, or null (rule 23).
   stand: XZ | null
-  // Where the wreck lies, or null (rule 33).
-  wreck: XZ | null
+  // Where each station's recycling machine stands, indexed like the
+  // stations (rule 33).
+  recyclers: XZ[]
   // The firefly ponds (rule 36).
   ponds: PondPlace[]
   // Where each berry bush stands, in bush order (rule 8).
@@ -744,7 +758,7 @@ export type ValleyAction =
       maze: MazePlace | null
       routes: TruckRoutes
       stand: XZ | null
-      wreck: XZ | null
+      recyclers: XZ[]
       ponds: PondPlace[]
       bushes: XZ[]
       dealer: XZ | null
@@ -859,8 +873,11 @@ export type ValleyAction =
       at: XZ | null
     }
   | { type: 'stand-collect' | 'stand-upgrade'; id: string; at: XZ | null }
-  // Rule 33: the next level on `line`, bought with empties at the wreck.
+  // Rule 33: the next level on `line`, bought with empties at the
+  // recycling machine.
   | { type: 'recycle'; id: string; line: ResearchLine; at: XZ | null }
+  // Rule 40: `count` of the raw fish `kind` cooked over a campfire.
+  | { type: 'cook'; id: string; kind: string; count: number; at: XZ | null }
   // Rule 36: a rod out of the tackle box; the bank dug, with the valley's
   // roll; a line cast, with the valley's roll for what bites and the seed
   // for when and how it fights; and the line reeled in or given up, with
@@ -1007,6 +1024,8 @@ export interface Reduced {
     give: Inventory
     take: { kind: string; count: number }
   }
+  // Rule 40: what cooked, once the barter that cooks it stands.
+  cooked?: { account: string; kind: string; count: number; into: ItemId }
   // Rule 14: a trade that stands once the valley has taken the price out
   // of the account's pack and given it the cosmetic, together.
   trade?: {
@@ -1702,6 +1721,8 @@ function act(
       return onStand(valley, action, context)
     case 'recycle':
       return onRecycle(valley, action, context)
+    case 'cook':
+      return onCook(valley, action, context)
     case 'tackle':
     case 'dig':
     case 'cast':
@@ -1775,7 +1796,7 @@ function onJoin(
         maze: action.maze,
         routes: action.routes,
         stand: action.stand,
-        wreck: action.wreck,
+        recyclers: action.recyclers,
         ponds: action.ponds,
         bushes: action.bushes,
         dealer: action.dealer,
@@ -2955,11 +2976,12 @@ function onRecycle(
   const refuse = (reason: string): Reduced =>
     done(valley, now, { broadcast: [], reply: nack('recycle', reason) })
   if (!member) return refuse('not-in-valley')
-  // Rule 29: dialed in, the wreck is wherever they are, as the stand is.
+  // Rule 29: dialed in, the recycling machine is wherever they are, as the
+  // stand is.
   if (!member.dialup) {
     if (!world) return refuse('not-in-valley')
     if (isAboard(world.truck, action.id)) return refuse('aboard')
-    if (!atWreck(action.at, world.wreck)) return refuse('no-wreck')
+    if (!atRecycler(action.at, world.recyclers)) return refuse('no-recycler')
   }
   if (!research?.pack) return refuse('unavailable')
   const { levels, pack } = research
@@ -2973,6 +2995,42 @@ function onRecycle(
       level: levels[action.line] + 1,
       items: price,
     },
+  })
+}
+
+function onCook(
+  valley: Valley,
+  action: ActionOf<'cook'>,
+  { now, holdings }: ValleyContext
+): Reduced {
+  // Rule 39.
+  const member = valley.members[action.id]
+  const world = valley.world
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, {
+      broadcast: [],
+      reply: { type: 'nack', re: 'cook', reason, item: action.kind },
+    })
+  if (!member) return refuse('not-in-valley')
+  // Rule 29: dialed in, the campfire is wherever they are, as the stand is.
+  if (!member.dialup) {
+    if (!world) return refuse('not-in-valley')
+    if (isAboard(world.truck, action.id)) return refuse('aboard')
+    if (!atCampfire(action.at, world.ponds)) return refuse('no-campfire')
+  }
+  const into = cookedOf(action.kind)
+  if (!into) return refuse('raw-only')
+  if (!holdings) return refuse('unavailable')
+  if ((holdings.pack[action.kind] ?? 0) < action.count) return refuse('short')
+  const { account } = member
+  return done(valley, now, {
+    broadcast: [],
+    barter: {
+      account,
+      give: { [action.kind]: action.count },
+      take: { kind: into, count: action.count },
+    },
+    cooked: { account, kind: action.kind, count: action.count, into },
   })
 }
 

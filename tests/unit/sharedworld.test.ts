@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
+import { campfireOf } from '../../src/cooking.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
 import {
   costIn,
@@ -128,7 +129,7 @@ const MAZE = { x: 3000, z: 3000, yaw: 0 }
 const ROUTES = { home: { x: 10, z: 10 }, joyrideMs: 600_000 }
 // Where the Cabbage Stand stands (rule 23).
 const STAND = { x: 5, z: -20 }
-const WRECK_SPOT = { x: 30, z: 40 }
+const RECYCLERS = HAVENS.map(({ x, z }) => ({ x: x + 30, z: z + 40 }))
 const DEALER = { x: -30, z: -60 }
 // The firefly ponds (rule 36), away from every station.
 const POND = { x: 800, z: 0, radius: 100, landing: { x: 720, z: 0 } }
@@ -230,7 +231,7 @@ const join = (id: string): ValleyAction => ({
   maze: null,
   routes: ROUTES,
   stand: STAND,
-  wreck: WRECK_SPOT,
+  recyclers: RECYCLERS,
   ponds: [POND, FAR_POND],
   bushes: BUSH_SPOTS,
   dealer: DEALER,
@@ -396,7 +397,7 @@ describe('rule 1: the world is persistent', () => {
     expect(world.truck.riders).toEqual([])
     expect(world.portals).toEqual([])
     expect(world.dealerStock).toEqual(freshDealerStock())
-    expect(world.wreck).toEqual(WRECK_SPOT)
+    expect(world.recyclers).toEqual(RECYCLERS)
     expect(world.pickups).toEqual(PICKUPS)
     expect(valley.carried).toBeNull()
     expect(toWire(valley)?.graves).toHaveLength(2)
@@ -1027,6 +1028,76 @@ describe('rule 4, cash: a pickup of cash goes into the wallet', () => {
     expect(r.earn).toEqual({ account: 'acct-a', amount: 8 * 25 })
     expect(r.pack).toBeUndefined()
     expect(r.xp).toEqual([{ account: 'acct-a', source: 'pickup' }])
+  })
+})
+
+describe('rule 40: the campfire cooks the catch', () => {
+  const fire = campfireOf(POND)
+  const cookAs = (
+    id: string,
+    kind = 'bluegill',
+    count = 2,
+    at: XZ | null = fire
+  ): ValleyAction => ({ type: 'cook', id, kind, count, at })
+
+  it('cooks raw fish into what they cook into, out of the pack', () => {
+    const v = valleyWith(join('a'))
+    v.setPack({ bluegill: 3, 'channel-catfish': 1 })
+    const r = v.step(cookAs('a'))
+    expect(r.reply).toBeUndefined()
+    expect(r.broadcast).toEqual([])
+    expect(r.barter).toEqual({
+      account: 'acct-a',
+      give: { bluegill: 2 },
+      take: { kind: 'fried-panfish', count: 2 },
+    })
+    expect(r.cooked).toEqual({
+      account: 'acct-a',
+      kind: 'bluegill',
+      count: 2,
+      into: 'fried-panfish',
+    })
+    // A large fish grills into a fillet, at the other pond's fire too.
+    const far = v.step(cookAs('a', 'channel-catfish', 1, campfireOf(FAR_POND)))
+    expect(far.barter?.take).toEqual({ kind: 'grilled-fillet', count: 1 })
+  })
+
+  it('refuses from afar, aboard, short, or for what does not cook', () => {
+    const v = valleyWith(join('a'))
+    v.setPack({ bluegill: 1, cabbage: 4 })
+    const reason = (r: Reduced) => r.reply?.reason
+    expect(v.step(cookAs('a', 'bluegill', 1, null)).reply).toEqual({
+      type: 'nack',
+      re: 'cook',
+      reason: 'no-campfire',
+      item: 'bluegill',
+    })
+    expect(reason(v.step(cookAs('a', 'bluegill', 1, POND.landing)))).toBe(
+      undefined
+    )
+    expect(reason(v.step(cookAs('a', 'bluegill', 1, { x: 0, z: 0 })))).toBe(
+      'no-campfire'
+    )
+    expect(reason(v.step(cookAs('a', 'bluegill', 2)))).toBe('short')
+    expect(reason(v.step(cookAs('a', 'cabbage', 1)))).toBe('raw-only')
+    expect(reason(v.step(cookAs('a', 'fried-panfish', 1)))).toBe('raw-only')
+    expect(reason(v.step(cookAs('z')))).toBe('not-in-valley')
+    v.step({ type: 'board', id: 'a', at: HERE })
+    expect(reason(v.step(cookAs('a', 'bluegill', 1)))).toBe('aboard')
+  })
+
+  it('cooks for a raider dialed in, wherever they are', () => {
+    const v = valleyWith({
+      type: 'dial',
+      id: 'p',
+      account: 'acct-p',
+      name: 'P',
+      outfit: 'coleman',
+      level: 3,
+    })
+    v.setPack({ bluegill: 1 })
+    const r = v.step(cookAs('p', 'bluegill', 1, null))
+    expect(r.barter?.take).toEqual({ kind: 'fried-panfish', count: 1 })
   })
 })
 
@@ -2076,8 +2147,10 @@ describe('rule 31: the laptop', () => {
   })
 })
 
-describe('rule 33: the Recycling Center at the wreck', () => {
-  const beside = { x: WRECK_SPOT.x + 1, z: WRECK_SPOT.z }
+describe('rule 33: the Recycling Center at the recycling machine', () => {
+  const beside = { x: RECYCLERS[0].x + 1, z: RECYCLERS[0].z }
+  // Any Citgo's machine takes them.
+  const besideThird = { x: RECYCLERS[2].x, z: RECYCLERS[2].z - 1 }
   const [first, second] = CONFIG.recycling.lines.dimes
   const recycle = (
     valley: Valley,
@@ -2092,11 +2165,11 @@ describe('rule 33: the Recycling Center at the wreck', () => {
     })
   const empties = { 'empty-can': 100, 'empty-pack': 100, 'empty-bottle': 100 }
 
-  it('keeps where the wreck lies with the world', () => {
-    expect(valleyWith(join('a')).valley.world?.wreck).toEqual(WRECK_SPOT)
+  it('keeps where each recycling machine stands with the world', () => {
+    expect(valleyWith(join('a')).valley.world?.recyclers).toEqual(RECYCLERS)
   })
 
-  it("buys a line's next level with its empties, beside the wreck", () => {
+  it("buys a line's next level with its empties, beside the recycling machine", () => {
     const v = valleyWith(join('a'))
     const action: ValleyAction = {
       type: 'recycle',
@@ -2123,9 +2196,14 @@ describe('rule 33: the Recycling Center at the wreck', () => {
       level: listed + 1,
       items: price,
     })
+    // At another Citgo's machine the same.
+    expect(
+      recycle(v.valley, { ...action, at: besideThird }, FRESH_RESEARCH, empties)
+        .research
+    ).toMatchObject({ level: 1 })
   })
 
-  it('refuses away from the wreck, short of empties, or unread', () => {
+  it('refuses away from the recycling machine, short of empties, or unread', () => {
     const v = valleyWith(join('a'))
     const at = (where: XZ | null): ValleyAction => ({
       type: 'recycle',
@@ -2136,9 +2214,9 @@ describe('rule 33: the Recycling Center at the wreck', () => {
     const reason = (r: Reduced) => r.reply?.reason
     expect(
       reason(recycle(v.valley, at({ x: 900, z: 900 }), FRESH_RESEARCH, empties))
-    ).toBe('no-wreck')
+    ).toBe('no-recycler')
     expect(reason(recycle(v.valley, at(null), FRESH_RESEARCH, empties))).toBe(
-      'no-wreck'
+      'no-recycler'
     )
     expect(
       reason(recycle(v.valley, at(beside), FRESH_RESEARCH, { 'empty-can': 1 }))

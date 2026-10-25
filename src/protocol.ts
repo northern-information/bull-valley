@@ -46,7 +46,7 @@ import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 52
+export const PROTOCOL_VERSION = 53
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -284,9 +284,10 @@ export interface HelloMessage {
   // Where the Cabbage Stand stands, or null: the valley tends each
   // account's stand only for a raider beside it (rule 23).
   stand: XZ | null
-  // Where the wreck lies, or null: the valley takes each account's
-  // empties only from a raider beside it (rule 33).
-  wreck: XZ | null
+  // Where each station's recycling machine stands, indexed like the
+  // stations: the valley takes each account's empties only from a raider
+  // beside one (rule 33).
+  recyclers: XZ[]
   // Where each berry bush stands, in sharedworld.ts bush order (the spawn
   // Citgo's, then the maze's ring): a berry only for a raider in reach
   // (rule 8).
@@ -432,13 +433,26 @@ type StandTendMessage =
   | { type: 'stand-collect' }
   | { type: 'stand-upgrade' }
 
-// The Recycling Center at the wreck (sharedworld.ts rule 33): the
+// The Recycling Center at the recycling machine (sharedworld.ts rule 33):
+// the
 // account's research, please, or the next level on `line` bought with the
 // empties it costs. The valley checks the raider's last state frame put
-// them beside the wreck, and answers with a ResearchMessage (and a
+// them beside the recycling machine, and answers with a ResearchMessage
+// (and a
 // PackMessage after a level), or a nack.
 type RecycleTendMessage =
   { type: 'research' } | { type: 'recycle'; line: ResearchLine }
+
+// The campfire by the firefly pond (sharedworld.ts rule 40): `count` of
+// the raw fish `kind` cooked. The valley checks the raider's last state
+// frame put them beside a campfire (dialed in, anywhere), takes the fish
+// out of the pack and puts what they cook into in, and answers with a
+// CookedMessage and a PackMessage, or a nack.
+interface CookMessage {
+  type: 'cook'
+  kind: string
+  count: number
+}
 
 // Fishing at the firefly pond (sharedworld.ts rule 36): the account's
 // angler, please; a rod out of the tackle box; nightcrawlers dug out of
@@ -734,6 +748,7 @@ export type ClientMessage =
   | StowMessage
   | StandTendMessage
   | RecycleTendMessage
+  | CookMessage
   | FishMessage
   | TopiaryTendMessage
   | ExpeditionTendMessage
@@ -894,6 +909,16 @@ export interface ResearchMessage {
 export interface FoundMessage {
   type: 'found'
   dimes: number
+}
+
+// Fish cooked over the campfire (rule 40): `count` of `kind` gone into as
+// many of `into`, to every socket signed in to the account, a pack frame
+// following.
+export interface CookedMessage {
+  type: 'cooked'
+  kind: string
+  count: number
+  into: string
 }
 
 // The account's angler (rule 36), to every socket signed in to it: in
@@ -1250,6 +1275,7 @@ export type ServerMessage =
   | StandMessage
   | ResearchMessage
   | FoundMessage
+  | CookedMessage
   | AnglerMessage
   | LineMessage
   | CatchMessage
@@ -1684,7 +1710,7 @@ type HelloPlaces = Pick<
   | 'maze'
   | 'truck'
   | 'stand'
-  | 'wreck'
+  | 'recyclers'
   | 'ponds'
   | 'bushes'
   | 'dealer'
@@ -1703,7 +1729,7 @@ const NO_PLACES: HelloPlaces = {
   maze: null,
   truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
   stand: null,
-  wreck: null,
+  recyclers: [],
   ponds: [],
   bushes: [],
   dealer: null,
@@ -1730,15 +1756,15 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const truck = parseRoutes(value.truck)
   const bushes = parseSpots(value.bushes, BUSHES_MAX)
   const rings = parseHavens(value.rings, stations)
+  const recyclers = parseHavens(value.recyclers, stations)
   if (!havens || !metres || !lairs || !truck || !bushes || !rings) return null
+  if (!recyclers) return null
   const maze = nullable(value.maze, parseMazePlace)
   const stand = nullable(value.stand, parseXZ)
-  const wreck = nullable(value.wreck, parseXZ)
   const dealer = nullable(value.dealer, parseXZ)
   const undercroft = nullable(value.undercroft, parseMazePlace)
   const moat = nullable(value.moat, parseMazePlace)
   if (maze === undefined || stand === undefined) return null
-  if (wreck === undefined) return null
   const ponds = parsePonds(value.ponds)
   if (!ponds) return null
   const payphones = parseSpots(value.payphones, PAYPHONES_MAX)
@@ -1746,7 +1772,7 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   if (dealer === undefined || undercroft === undefined) return null
   if (moat === undefined) return null
   const places = { havens, metres, lairs, maze, truck, stand, bushes, dealer }
-  return { ...places, wreck, ponds, undercroft, moat, rings, payphones }
+  return { ...places, recyclers, ponds, undercroft, moat, rings, payphones }
 }
 
 // A hello. The outfit is checked by the server (characters.ts
@@ -1888,6 +1914,11 @@ const CLIENT_PARSERS: ClientParsers = {
       : null,
   recycle: ({ line }) =>
     isResearchLine(line) ? { type: 'recycle', line } : null,
+  // Which fish cook is the valley's to check.
+  cook: (value) => {
+    const units = parseUnits(value)
+    return units && { type: 'cook', ...units }
+  },
   'stand-upgrade': bare('stand-upgrade'),
   'expedition-claim': bare('expedition-claim'),
   // Which runs there are is the valley's to check.

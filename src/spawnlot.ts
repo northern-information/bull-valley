@@ -25,6 +25,7 @@ import {
   ringSpots,
   SHINING_MAZE,
 } from './maze.ts'
+import { buildRecycler } from './recyclermodel.ts'
 import { toLocal, toWorld } from './store.ts'
 import type { DishArray, Wreck } from './assets.ts'
 import type { DonutField } from './donuts.ts'
@@ -35,7 +36,7 @@ import type { MazePlace } from './maze.ts'
 import type { PlantedTree } from './scatter.ts'
 import type { StoreOrigin } from './store.ts'
 import type { Walls } from './walls.ts'
-import type { BerryBush, FuelPoint, StandRig } from './world.ts'
+import type { BerryBush, FuelPoint, RecyclerRig, StandRig } from './world.ts'
 import type * as THREE from 'three'
 
 // What stands on and round the spawn Citgo's lot, and under every
@@ -284,6 +285,31 @@ export function placeWreck(
     walls.addWall(tree, tree, WRECK.treeRadius)
   }
   return wreck
+}
+
+// The recycling vending machine on every station's lot (CONFIG.recycler,
+// station-local), its back to the storefront and its face to the pumps,
+// blocking like a post: its middle in the world, for E and the valley
+// (sharedworld.ts rule 33), and the machine for the glow, indexed like the
+// stations.
+export function placeRecyclers(
+  group: THREE.Group,
+  ground: Ground,
+  walls: Walls,
+  stations: readonly FuelPoint[]
+): RecyclerRig[] {
+  const { at, radius } = CONFIG.recycler
+  return stations.map((station) => {
+    const [x, , z] = toWorld(station, [at.x, 0, at.z])
+    const machine = buildRecycler()
+    machine.position.set(x, ground.at(x, z), z)
+    // The machine faces +X; the station turns local +X to (cos, sin), and
+    // rotation.y turns it to (cos, -sin).
+    machine.rotation.y = -station.yaw
+    group.add(machine)
+    walls.addWall({ x, z }, { x, z }, radius)
+    return { at: { x, z }, group: machine }
+  })
 }
 
 // The dish array behind the spawn station (CONFIG.dishes), every dish on

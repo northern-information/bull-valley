@@ -8,7 +8,7 @@ import {
   itemLabel,
   itemLine,
 } from '../../src/itemcopy.ts'
-import { isUsable, ITEMS } from '../../src/items.ts'
+import { isEdible, isUsable, ITEMS } from '../../src/items.ts'
 
 describe('itemcopy', () => {
   it('names every item and describes it', () => {
@@ -31,7 +31,7 @@ describe('itemcopy', () => {
       expect(hasItemLine(id, 'bought'), id).toBe('price' in item)
       expect(hasItemLine(id, 'collected'), id).toBe(id === 'berries')
       expect(hasItemLine(id, 'used'), id).toBe(isUsable(id))
-      expect(hasItemLine(id, 'empty'), id).toBe(isUsable(id))
+      expect(hasItemLine(id, 'empty'), id).toBe(isUsable(id) && !isEdible(id))
       for (const line of ITEM_LINES) {
         const said = itemLine(id, line)
         if (hasItemLine(id, line)) {

@@ -1031,14 +1031,22 @@ export const CONFIG = {
     // Trees keep this far off its middle.
     treeClear: 6,
   },
-  // The Recycling Center at the wreck (recycling.ts, sharedworld.ts rule
-  // 33): every account feeds its empties in for research, its own and no
-  // one else's.
+  recycler: {
+    // The recycling vending machine on every Citgo's lot, station-local
+    // like the trash cans: its back to the storefront, on the side of the door
+    // away from the trash can (FUEL_LAYOUT.trashCans), facing the pumps
+    // (recyclermodel.ts RECYCLER sizes it). It blocks as a post this wide.
+    at: { x: -6.1, z: 2.7 },
+    radius: 0.55,
+  },
+  // The Recycling Center at the recycling machine (recycling.ts,
+  // sharedworld.ts rule 33): every account feeds its empties in for
+  // research, its own and no one else's.
   recycling: {
-    // How close the wreck's middle must be for E to open it.
-    reach: 4,
+    // How close the machine's middle must be for E to open it.
+    reach: 2.6,
     // The valley takes a raider's empties only when their last state frame
-    // put them within this of the wreck's middle: generous, since frames
+    // put them within this of the machine's middle: generous, since frames
     // lag.
     tendReach: 10,
     // Each research line, level by level from the first: what it does at
@@ -1055,11 +1063,22 @@ export const CONFIG = {
         },
         {
           chance: 0.4,
-          price: { 'empty-can': 30, 'empty-pack': 6, 'empty-bottle': 4 },
+          price: {
+            'empty-can': 30,
+            'empty-pack': 6,
+            'empty-bottle': 4,
+            'empty-plastic': 2,
+          },
         },
         {
           chance: 0.5,
-          price: { 'empty-can': 45, 'empty-pack': 10, 'empty-bottle': 6 },
+          price: {
+            'empty-can': 45,
+            'empty-pack': 10,
+            'empty-bottle': 6,
+            'empty-plastic': 4,
+            'empty-pill-bottle': 1,
+          },
         },
       ] as { chance: number; price: Record<string, number> }[],
     },
@@ -1100,6 +1119,19 @@ export const CONFIG = {
       landingBack: 1.2,
       // How close the landing must be for E to open the tackle box.
       reach: 3,
+    },
+    // The campfire by every pond's landing (cooking.ts, sharedworld.ts
+    // rule 40): this far further from the water than the landing, and this
+    // far to its side, clear of the picnic table. It blocks as a post this
+    // wide; E opens it from within `reach` of its middle, and the valley
+    // cooks for a raider whose last state frame put them within
+    // `tendReach` of it, generous since frames lag.
+    campfire: {
+      back: 2.5,
+      aside: 3.5,
+      radius: 0.75,
+      reach: 2.6,
+      tendReach: 8,
     },
     // The skill has no top. Once no fish stands over it, every fish landed
     // raises it a tenth at this chance.

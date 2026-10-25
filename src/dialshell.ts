@@ -69,6 +69,8 @@ interface ShellOptions {
   // Opens the stand's dialog over the shell; Erwin's and Gron's too.
   openStand: () => void
   openRecycle: () => void
+  // The campfire's dialog over the shell (cookdialog.ts).
+  openCook: () => void
   // Fishing at the firefly pond, from the lobby's sheet (dialfish.ts).
   fish: FishActions
   openErwin: () => void
@@ -527,6 +529,12 @@ export class DialShell {
             })
           : copy('dialup.lobby.fishing_blurb'),
         () => this.openFish()
+      ),
+      card(
+        'campfire',
+        copy('dialup.lobby.campfire'),
+        copy('dialup.lobby.campfire_blurb'),
+        () => this.options.openCook()
       ),
       card(
         'locker',

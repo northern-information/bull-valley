@@ -33,6 +33,7 @@ import {
   placeDishes,
   placeGron,
   placeMoabs,
+  placeRecyclers,
   placeSpunkysGrave,
   placeStand,
   placeTyler,
@@ -215,6 +216,10 @@ export interface World {
   // where its middle is, the stand itself for the glow, and setLevel to
   // dress it for the raider's own level. Null without a spawn station.
   stand: StandRig | null
+  // The recycling vending machine on every station's lot (sharedworld.ts
+  // rule 33), indexed like fuelPoints: where its middle is, and the
+  // machine itself for the glow.
+  recyclers: RecyclerRig[]
   // The green BMW in a tree by the spawn station, update(t) for its smoke
   // and hazards; null without a spawn station.
   wreck: Wreck | null
@@ -231,7 +236,7 @@ export interface World {
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the berry bush, Gron,
-  // Moab and his horse, Tyler's Jeep, the wreck and its tree, the dishes, the plaza, the
+  // Moab and his horse, Tyler's Jeep, the recycling machine, the wreck and its tree, the dishes, the plaza, the
   // poles and lamps.
   walls: Walls
   // Every station's shelf facings in the world, indexed like fuelPoints.
@@ -291,6 +296,11 @@ export interface StandRig {
   at: XZ
   group: THREE.Group
   setLevel(level: number): void
+}
+
+export interface RecyclerRig {
+  at: XZ
+  group: THREE.Group
 }
 
 // The portal at the corn maze's heart: where it stands, where it puts you
@@ -564,6 +574,7 @@ export function buildWorld(
   const dishes = placeDishes(group, ground, walls, dishSpots)
   placeSpunkysGrave(group, ground, walls, spawnStation, pine)
   const { moabs, moabRigs } = placeMoabs(group, ground, walls, fuel.points)
+  const recyclers = placeRecyclers(group, ground, walls, fuel.points)
   const { tyler, tylerRig } = placeTyler(group, ground, walls, spawnStation)
   const castle = moatAt
     ? buildCastleSite(moatAt.place, raw, moatAt.floor, ground, walls)
@@ -599,6 +610,7 @@ export function buildWorld(
       return { x, z }
     }),
     stand: standRig,
+    recyclers,
     wreck,
     dishes,
     plaza: plaza ? plaza.rig : null,

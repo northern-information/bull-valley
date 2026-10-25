@@ -213,6 +213,21 @@ test('opens the Recycling Center from anywhere, its level on the card', async ({
   )
 })
 
+test('opens the campfire from anywhere, nothing raw to cook yet', async ({
+  browser,
+}) => {
+  const page = await phone(browser)
+  await signIn(page)
+  await page.goto(`/?valley=${freshValley('dial')}`)
+  await dialIn(page)
+  const card = page.locator('.bv-dial-card[data-card="campfire"]')
+  await expect(card).toContainText(copy('dialup.lobby.campfire_blurb'))
+  await card.click()
+  await expect(page.locator('.bv-cook')).toBeVisible()
+  await expect(page.locator('#bv-cook-title')).toHaveText(copy('cooking.title'))
+  await expect(page.locator('[data-bv="cook-none"]')).toBeVisible()
+})
+
 test('fishes the firefly pond from anywhere, the raider on its shore', async ({
   browser,
 }) => {

@@ -92,8 +92,12 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'laptop'; station: number }
   // The Cabbage Stand: E opens this raider's own (rule 23).
   | { kind: 'stand' }
-  // The wreck: E opens the Recycling Center (rule 33).
-  | { kind: 'recycle' }
+  // The recycling machine on the lot of station `station`: E opens the
+  // Recycling Center (rule 33).
+  | { kind: 'recycle'; station: number }
+  // The campfire by firefly pond `pond`: E opens it to cook the catch
+  // (rule 40).
+  | { kind: 'cook'; pond: number }
   // The tackle box on the firefly pond's landing: E opens it to fish
   // (rule 36).
   | { kind: 'fish' }
@@ -173,8 +177,10 @@ export const SIGHTS = {
   // A slurm crawling on a lot: drawn wide and tall, as small and quick as
   // it is, so a look anywhere near it takes it.
   slurm: { low: -0.3, high: 0.6, r: 0.7 },
-  // The BMW in its tree, roof to wheels and nose to tail.
-  wreck: { low: 0, high: 1.5, r: 2.2 },
+  // The recycling machine, kick plate to header.
+  recycler: { low: 0, high: 1.9, r: 0.6 },
+  // The campfire, the stones to the flames' tips.
+  campfire: { low: 0, high: 1, r: 0.8 },
   hatch: { low: -0.2, high: 0.3, r: 0.7 },
   // A ladder going up from its foot, and down from its top.
   ladder: { low: 0, high: 3, r: 0.5 },
@@ -222,8 +228,8 @@ export interface HallucinationSpot extends XZ {
   item?: string
 }
 
-// A locker bank as the resolver sees it: where E opens it, and its
-// station.
+// A locker bank, a laptop or a recycling machine as the resolver sees it:
+// where E opens it, and its station.
 export interface LockerSpot extends XZ {
   station: number
 }
@@ -273,8 +279,10 @@ export interface InteractionInput<P extends PickupSpot> {
   laptops?: readonly LockerSpot[]
   // The Cabbage Stand's middle, or null.
   stand?: XZ | null
-  // The wreck's middle, or null.
-  wreck?: XZ | null
+  // Each station's recycling machine.
+  recyclers?: readonly LockerSpot[]
+  // Each firefly pond's campfire, in pond order.
+  campfires?: readonly XZ[]
   // The tackle box on the firefly pond's landing, or null.
   tackle?: XZ | null
   // The slurms crawling on the lot, while this raider holds a jar with
@@ -431,14 +439,20 @@ export function resolveInteraction<P extends PickupSpot>(
     return { kind: 'stand' }
   }
 
-  const wreck = input.wreck
-  if (
-    wreck &&
-    Math.hypot(wreck.x - player.x, wreck.z - player.z) <
-      CONFIG.recycling.reach &&
-    sees(wreck, SIGHTS.wreck)
-  ) {
-    return { kind: 'recycle' }
+  for (const recycler of input.recyclers ?? []) {
+    const d = Math.hypot(recycler.x - player.x, recycler.z - player.z)
+    if (d < CONFIG.recycling.reach && sees(recycler, SIGHTS.recycler)) {
+      return { kind: 'recycle', station: recycler.station }
+    }
+  }
+
+  const campfires = input.campfires ?? []
+  for (let pond = 0; pond < campfires.length; pond++) {
+    const fire = campfires[pond]
+    const d = Math.hypot(fire.x - player.x, fire.z - player.z)
+    if (d < CONFIG.fishing.campfire.reach && sees(fire, SIGHTS.campfire)) {
+      return { kind: 'cook', pond }
+    }
   }
 
   const tackle = input.tackle
@@ -734,6 +748,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.recycle')
     case 'fish':
       return copy('prompts.fish')
+    case 'cook':
+      return copy('prompts.cook')
     case 'jar-slurm':
       return copy('prompts.jar_slurm')
     case 'cast':

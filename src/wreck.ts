@@ -36,9 +36,6 @@ export const WRECK = {
 
 export interface Wreck {
   group: THREE.Group
-  // The car alone, without its tree or its smoke: what glows when E would
-  // open the Recycling Center.
-  car: THREE.Group
   update(t: number): void
 }
 
@@ -380,5 +377,5 @@ export function buildWreck(seed = 0xb3e30): Wreck {
   }
   update(0)
   setMotion(group, update)
-  return { group, car, update }
+  return { group, update }
 }

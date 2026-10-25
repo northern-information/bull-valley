@@ -11,7 +11,7 @@
 //   id        inventory kind and mesh key
 //   category  'cigarette' | 'joint' | 'psychedelic' | 'stimulant' |
 //             'drink' | 'medicine' | 'forage' | 'valuable' | 'material' |
-//             'fish' | 'rod' | 'key-item'
+//             'fish' | 'food' | 'rod' | 'key-item'
 //   start     count in a new inventory
 //   contents  how many the pack, bottle or box holds (1 when absent); the
 //             inventory counts these, and a buy or a pickup adds a full one
@@ -33,7 +33,9 @@
 //   healsPct  the share of whole geometrie one use gives back, in percent
 //             (health.ts, sharedworld.ts rule 24): everything smoked,
 //             drunk or swallowed gives 15 back, the joint, the
-//             psychedelics, Four Loko and the liquor 30
+//             psychedelics, Four Loko and the liquor 30; a fish eaten raw
+//             5, cooked over the campfire 20 for a small one and 40 for
+//             a large (cooking.ts)
 //
 // Forage is never on a shelf, so it has no price or bought text; the
 // valley hands it out (sharedworld.ts rules 4 and 8).
@@ -118,19 +120,29 @@ interface Valuable extends ItemBase {
 
 // Never on a shelf and of no use yet: what using something leaves behind
 // (recycling.ts emptyOf, sharedworld.ts rule 32), for the Recycling Center
-// at the wreck to take in.
+// at the recycling machine to take in.
 interface Material extends ItemBase {
   category: 'material'
   price?: undefined
 }
 
-// Never on a shelf and of no use but to sell: what the firefly pond gives
-// up (fishing.ts, sharedworld.ts rule 36). Erwin von Dutch takes it in
-// barter at `worth` cents a fish (dealer.ts unitWorth).
+// Never on a shelf: what the firefly pond gives up (fishing.ts,
+// sharedworld.ts rule 36). Eaten raw it gives a little back; cooked over
+// the campfire by the pond it is food (cooking.ts). Erwin von Dutch takes
+// it raw in barter at `worth` cents a fish (dealer.ts unitWorth).
 interface Fish extends ItemBase {
   category: 'fish'
   price?: undefined
   worth: number
+  healsPct: number
+}
+
+// Never on a shelf: a fish cooked over the campfire (cooking.ts), eaten
+// for what it gives back.
+interface Food extends ItemBase {
+  category: 'food'
+  price?: undefined
+  healsPct: number
 }
 
 // On the rod rack in every Citgo, and of no use but at the pond: a rod
@@ -159,6 +171,7 @@ export type Item =
   | Valuable
   | Material
   | Fish
+  | Food
   | Rod
   | KeyItem
 
@@ -515,8 +528,10 @@ export const ITEMS = [
     category: 'valuable',
     start: 0,
   },
-  // Materials (Material above): a drink leaves its can or its bottle, and
-  // the last cigarette out of a pack leaves the pack (recycling.ts).
+  // Materials (Material above): a drink leaves its can, its glass bottle
+  // (empty-bottle) or its plastic one, the last cigarette out of a pack
+  // leaves the pack, and the last pill out of a pill bottle the bottle
+  // (recycling.ts).
   {
     id: 'empty-can',
     category: 'material',
@@ -528,22 +543,49 @@ export const ITEMS = [
     start: 0,
   },
   {
+    id: 'empty-plastic',
+    category: 'material',
+    start: 0,
+  },
+  {
     id: 'empty-pack',
     category: 'material',
     start: 0,
   },
+  {
+    id: 'empty-pill-bottle',
+    category: 'material',
+    start: 0,
+  },
   // Fish (Fish above), off the firefly pond (fishing.ts FISH holds each
-  // one's level, size and what it bites on), the smallest first.
-  { id: 'bluegill', category: 'fish', start: 0, worth: 150 },
-  { id: 'pumpkinseed', category: 'fish', start: 0, worth: 200 },
-  { id: 'yellow-perch', category: 'fish', start: 0, worth: 300 },
-  { id: 'black-crappie', category: 'fish', start: 0, worth: 450 },
-  { id: 'bullhead', category: 'fish', start: 0, worth: 500 },
-  { id: 'largemouth-bass', category: 'fish', start: 0, worth: 900 },
-  { id: 'channel-catfish', category: 'fish', start: 0, worth: 1200 },
-  { id: 'common-carp', category: 'fish', start: 0, worth: 1400 },
-  { id: 'ghost-catfish', category: 'fish', start: 0, worth: 9000 },
-  { id: 'shadow-carp', category: 'fish', start: 0, worth: 4000 },
+  // one's level, size and what it bites on), the smallest first. Raw,
+  // each gives a little back.
+  { id: 'bluegill', category: 'fish', start: 0, worth: 150, healsPct: 5 },
+  { id: 'pumpkinseed', category: 'fish', start: 0, worth: 200, healsPct: 5 },
+  { id: 'yellow-perch', category: 'fish', start: 0, worth: 300, healsPct: 5 },
+  { id: 'black-crappie', category: 'fish', start: 0, worth: 450, healsPct: 5 },
+  { id: 'bullhead', category: 'fish', start: 0, worth: 500, healsPct: 5 },
+  {
+    id: 'largemouth-bass',
+    category: 'fish',
+    start: 0,
+    worth: 900,
+    healsPct: 5,
+  },
+  {
+    id: 'channel-catfish',
+    category: 'fish',
+    start: 0,
+    worth: 1200,
+    healsPct: 5,
+  },
+  { id: 'common-carp', category: 'fish', start: 0, worth: 1400, healsPct: 5 },
+  { id: 'ghost-catfish', category: 'fish', start: 0, worth: 9000, healsPct: 5 },
+  { id: 'shadow-carp', category: 'fish', start: 0, worth: 4000, healsPct: 5 },
+  // Food (Food above): a fish cooked over the campfire, a small one fried
+  // whole and a large one grilled as a fillet (cooking.ts COOKED).
+  { id: 'fried-panfish', category: 'food', start: 0, healsPct: 20 },
+  { id: 'grilled-fillet', category: 'food', start: 0, healsPct: 40 },
   // Rods (Rod above), on the rack by the side wall in every Citgo, the
   // cheapest first.
   { id: 'zebco-33', category: 'rod', start: 0, price: 5000 },
@@ -667,12 +709,23 @@ export function isFish(id: string): boolean {
   return itemById(id)?.category === 'fish'
 }
 
+// Whether `id` is a fish cooked over the campfire (cooking.ts).
+export function isFood(id: string): boolean {
+  return itemById(id)?.category === 'food'
+}
+
+// Whether `id` is eaten: a fish, raw, or one cooked over the campfire.
+export function isEdible(id: string): boolean {
+  const category = itemById(id)?.category
+  return category === 'fish' || category === 'food'
+}
+
 export function isMedicine(id: string): boolean {
   return itemById(id)?.category === 'medicine'
 }
 
 // Whether the player can use a carried item (E in the pack, or its hotbar
-// key): anything smoked, drunk or swallowed.
+// key): anything smoked, drunk, swallowed or eaten.
 export function isUsable(id: string): boolean {
   const item = itemById(id)
   if (!item) return false
@@ -682,13 +735,14 @@ export function isUsable(id: string): boolean {
     case 'psychedelic':
     case 'stimulant':
     case 'drink':
+    case 'fish':
+    case 'food':
       return true
     case 'medicine':
       return (item.healsPct ?? 0) > 0
     case 'forage':
     case 'valuable':
     case 'material':
-    case 'fish':
     case 'rod':
     case 'key-item':
       return false

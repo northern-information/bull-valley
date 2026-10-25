@@ -9,6 +9,7 @@ import {
 } from './assetkit.ts'
 import { buildBerryBush } from './berrybush.ts'
 import { buildCabbageStand, buildStandDressing } from './cabbagestandmodel.ts'
+import { buildCampfire } from './campfiremodel.ts'
 import { buildCaretaker } from './caretakermodel.ts'
 import { castleOf, FORM_KINDS } from './castle.ts'
 import { buildCastle } from './castlemodel.ts'
@@ -96,6 +97,7 @@ import {
   GUITAR_OUTLINE,
 } from './props.ts'
 import { applyPS1 } from './ps1.ts'
+import { buildRecycler } from './recyclermodel.ts'
 import { mulberry32, range } from './rng.ts'
 import {
   buildLandmarkBeacon,
@@ -487,6 +489,16 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildPickup(id),
   })),
   {
+    id: 'food-fried-panfish',
+    label: 'Food: a panfish fried over the campfire',
+    build: () => buildPickup('fried-panfish'),
+  },
+  {
+    id: 'food-grilled-fillet',
+    label: 'Food: a fillet grilled over the campfire',
+    build: () => buildPickup('grilled-fillet'),
+  },
+  {
     id: 'fishing-rod',
     label: 'Fishing rod',
     build: () => buildPickup('fishing-rod'),
@@ -561,13 +573,23 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   {
     id: 'empty-bottle',
-    label: 'Empty bottle',
+    label: 'Empty glass bottle',
     build: () => buildPickup('empty-bottle'),
+  },
+  {
+    id: 'empty-plastic',
+    label: 'Empty plastic bottle',
+    build: () => buildPickup('empty-plastic'),
   },
   {
     id: 'empty-pack',
     label: 'Empty cigarette pack',
     build: () => buildPickup('empty-pack'),
+  },
+  {
+    id: 'empty-pill-bottle',
+    label: 'Empty pill bottle',
+    build: () => buildPickup('empty-pill-bottle'),
   },
   {
     id: 'flaming-halo',
@@ -627,6 +649,16 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'wreck',
     label: 'The wreck: a green BMW in a tree',
     build: () => buildWreck().group,
+  },
+  {
+    id: 'campfire',
+    label: 'The campfire by the firefly pond',
+    build: () => buildCampfire().group,
+  },
+  {
+    id: 'recycler',
+    label: 'The recycling machine by the Citgo door',
+    build: buildRecycler,
   },
   {
     id: 'jeep',

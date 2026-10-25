@@ -3,7 +3,7 @@ import { CONFIG } from '../../src/config.ts'
 import { contentsOf, itemById } from '../../src/items.ts'
 import {
   affordsResearch,
-  atWreck,
+  atRecycler,
   dimesChance,
   emptyOf,
   extraDimes,
@@ -14,14 +14,24 @@ import {
 } from '../../src/recycling.ts'
 
 describe('recycling', () => {
-  it('leaves a can after a canned drink and a bottle after a bottled one', () => {
+  it('leaves a can, a glass bottle or a plastic one after a drink', () => {
     expect(emptyOf('pbr', 0)).toBe('empty-can')
     expect(emptyOf('red-bull', 3)).toBe('empty-can')
     expect(emptyOf('four-loko-blue', 0)).toBe('empty-can')
     expect(emptyOf('high-life', 0)).toBe('empty-bottle')
     expect(emptyOf('wild-turkey', 2)).toBe('empty-bottle')
-    expect(emptyOf('ice-mountain', 0)).toBe('empty-bottle')
-    expect(emptyOf('nos', 0)).toBe('empty-bottle')
+    expect(emptyOf('ice-mountain', 0)).toBe('empty-plastic')
+    expect(emptyOf('nos', 0)).toBe('empty-plastic')
+  })
+
+  it('leaves a pill bottle only when the last pill comes out of it', () => {
+    const bottle = contentsOf('aspirin')
+    expect(emptyOf('aspirin', 0)).toBe('empty-pill-bottle')
+    expect(emptyOf('ibuprofen', bottle)).toBe('empty-pill-bottle')
+    expect(emptyOf('aspirin', bottle - 1)).toBeNull()
+    // A carton or a dropper leaves nothing.
+    expect(emptyOf('benadryl', 0)).toBeNull()
+    expect(emptyOf('eye-drops', 0)).toBeNull()
   })
 
   it('leaves a pack only when the last cigarette comes out of it', () => {
@@ -33,7 +43,7 @@ describe('recycling', () => {
   })
 
   it('leaves nothing after anything else', () => {
-    for (const kind of ['joints', 'lsd', 'adderall', 'aspirin', 'cabbage']) {
+    for (const kind of ['joints', 'lsd', 'adderall', 'cabbage']) {
       expect(emptyOf(kind, 0)).toBeNull()
     }
     expect(emptyOf('no-such-thing', 0)).toBeNull()
@@ -100,12 +110,16 @@ describe('research', () => {
     expect(extraDimes({ dimes: 5 }, 0, 0)).toBe(0)
   })
 
-  it('takes empties only beside the wreck', () => {
-    const wreck = { x: 10, z: 10 }
+  it("takes empties only beside a recycling machine, any Citgo's", () => {
+    const recyclers = [
+      { x: 10, z: 10 },
+      { x: 500, z: 10 },
+    ]
     const reach = CONFIG.recycling.tendReach
-    expect(atWreck({ x: 10 + reach, z: 10 }, wreck)).toBe(true)
-    expect(atWreck({ x: 10 + reach + 0.1, z: 10 }, wreck)).toBe(false)
-    expect(atWreck(null, wreck)).toBe(false)
-    expect(atWreck({ x: 10, z: 10 }, null)).toBe(false)
+    expect(atRecycler({ x: 10 + reach, z: 10 }, recyclers)).toBe(true)
+    expect(atRecycler({ x: 500 - reach, z: 10 }, recyclers)).toBe(true)
+    expect(atRecycler({ x: 10 + reach + 0.1, z: 10 }, recyclers)).toBe(false)
+    expect(atRecycler(null, recyclers)).toBe(false)
+    expect(atRecycler({ x: 10, z: 10 }, [])).toBe(false)
   })
 })
