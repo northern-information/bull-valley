@@ -108,12 +108,18 @@ export class FishPlay {
     this.end(true)
   }
 
-  // Let a fish on the line go (a line still waiting on the bite too).
+  // Let a fish on the line go (a line still waiting on the bite too). A
+  // line nothing will bite the valley keeps no record of, so it comes up
+  // empty here, given up.
   giveUp(): void {
     const phase = this.phase(this.last)
-    if (this.line?.hook && phase !== 'none' && phase !== 'done') {
+    if (phase === 'none' || phase === 'done') return
+    if (this.line?.hook) {
       this.end(false)
+      return
     }
+    this.reeled = true
+    this.hooks.empty(copy('fishing.gave_up'))
   }
 
   private end(landed: boolean): void {

@@ -403,13 +403,15 @@ export function buildPickups(
     count: number,
     seed?: number,
     yaw = 0
-  ) => {
-    if (keepOut(x, z)) return
+  ): Pickup | null => {
+    if (keepOut(x, z)) return null
     const mesh = buildPickup(kind, seed)
     mesh.position.set(x, heightAt(x, z), z)
     mesh.rotation.y = yaw
     group.add(mesh)
-    pickups.push({ kind, count, mesh, x, z, taken: false })
+    const pickup: Pickup = { kind, count, mesh, x, z, taken: false }
+    pickups.push(pickup)
+    return pickup
   }
   // A full pack waits at every fuel station inside the survey square.
   // Brand, yaw, and stick layout draw from their own seed so the world
@@ -483,8 +485,16 @@ export function buildPickups(
   // Last, what Bull Valley Plaza leaves lying every day (stripmall.ts
   // STRIP_MALL.loot), each turned its own way, drawing on no seed.
   loot.forEach((spot, i) => {
-    place(spot.x, spot.z, spot.kind, spot.count, 0x9100 + i, i * 2.3)
-    if (spot.within) pickups[pickups.length - 1].within = spot.within
+    const pickup = place(
+      spot.x,
+      spot.z,
+      spot.kind,
+      spot.count,
+      0x9100 + i,
+      i * 2.3
+    )
+    // A spot kept out places nothing, so its ring goes on no pickup.
+    if (pickup && spot.within) pickup.within = spot.within
   })
   return { group, pickups }
 }

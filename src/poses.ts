@@ -816,9 +816,8 @@ export function samplePose(name: PoseName, t = 0): PoseSample {
   let i = 0
   let f = 0
   if (n > 1) {
-    // A cycle with no length never advances, as before (t / undefined is
-    // NaN, which reads as phase 0 below).
-    const phase = (((t / (pose.seconds ?? NaN)) % 1) + 1) % 1
+    // A cycle with no length never advances: it holds its first key.
+    const phase = pose.seconds ? (((t / pose.seconds) % 1) + 1) % 1 : 0
     const pos = phase * n
     i = Math.floor(pos)
     f = pos - i

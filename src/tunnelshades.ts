@@ -162,7 +162,14 @@ export function stepTunnelShades(
       if (shade.wounds < tune.hits) {
         // A hit it stands: into the dark, to form again elsewhere.
         out.wounds.push({ ...world, kind: shade.kind })
-        const to = blinkSpot(shade, below, map, rng, tune.blinkFrom)
+        const to = blinkSpot(
+          shade,
+          below,
+          map,
+          rng,
+          tune.blinkFrom,
+          tune.patrolRadius
+        )
         shade.x = to.x
         shade.z = to.z
         shade.blink = tune.blinkSeconds
@@ -244,11 +251,7 @@ export function stepTunnelShades(
     // Drifting round its lair: to a floor cell within patrolRadius of it,
     // then another.
     if (shade.route.length === 0) {
-      const near = roomCells(shade, map).filter(
-        (p) =>
-          Math.hypot(p.x - shade.lair.x, p.z - shade.lair.z) <=
-          tune.patrolRadius
-      )
+      const near = roomCells(shade, map, tune.patrolRadius)
       const to =
         near.length > 0 ? near[Math.floor(rng() * near.length)] : shade.lair
       shade.route = routeTo(map, shade, to)
@@ -259,12 +262,14 @@ export function stepTunnelShades(
 }
 
 // The floor a shade keeps to: the Warden its chamber, any other the
-// floor round its lair.
-function roomCells(shade: TunnelShade, map: MazeMap): XZ[] {
+// floor within `radius` of its lair.
+function roomCells(shade: TunnelShade, map: MazeMap, radius: number): XZ[] {
   const cells = map.cells.map((cell) => cellPoint(map.grid, map.size, cell))
   return shade.kind === 'warden'
     ? cells.filter((p) => inRoom(ROOMS.deep, p))
-    : cells
+    : cells.filter(
+        (p) => Math.hypot(p.x - shade.lair.x, p.z - shade.lair.z) <= radius
+      )
 }
 
 // Where a hit throws a shade: a floor cell of its room at least `from`
@@ -274,9 +279,10 @@ function blinkSpot(
   below: readonly { at: XZ }[],
   map: MazeMap,
   rng: Rng,
-  from: number
+  from: number,
+  radius: number
 ): XZ {
-  const cells = roomCells(shade, map)
+  const cells = roomCells(shade, map, radius)
   const nearest = (p: XZ) =>
     below.reduce(
       (d, { at }) => Math.min(d, Math.hypot(at.x - p.x, at.z - p.z)),

@@ -368,8 +368,9 @@ export class D1AccountStore implements AccountStore {
     }))
   }
 
-  // The asker's list is read first; a request is one row, an acceptance
-  // two in one batch, so a pair is never left half friends.
+  // The asker's list is read first, for the cap; the caller holds the
+  // asker's lock across this (ValleyDO.ts befriend), so two asks cannot
+  // both pass it.
   async askFriend(from: string, to: string, now: number): Promise<AskResult> {
     const rows = await this.friendsOf(from)
     const state = rows.find((r) => r.accountId === to)?.state ?? null

@@ -371,7 +371,7 @@ export class MemoryPackStore implements PackStore {
     if (!reward) return
     this.wallets.set(
       accountId,
-      (this.wallets.get(accountId) ?? 0) + reward.cash
+      (this.wallets.get(accountId) ?? STARTING_CASH) + reward.cash
     )
     await this.change(accountId, reward.kind, reward.count)
   }
@@ -433,7 +433,10 @@ export class MemoryPackStore implements PackStore {
   ): Promise<void> {
     this.tasks.set(`${accountId}/${task}`, progress)
     if (reward) {
-      this.wallets.set(accountId, (this.wallets.get(accountId) ?? 0) + reward)
+      this.wallets.set(
+        accountId,
+        (this.wallets.get(accountId) ?? STARTING_CASH) + reward
+      )
     }
     return Promise.resolve()
   }

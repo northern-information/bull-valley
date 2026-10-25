@@ -51,6 +51,22 @@ describe('playing the line', () => {
     expect(reels).toEqual([])
   })
 
+  it('gives up a line nothing will bite before its time, once', () => {
+    const { play, empties, reels } = player()
+    const line: LineOut = { hook: null, bitesAt: 1000 }
+    play.step(line, 0)
+    expect(play.phase(0)).toBe('waiting')
+    // The rod put away: the line comes in, and the valley hears nothing.
+    play.giveUp()
+    play.giveUp()
+    expect(empties).toEqual([copy('fishing.gave_up')])
+    expect(reels).toEqual([])
+    expect(play.phase(0)).toBe('done')
+    // Its time comes and goes: nothing more is said.
+    play.step(line, 2000)
+    expect(empties).toEqual([copy('fishing.gave_up')])
+  })
+
   it('fights from the bite, answers its arrows, and reels a spent fish in once', () => {
     const { play, reels } = player()
     const line = hooked()

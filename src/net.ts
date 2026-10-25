@@ -301,7 +301,10 @@ export class NetClient {
       )
     })
     ws.addEventListener('message', (event: MessageEvent) => {
-      if (this.ws === ws) this.pingOutAt = null
+      // A socket let go (drop) is not ours: browsers stop its messages at
+      // close(), and nothing it says reaches the listeners regardless.
+      if (this.ws !== ws) return
+      this.pingOutAt = null
       if (typeof event.data !== 'string') return
       const msg = parseServerMessage(event.data)
       if (!msg) return

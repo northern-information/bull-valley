@@ -424,11 +424,14 @@ export class D1PackStore implements PackStore {
         .bind(accountId, season, progress.kills, claimed),
       ...(reward
         ? [
+            // A wallet never opened starts from the starting cash, as
+            // earn's does.
             this.db
               .prepare(
-                'UPDATE wallets SET cash = cash + ? WHERE account_id = ?'
+                'INSERT INTO wallets (account_id, cash) VALUES (?, ?) ' +
+                  'ON CONFLICT (account_id) DO UPDATE SET cash = cash + ?'
               )
-              .bind(reward.cash, accountId),
+              .bind(accountId, STARTING_CASH + reward.cash, reward.cash),
             this.db
               .prepare(
                 'INSERT INTO packs (account_id, kind, count) VALUES (?, ?, ?) ' +
@@ -584,9 +587,10 @@ export class D1PackStore implements PackStore {
         ? [
             this.db
               .prepare(
-                'UPDATE wallets SET cash = cash + ? WHERE account_id = ?'
+                'INSERT INTO wallets (account_id, cash) VALUES (?, ?) ' +
+                  'ON CONFLICT (account_id) DO UPDATE SET cash = cash + ?'
               )
-              .bind(reward, accountId),
+              .bind(accountId, STARTING_CASH + reward, reward),
           ]
         : []),
     ])
