@@ -13,7 +13,7 @@ import { shelfRows } from './shop.ts'
 import { formatCash } from './store.ts'
 import { openTradeWindow } from './tradewindow.ts'
 import type { ShopStock } from './interfaces.ts'
-import type { TradeCheer } from './tradewindow.ts'
+import type { TradeCheer, Turntable } from './tradewindow.ts'
 
 interface ShopDialogOptions {
   // The Citgo's name as the map gives it, and what Carlsten says as it
@@ -31,6 +31,7 @@ interface ShopDialogOptions {
   onBuy: (kind: string, unit: number) => void
   // The last trade made a big deal of, and its cheer (tradewindow.ts).
   fanfare: TradeCheer
+  turntable: Turntable
 }
 
 // Mounts the Citgo's window over everything and resolves once it is
@@ -76,6 +77,7 @@ export function openShopDialog(options: ShopDialogOptions): Promise<void> {
     said: options.said,
     icon: options.icon,
     fanfare: options.fanfare,
+    turntable: options.turntable,
     onTrade: (kind) => {
       const unit = rowOf(kind)?.unit ?? null
       if (unit !== null) options.onBuy(kind, unit)

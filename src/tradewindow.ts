@@ -12,7 +12,9 @@
 // is even. A trader with a quest has it on a tab beside the trade, marked
 // while it has a step to take with him. The caller sends the frames; the
 // window reads the game's state again every tick, so the valley's answers
-// show as they land. Every trade is a big deal (tradefanfare.ts): its
+// show as they land. The item picked, or the row under the pointer,
+// turns in the table as the pack's card turns the hovered one
+// (itemthumbs.ts). Every trade is a big deal (tradefanfare.ts): its
 // banner swept across the window and fireflies burst over it, as a fish
 // landed has (catchfanfare.ts, catchburst.ts).
 
@@ -102,6 +104,14 @@ export interface TradeWindowOptions {
   // across the window, bursts fireflies over it and is cheered. One
   // already there as the window opens is old news.
   fanfare: TradeCheer
+  // The renderer that turns an item on a canvas, the pack card's
+  // (itemthumbs.ts spin and stop).
+  turntable: Turntable
+}
+
+export interface Turntable {
+  spin: (canvas: HTMLCanvasElement, kind: string) => void
+  stop: () => void
 }
 
 // Read every tick: the last trade made a big deal of (tradefanfare.ts),
@@ -110,6 +120,9 @@ export interface TradeCheer {
   now: () => Fanfare | null
   cheer: (fanfare: Fanfare) => void
 }
+
+// The turntable's size, CSS px: the pack card's (packhud.ts).
+const VIEW_PX = 112
 
 // How often the readout is redrawn.
 const TICK_MS = 250
@@ -210,6 +223,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
         ${sectionHead(copy('trade.his_side'), 'trade-his-meta')}
         <div class="bv-trade-list" role="radiogroup" aria-label="${copy('trade.his_side')}" data-bv="trade-goods"></div>
         <div class="bv-trade-table" data-bv="trade-table">
+          <canvas class="bv-trade-view" data-bv="trade-view" aria-hidden="true"></canvas>
           <div class="bv-trade-sums">
             <span class="bv-trade-sum">
               <span class="bv-npc-label">${copy('trade.you_give')}</span>
@@ -260,6 +274,9 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
   const evenBtn = find<HTMLButtonElement>('[data-bv="trade-even"]')
   const goBtn = find<HTMLButtonElement>('[data-bv="trade-go"]')
   const said = find<HTMLParagraphElement>('[data-bv="trade-said"]')
+  // Drawn at the screen's own density; the stylesheet sets its CSS size.
+  const view = find<HTMLCanvasElement>('[data-bv="trade-view"]')
+  view.width = view.height = Math.round(VIEW_PX * window.devicePixelRatio)
   const closeBtn = find<HTMLButtonElement>('[data-bv="trade-close"]')
   const tradeTab = find<HTMLButtonElement>('[data-bv="trade-tab-trade"]')
   const mine = find<HTMLElement>('[data-bv="trade-mine"]')
@@ -291,6 +308,20 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
     })
   }
 
+  // The item under the pointer turns in place of the one picked.
+  let hovered: string | null = null
+  const turnsOnHover = (row: HTMLElement, kind: string | undefined) => {
+    if (!kind) return
+    row.addEventListener('pointerenter', () => {
+      hovered = kind
+      refresh()
+    })
+    row.addEventListener('pointerleave', () => {
+      if (hovered === kind) hovered = null
+      refresh()
+    })
+  }
+
   // His side: a row per good, picked as a radio.
   const goodRows = options.goods.map((good) => {
     const row = el('button', 'bv-trade-row bv-trade-row--good')
@@ -309,6 +340,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
       want = good.id
       refresh()
     })
+    turnsOnHover(row, good.kind)
     goodsList.append(row)
     return { good, row, pips, note }
   })
@@ -357,6 +389,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
         el('span', 'bv-trade-each', format(worthOf(kind))),
         steps
       )
+      turnsOnHover(row, kind)
       return { kind, row, held, count, less, more }
     })
     offerList.replaceChildren(...offerRows.map((r) => r.row))
@@ -387,6 +420,18 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
     banner.classList.add('bv-banner--on')
     burst(root, fanfare)
     options.fanfare.cheer(fanfare)
+  }
+
+  // What the turntable shows (undefined until the first refresh), started
+  // again only when it changes; a good that is no item (a cosmetic)
+  // leaves it empty.
+  let turning: string | null | undefined
+  const turn = (kind: string | null) => {
+    if (kind === turning) return
+    turning = kind
+    view.hidden = kind === null
+    if (kind) options.turntable.spin(view, kind)
+    else options.turntable.stop()
   }
 
   const refresh = () => {
@@ -433,8 +478,9 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
       row.row.disabled = out !== null
     }
 
-    // The table.
+    // The table, the item in it turning.
     const good = options.goods.find((g) => g.id === want) ?? null
+    turn(hovered ?? good?.kind ?? null)
     const out = good?.out() ?? null
     const need = good?.worth ?? 0
     const worth = cash ? Math.min(held, need) : offerWorth(offer, worthOf)
@@ -515,6 +561,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
 
     function close(): void {
       clearInterval(timer)
+      options.turntable.stop()
       document.removeEventListener('keydown', onKey)
       root.remove()
       resolve()

@@ -902,6 +902,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
           : null,
       icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
       fanfare: tradeCheer,
+      turntable: game.thumbs,
       onDeal: (kind, offer) => {
         s.pendingDeal = true
         s.dealSaid = null
@@ -1041,6 +1042,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       said: () => s.shopSaid,
       icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
       fanfare: tradeCheer,
+      turntable: game.thumbs,
       onBuy: (item, unit) => buy({ station, item, unit }),
     }).then(() => {
       s.talking = false
@@ -1151,6 +1153,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
       onTrade: trade,
       fanfare: tradeCheer,
+      turntable: game.thumbs,
     }).then(() => {
       s.talking = false
       engagePointer()

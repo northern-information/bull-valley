@@ -13,7 +13,7 @@ import { formatCash } from './store.ts'
 import { openTradeWindow } from './tradewindow.ts'
 import type { DealerStock } from './dealer.ts'
 import type { Inventory } from './interfaces.ts'
-import type { TradeCheer } from './tradewindow.ts'
+import type { TradeCheer, Turntable } from './tradewindow.ts'
 
 interface DealDialogOptions {
   // What he says as it opens.
@@ -33,6 +33,7 @@ interface DealDialogOptions {
   onQuest: () => void
   // The last trade made a big deal of, and its cheer (tradewindow.ts).
   fanfare: TradeCheer
+  turntable: Turntable
 }
 
 // Mounts his window over everything and resolves once it is closed.
@@ -76,6 +77,7 @@ export function openDealDialog(options: DealDialogOptions): Promise<void> {
     said: options.said,
     icon: options.icon,
     fanfare: options.fanfare,
+    turntable: options.turntable,
     onTrade: options.onDeal,
     quest: {
       title: copy('quests.rose_title'),

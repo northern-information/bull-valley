@@ -59,6 +59,7 @@ test('Erwin barters, the rose earns the key, the key opens the office', async ({
   const dialog = page.locator('.bv-deal')
   await expect(dialog).toBeVisible()
   await expect(dialog).toContainText(copy('dealer.ramble_1'))
+  await expect(dialog.locator('[data-bv="trade-view"]')).toBeVisible()
   // Smokes put down one at a time, then evened up for the rest.
   await dialog.locator('[data-good="lsd"]').click()
   const more = dialog.locator('[data-kind="marlboro"] [data-bv="trade-more"]')

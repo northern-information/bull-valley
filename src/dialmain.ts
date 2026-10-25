@@ -122,6 +122,13 @@ async function boot(): Promise<void> {
     sfx.update({ started: true, setting: settings.current.sfx })
     sfx.play(id)
   }
+  // Every trader's window turns the item in its table on the shell's
+  // renderer (itemthumbs.ts).
+  const turntable = {
+    spin: (canvas: HTMLCanvasElement, kind: string) =>
+      shell?.spin(canvas, kind),
+    stop: () => shell?.stopSpin(),
+  }
   // Every trader's window cheers the last trade made a big deal of
   // (tradefanfare.ts) as a fish landed: the fanfare, and the phone buzzing.
   const tradeCheer = {
@@ -300,6 +307,7 @@ async function boot(): Promise<void> {
         }),
         icon: (kind) => shell?.icon(kind) ?? Promise.reject(new Error()),
         fanfare: tradeCheer,
+        turntable,
         onDeal: (kind, offer) =>
           send({ type: 'deal', kind, offer }, { deal: true }),
         onQuest: () => {
@@ -346,6 +354,7 @@ async function boot(): Promise<void> {
           said: () => state.said?.text ?? null,
           icon: (kind) => shell?.icon(kind) ?? Promise.reject(new Error()),
           fanfare: tradeCheer,
+          turntable,
           onBuy: (kind, unit) =>
             send(
               { type: 'buy', station, kind, unit },
@@ -366,6 +375,7 @@ async function boot(): Promise<void> {
         onTrade: (offer) =>
           send({ type: 'trade', offer }, { trade: true, tradeOffer: offer }),
         fanfare: tradeCheer,
+        turntable,
       }).then(() => shell?.render(state))
     },
     expeditions: {
