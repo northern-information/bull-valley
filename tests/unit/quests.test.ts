@@ -4,6 +4,7 @@ import { copy } from '../../src/copy.ts'
 import { isKeyItem } from '../../src/items.ts'
 import { XP } from '../../src/progression.ts'
 import {
+  atDisk,
   atGron,
   atHeart,
   erwinQuest,
@@ -24,10 +25,16 @@ import {
 import type { QuestStage, QuestStages } from '../../src/quests.ts'
 
 const rose = QUESTS.rose
-const atErwin = { atErwin: true, atGron: false, atHeart: false }
-const byGron = { atErwin: false, atGron: true, atHeart: false }
-const atTheHeart = { atErwin: false, atGron: false, atHeart: true }
-const nowhere = { atErwin: false, atGron: false, atHeart: false }
+const nowhere = {
+  atErwin: false,
+  atGron: false,
+  atHeart: false,
+  atDisk: false,
+}
+const atErwin = { ...nowhere, atErwin: true }
+const byGron = { ...nowhere, atGron: true }
+const atTheHeart = { ...nowhere, atHeart: true }
+const atTheDisk = { ...nowhere, atDisk: true }
 
 // Every quest's stage, `rose` and any others as given.
 const stages = (
@@ -223,6 +230,35 @@ describe("Gron's quests", () => {
     })
   })
 
+  it('gives each raider on the last quest the floppy disk where it lies', () => {
+    const out = stages('none', {
+      'gron-berries': 'done',
+      'gron-erwin': 'done',
+      'gron-floppy': 'given',
+    })
+    expect(questStep(floppy, out, 'find', {}, atTheDisk)).toEqual({
+      ok: true,
+      stage: 'given',
+      change: { kind: 'floppy-disk', delta: 1 },
+    })
+    expect(questStep(floppy, out, 'find', {}, byGron)).toEqual({
+      ok: false,
+      reason: 'too-far',
+    })
+    // One at a time, and only while the quest is under way.
+    expect(
+      questStep(floppy, out, 'find', { 'floppy-disk': 1 }, atTheDisk).ok
+    ).toBe(false)
+    expect(questStep(floppy, stages(), 'find', {}, atTheDisk).ok).toBe(false)
+    expect(questStep(berries, out, 'find', {}, atTheDisk).ok).toBe(false)
+    expect(stepNews('gron-floppy', 'find')).toBe(copy('quests.floppy_found'))
+    const disk = { x: -3, z: 9 }
+    const reach = CONFIG.quests.findReach
+    expect(atDisk({ x: -3 + reach - 0.1, z: 9 }, disk)).toBe(true)
+    expect(atDisk({ x: -3 + reach + 0.1, z: 9 }, disk)).toBe(false)
+    expect(atDisk(null, disk)).toBe(false)
+  })
+
   it('finds Gron within his quest reach', () => {
     const gron = { x: 5, z: 5 }
     const reach = CONFIG.gron.questReach
@@ -318,6 +354,7 @@ describe('the wire', () => {
     expect(isQuestStage('laid')).toBe(true)
     expect(isQuestStage('lost')).toBe(false)
     expect(isQuestStep('lay')).toBe(true)
+    expect(isQuestStep('find')).toBe(true)
     expect(isQuestStep('pick')).toBe(false)
     expect(toQuests({ rose: 'laid' })).toEqual(stages('laid'))
     expect(toQuests({ rose: 'eaten', 'gron-erwin': 'given' })).toEqual(

@@ -868,7 +868,7 @@ function buildRose({ glow = true }: PickupOptions = {}): THREE.Group {
   return group
 }
 
-// The construction data off the industrial zone, for Gron (quests.ts): a
+// The construction data out of the industrial park, for Gron (quests.ts): a
 // 3.5" floppy disk lying flat, navy plastic with its sliding metal shutter
 // and a white label. Drawn twice its size, as the key is, or the downscale
 // would lose it. Origin at ground level under its middle.

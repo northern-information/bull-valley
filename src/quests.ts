@@ -3,8 +3,9 @@
 // corn maze; laid, he gives them the Video Vault's back-room key
 // (keys.ts). And Gron's, by the berry bush, one after another: bring him
 // a berry off a bush, seek out Erwin next door at the Golden Wok, then
-// bring him the construction data on a 3.5" floppy disk from the
-// industrial zone. The rose, the key and the disk are key items
+// bring him the construction data on a 3.5" floppy disk, found in the
+// burned-out building's office in the industrial park (industrial.ts
+// DISK). The rose, the key and the disk are key items
 // (items.ts), never dropped. Each quest's stage is the account's, kept by
 // the valley in D1 with the pack, and a step writes the stage and what it
 // puts into or takes out of the pack together. Each quest finished earns
@@ -25,8 +26,9 @@ export type QuestStage = 'none' | 'given' | 'laid' | 'done'
 const QUEST_STAGES: readonly QuestStage[] = ['none', 'given', 'laid', 'done']
 
 // What the raider does: take the quest on (take the rose again, if it was
-// lost), lay the rose at the heart of the maze, or finish it.
-export type QuestStep = 'accept' | 'lay' | 'reward'
+// lost), lay the rose at the heart of the maze, find what was asked where
+// it lies (the floppy disk), or finish it.
+export type QuestStep = 'accept' | 'lay' | 'find' | 'reward'
 
 // Who a step is taken with.
 export type QuestGiver = 'erwin' | 'gron'
@@ -46,6 +48,9 @@ interface Quest {
   // Whether it is laid somewhere between (the rose, at the heart of the
   // maze).
   lays?: boolean
+  // What is found where it lies, each raider their own (the floppy disk,
+  // in the industrial park), while the quest is under way.
+  finds?: ItemId
 }
 
 export const QUESTS: Readonly<Record<QuestId, Quest>> = {
@@ -74,6 +79,7 @@ export const QUESTS: Readonly<Record<QuestId, Quest>> = {
     giver: 'gron',
     finisher: 'gron',
     after: 'gron-erwin',
+    finds: 'floppy-disk',
     bring: 'floppy-disk',
   },
 }
@@ -96,15 +102,22 @@ export function isQuestStage(value: unknown): value is QuestStage {
 }
 
 export function isQuestStep(value: unknown): value is QuestStep {
-  return value === 'accept' || value === 'lay' || value === 'reward'
+  return (
+    value === 'accept' ||
+    value === 'lay' ||
+    value === 'find' ||
+    value === 'reward'
+  )
 }
 
 // Where the raider is, as the valley judges it from their last state
-// frame: beside Erwin, beside Gron, or at the heart of the maze.
+// frame: beside Erwin, beside Gron, at the heart of the maze, or where
+// the floppy disk lies.
 export interface QuestPlace {
   atErwin: boolean
   atGron: boolean
   atHeart: boolean
+  atDisk: boolean
 }
 
 type QuestRefusal = 'too-far' | 'not-now'
@@ -161,6 +174,17 @@ export function questStep(
         stage: 'laid',
         change: { kind: quest.gives, delta: -1 },
       }
+    case 'find':
+      if (!quest.finds) return { ok: false, reason: 'not-now' }
+      if (!place.atDisk) return { ok: false, reason: 'too-far' }
+      if (stage !== 'given' || holds(pack, quest.finds)) {
+        return { ok: false, reason: 'not-now' }
+      }
+      return {
+        ok: true,
+        stage: 'given',
+        change: { kind: quest.finds, delta: 1 },
+      }
     case 'reward': {
       if (!at(place, quest.finisher)) return { ok: false, reason: 'too-far' }
       if (stage !== (quest.lays ? 'laid' : 'given')) {
@@ -198,6 +222,13 @@ export function atHeart(
 export function atGron(at: XZ | null, gron: XZ | null, cfg = CONFIG): boolean {
   if (!at || !gron) return false
   return Math.hypot(at.x - gron.x, at.z - gron.z) <= cfg.gron.questReach
+}
+
+// Whether `at` is where the floppy disk lies (`disk`) for the valley to
+// give it: within CONFIG.quests.findReach.
+export function atDisk(at: XZ | null, disk: XZ | null, cfg = CONFIG): boolean {
+  if (!at || !disk) return false
+  return Math.hypot(at.x - disk.x, at.z - disk.z) <= cfg.quests.findReach
 }
 
 // --- As the dialogs show them ----------------------------------------------
@@ -423,6 +454,7 @@ export function stepNews(quest: QuestId, step: QuestStep): string {
       case 'accept':
         return copy('quests.rose_given')
       case 'lay':
+      case 'find':
         return copy('quests.rose_placed')
       case 'reward':
         return copy('quests.rose_rewarded')
@@ -438,6 +470,7 @@ export function stepNews(quest: QuestId, step: QuestStep): string {
         ? copy('quests.erwin_given')
         : copy('quests.erwin_finished')
     case 'gron-floppy':
+      if (step === 'find') return copy('quests.floppy_found')
       return step === 'accept'
         ? copy('quests.floppy_given')
         : copy('quests.floppy_finished')

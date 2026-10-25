@@ -70,6 +70,8 @@ interface NetIdentity {
   lairs: Lair[]
   // Where the lurkers keep; see HelloMessage.
   lurks: XZ[]
+  // Where the floppy disk lies for Gron's last quest (rule 26), or null.
+  disk: XZ | null
   // Where the corn maze lies (the Caretaker's, rule 13), or null.
   maze: MazePlace | null
   // Where each berry bush stands; see HelloMessage.
@@ -290,6 +292,7 @@ export class NetClient {
           metres: identity.metres,
           lairs: identity.lairs,
           lurks: identity.lurks,
+          disk: identity.disk,
           maze: identity.maze,
           truck: identity.truck,
           stand: identity.stand,

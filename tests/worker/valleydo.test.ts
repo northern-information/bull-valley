@@ -235,6 +235,7 @@ const RECYCLER = { x: 6, z: 27 }
 const POND = { x: -5000, z: 5000, radius: 80, landing: { x: -5060, z: 5000 } }
 const DEALER = { x: -20, z: -55 }
 const GRON = { x: 8, z: -12 }
+const DISK = { x: -120, z: -200 }
 // Where the Undercroft lies, far from everything else.
 const CROFT = { x: -7000, z: -7000, yaw: 0 }
 
@@ -277,6 +278,7 @@ const hello = (
     bushes: Array.from({ length: 7 }, () => ({ x: 0, z: 0 })),
     dealer: DEALER,
     gron: GRON,
+    disk: DISK,
     undercroft: CROFT,
     moat: null,
     rings: Array.from({ length: stations }, (_, i) => ({

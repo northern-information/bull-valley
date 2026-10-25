@@ -414,6 +414,7 @@ async function boot() {
     lairs: world.spawnStation ? lairsOf(world.spawnStation) : [],
     // The lurks in the industrial park's buildings, none without it.
     lurks: world.industrial ? world.industrial.lurks : [],
+    disk: world.industrial ? world.industrial.disk.at : null,
     maze: world.mazePlace,
     truck: truckRoutes,
     bushes: world.bushes.map(({ x, z }) => ({ x, z })),

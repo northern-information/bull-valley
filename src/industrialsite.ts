@@ -9,6 +9,7 @@ import {
   LOAD,
   PALLET_HEAP,
   PARK_SIGN,
+  parkDisk,
   parkLoot,
   parkLurks,
   parkOrigin,
@@ -17,6 +18,7 @@ import {
   worksWalls,
 } from './industrial.ts'
 import { buildIndustrial } from './industrialmodel.ts'
+import { buildPickup } from './pickups.ts'
 import { toWorld } from './store.ts'
 import { LOT_LIFT, makeRibbonAccumulator } from './worldsurfaces.ts'
 import type { Ground } from './ground.ts'
@@ -35,14 +37,16 @@ import type { Walls } from './walls.ts'
 // and the sodium lamps along the drives handed back for the streetlights.
 
 // The park as the game reads it: its frame, the lamps for the
-// streetlights, the day's loot and the lurks, each in the world, and the
-// flicker inside.
+// streetlights, the day's loot and the lurks, each in the world, the
+// floppy disk for Gron's last quest (shown only to a raider on it,
+// loop.ts), and the flicker inside.
 export interface IndustrialSite {
   group: THREE.Group
   origin: StoreOrigin
   lamps: LampSpot[]
   loot: (XZ & { kind: PickupKind; count: number })[]
   lurks: XZ[]
+  disk: { at: XZ; object: THREE.Object3D }
   update(t: number): void
 }
 
@@ -186,12 +190,21 @@ export function buildIndustrialSite(
     return { x: p.x, z: p.z, yaw: Math.atan2(-(t.z - p.z), t.x - p.x) }
   })
 
+  // The floppy disk on the burned-out office's floor, hidden until a
+  // raider on Gron's last quest comes for it.
+  const diskAt = parkDisk(park)
+  const disk = buildPickup('floppy-disk')
+  disk.position.set(diskAt.x, ground.at(diskAt.x, diskAt.z), diskAt.z)
+  disk.visible = false
+  group.add(disk)
+
   return {
     group,
     origin: park,
     lamps,
     loot: parkLoot(park),
     lurks: parkLurks(park),
+    disk: { at: diskAt, object: disk },
     update: (t) => works.update(t),
   }
 }

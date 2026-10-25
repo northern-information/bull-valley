@@ -436,14 +436,15 @@ erwin_given = { text = "\"The Golden Wok. Tell him Gron sent you.\"", by = "ai" 
 erwin_finished = { text = "Erwin von Dutch looks at you a long time. \"Tell Gron I said nothing.\"", by = "ai" }
 floppy_title = { text = "Quest · Construction Data", by = "ai" }
 floppy_step_find = { text = "Find the Floppy Disk", by = "ai" }
-floppy_step_find_where = { text = "The Industrial Zone", by = "ai" }
-floppy_offer = { text = "\"Out in the industrial zone they drew up what they meant to build here. It is on a 3.5-inch floppy disk. Bring me the construction data and I will show you what the kingdom was meant to be.\"", by = "ai" }
+floppy_step_find_where = { text = "The Burned Office, Industrial Park", by = "ai" }
+floppy_offer = { text = "\"Out in the industrial park behind the plaza they drew up what they meant to build here. It is on a 3.5-inch floppy disk. Bring me the construction data and I will show you what the kingdom was meant to be.\"", by = "ai" }
 floppy_accept = { text = "I'll Find It", by = "ai" }
-floppy_waiting = { text = "\"The industrial zone. A floppy disk. The construction data is on it.\"", by = "ai" }
+floppy_waiting = { text = "\"The industrial park, behind the plaza. The burned building. Its office. A floppy disk.\"", by = "ai" }
 floppy_ready = { text = "\"That is it. Give it here.\"", by = "ai" }
 floppy_reward = { text = "Hand Over the Disk", by = "ai" }
 floppy_done = { text = "\"Every night the kingdom crumbles. Now I know how it was built.\"", by = "ai" }
-floppy_given = { text = "\"A 3.5-inch floppy disk. The industrial zone. Go.\"", by = "ai" }
+floppy_found = { text = "A navy floppy disk in the ash under the desk. The label still reads CONSTRUCTION DATA.", by = "ai" }
+floppy_given = { text = "\"A 3.5-inch floppy disk. The burned building in the industrial park, behind the plaza. Go.\"", by = "ai" }
 floppy_finished = { text = "Gron turns the floppy disk over in his hands, reading the label in the rain.", by = "ai" }
 
 # The game's own lines in the chat log (src/actions.ts, src/valleysync.ts,
@@ -682,6 +683,7 @@ cast = { text = "Click — Cast with {bait}", by = "ai" }
 cast_no_bait = { text = "No Bait — Dig at the Tackle Box", by = "ai" }
 locked = { text = "E — Locked", by = "ai" }
 lay = { text = "E — Lay the Rose", by = "ai" }
+find = { text = "E — Take the Floppy Disk", by = "ai" }
 descend = { text = "E — Climb Down", by = "ai" }
 ascend = { text = "E — Climb Up", by = "ai" }
 inspect = { text = "E — Inspect {name}", by = "ai" }
@@ -1602,7 +1604,7 @@ blurb = { text = "A brass key on a red tag that says BACK, from Erwin von Dutch 
 
 [items.floppy-disk]
 label = { text = "Construction Data", by = "ai" }
-blurb = { text = "A navy 3.5\" floppy disk out of the industrial zone, its label typed over in a hand no one uses anymore. Gron wants it.", by = "ai" }
+blurb = { text = "A navy 3.5\" floppy disk out of the burned office in the industrial park, its label typed over in a hand no one uses anymore. Gron wants it.", by = "ai" }
 
 [items.fishing-rod]
 label = { text = "Fishing Rod", by = "ai" }

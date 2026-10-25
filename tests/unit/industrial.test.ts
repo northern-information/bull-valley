@@ -11,6 +11,7 @@ import {
   buildingOrigin,
   buildingSigns,
   CAR,
+  DISK,
   GRAFFITI,
   GRAFFITI_LOW,
   inBuilding,
@@ -20,6 +21,7 @@ import {
   OIL,
   onParkGrounds,
   PARK_SIGN,
+  parkDisk,
   parkLoot,
   parkLurks,
   parkMiddle,
@@ -28,6 +30,7 @@ import {
   parkToWorld,
   propBoxes,
   propSigns,
+  spotOf,
   TRAILER,
   waysOf,
   worksWalls,
@@ -283,6 +286,21 @@ describe('the industrial park', () => {
         expect(can(way), `${b.id} ${way.name}`).toBe(true)
       }
     }
+  })
+
+  it("lays Gron's floppy disk in the burned office, reached on foot", () => {
+    const i = INDUSTRIAL.buildings.findIndex((b) => b.id === DISK.building)
+    expect(i).toBeGreaterThanOrEqual(0)
+    const b = INDUSTRIAL.buildings[i]
+    expect(b.works).toBe('empty')
+    const spot = spotOf(b, DISK.at)
+    expect(reachable(b)(spot)).toBe(true)
+    // Clear of what the day leaves there.
+    for (const loot of buildingLoot(b)) {
+      expect(Math.hypot(loot.x - spot.x, loot.z - spot.z)).toBeGreaterThan(1)
+    }
+    const disk = parkDisk(park)
+    expect(inBuilding(park, i, disk.x, disk.z)).toBe(true)
   })
 
   it('leaves a dead forklift in every building, in nothing else', () => {

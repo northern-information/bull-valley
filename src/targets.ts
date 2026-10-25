@@ -106,6 +106,8 @@ export function createTargets(game: Game): Targets {
         return world.plaza?.door ?? null
       case 'lay':
         return world.portal?.rig.group ?? null
+      case 'find':
+        return world.industrial?.disk.object ?? null
       // What is not there glows as the real one would.
       case 'hallucination':
         return game.hallucinations.objectOf(action.id)
