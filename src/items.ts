@@ -515,8 +515,10 @@ export const ITEMS = [
     category: 'valuable',
     start: 0,
   },
-  // Materials (Material above): a drink leaves its can or its bottle, and
-  // the last cigarette out of a pack leaves the pack (recycling.ts).
+  // Materials (Material above): a drink leaves its can, its glass bottle
+  // (empty-bottle) or its plastic one, the last cigarette out of a pack
+  // leaves the pack, and the last pill out of a pill bottle the bottle
+  // (recycling.ts).
   {
     id: 'empty-can',
     category: 'material',
@@ -528,7 +530,17 @@ export const ITEMS = [
     start: 0,
   },
   {
+    id: 'empty-plastic',
+    category: 'material',
+    start: 0,
+  },
+  {
     id: 'empty-pack',
+    category: 'material',
+    start: 0,
+  },
+  {
+    id: 'empty-pill-bottle',
     category: 'material',
     start: 0,
   },

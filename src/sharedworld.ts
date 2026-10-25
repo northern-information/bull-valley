@@ -285,9 +285,10 @@
 //    in there is no laptop (`dialup`).
 // 32. Empties (recycling.ts): once the pack has given up a unit used or
 //    passed (rules 10 and 27), what it leaves goes into the same pack, under
-//    Materials: a drink its can or its bottle, the last cigarette out of a
-//    pack the pack (emptyOf, from what the pack holds after). Dialed in the
-//    same.
+//    Materials: a drink its can, its glass bottle or its plastic one, the
+//    last cigarette out of a pack the pack, the last pill out of a pill
+//    bottle the bottle (emptyOf, from what the pack holds after). Dialed in
+//    the same.
 // 33. The Recycling Center at the recycling machine (recycling.ts): every
 //    account keeps its own research, a level on each line, in D1. A raider
 //    out of the bed whose last state frame put them beside any Citgo's

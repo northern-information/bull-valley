@@ -1063,11 +1063,22 @@ export const CONFIG = {
         },
         {
           chance: 0.4,
-          price: { 'empty-can': 30, 'empty-pack': 6, 'empty-bottle': 4 },
+          price: {
+            'empty-can': 30,
+            'empty-pack': 6,
+            'empty-bottle': 4,
+            'empty-plastic': 2,
+          },
         },
         {
           chance: 0.5,
-          price: { 'empty-can': 45, 'empty-pack': 10, 'empty-bottle': 6 },
+          price: {
+            'empty-can': 45,
+            'empty-pack': 10,
+            'empty-bottle': 6,
+            'empty-plastic': 4,
+            'empty-pill-bottle': 1,
+          },
         },
       ] as { chance: number; price: Record<string, number> }[],
     },

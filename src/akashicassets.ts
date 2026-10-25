@@ -541,13 +541,23 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   {
     id: 'empty-bottle',
-    label: 'Empty bottle',
+    label: 'Empty glass bottle',
     build: () => buildPickup('empty-bottle'),
+  },
+  {
+    id: 'empty-plastic',
+    label: 'Empty plastic bottle',
+    build: () => buildPickup('empty-plastic'),
   },
   {
     id: 'empty-pack',
     label: 'Empty cigarette pack',
     build: () => buildPickup('empty-pack'),
+  },
+  {
+    id: 'empty-pill-bottle',
+    label: 'Empty pill bottle',
+    build: () => buildPickup('empty-pill-bottle'),
   },
   {
     id: 'flaming-halo',

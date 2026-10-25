@@ -1474,12 +1474,20 @@ label = { text = "Empty Can", by = "ai" }
 blurb = { text = "Drained and dented, the tab still on. Aluminium is worth something to someone.", by = "ai" }
 
 [items.empty-bottle]
-label = { text = "Empty Bottle", by = "ai" }
+label = { text = "Empty Glass Bottle", by = "ai" }
 blurb = { text = "Nothing left in it but the smell. Glass keeps.", by = "ai" }
+
+[items.empty-plastic]
+label = { text = "Empty Plastic Bottle", by = "ai" }
+blurb = { text = "Crushed in the middle where somebody squeezed the last of it out. It will outlive us all.", by = "ai" }
 
 [items.empty-pack]
 label = { text = "Empty Pack", by = "ai" }
 blurb = { text = "Twenty gone. The foil and the cellophane, crushed flat.", by = "ai" }
+
+[items.empty-pill-bottle]
+label = { text = "Empty Pill Bottle", by = "ai" }
+blurb = { text = "Amber plastic, the cap gone, the label peeled. It still rattles when nothing is in it.", by = "ai" }
 
 [items.rose]
 label = { text = "A Single Rose", by = "ai" }

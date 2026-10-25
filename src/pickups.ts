@@ -998,10 +998,113 @@ function buildEmptyPack({ glow = true }: PickupOptions = {}): THREE.Group {
   return group
 }
 
+// A plastic water bottle drained, crushed in the middle and laid down:
+// clear PET gone cloudy, the blue cap still on.
+function buildEmptyPlastic({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'empty-plastic'
+  const plastic = lambert({
+    color: '#9fb4c0',
+    emissive: new THREE.Color('#cfe4ee'),
+    emissiveIntensity: 0.3,
+    transparent: true,
+    opacity: 0.6,
+  })
+  const cap = lambert({
+    color: '#1d4f9c',
+    emissive: new THREE.Color('#4a7fd0'),
+    emissiveIntensity: 0.3,
+  })
+  const R = 0.033
+  const H = 0.205
+  const body = new THREE.LatheGeometry(
+    [
+      [0, 0],
+      [R * 0.9, 0],
+      [R, H * 0.08],
+      [R * 0.95, H * 0.3],
+      [R * 0.5, H * 0.45],
+      [R * 0.9, H * 0.6],
+      [R, H * 0.75],
+      [R * 0.4, H * 0.92],
+      [R * 0.36, H],
+      [0, H],
+    ].map(([x, y]) => new THREE.Vector2(x, y)),
+    8
+  )
+  // Crushed flat in the middle, then laid on its side.
+  body.scale(1, 1, 0.7)
+  body.translate(0, -H / 2, 0)
+  body.rotateZ(Math.PI / 2 - 0.12)
+  const bottle = new THREE.Mesh(body, plastic)
+  bottle.position.y = R * 0.7
+  group.add(bottle)
+  const top = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.014, 0.014, 0.02, 8),
+    cap
+  )
+  top.rotation.z = Math.PI / 2 - 0.12
+  top.position.set(-H / 2 - 0.006, R * 0.7 + 0.012, 0)
+  group.add(top)
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(190, 220, 240, 0.4)'),
+      0.55
+    )
+    halo.position.y = 0.03
+    group.add(halo)
+  }
+  setPulseMaterials(group, [plastic, cap])
+  return group
+}
+
+// A pill bottle with nothing left in it, the cap gone, tipped on its side:
+// the amber plastic every pharmacy's is.
+function buildEmptyPillBottle({
+  glow = true,
+}: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'empty-pill-bottle'
+  const amber = lambert({
+    color: '#a85a12',
+    emissive: new THREE.Color('#e08a2a'),
+    emissiveIntensity: 0.35,
+    transparent: true,
+    opacity: 0.85,
+    side: THREE.DoubleSide,
+  })
+  const R = 0.019
+  const H = 0.05
+  const body = new THREE.LatheGeometry(
+    [
+      [0, 0],
+      [R * 0.85, 0],
+      [R, 0.004],
+      [R, H * 0.9],
+      [R * 0.92, H],
+    ].map(([x, y]) => new THREE.Vector2(x, y)),
+    8
+  )
+  body.translate(0, -H / 2, 0)
+  body.rotateZ(Math.PI / 2 + 0.1)
+  const bottle = new THREE.Mesh(body, amber)
+  bottle.position.y = R
+  group.add(bottle)
+  if (glow) {
+    const halo = makeGlowSprite(makeGlowTexture('rgba(240, 160, 70, 0.4)'), 0.4)
+    halo.position.y = 0.03
+    group.add(halo)
+  }
+  setPulseMaterials(group, [amber])
+  return group
+}
+
 const EMPTIES: Record<string, (options: PickupOptions) => THREE.Group> = {
   'empty-can': buildEmptyCan,
   'empty-bottle': buildEmptyBottle,
+  'empty-plastic': buildEmptyPlastic,
   'empty-pack': buildEmptyPack,
+  'empty-pill-bottle': buildEmptyPillBottle,
 }
 
 // Kinds: 'cabbage', 'dimes', or an item id from items.ts. glow: false
