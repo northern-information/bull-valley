@@ -26,6 +26,7 @@ import {
   whisperLine,
 } from './chat.ts'
 import { citgoLines, NO_CITGOS } from './citgos.ts'
+import { cookedLine, cookRefusal } from './cooklines.ts'
 import { copy } from './copy.ts'
 import {
   cosmeticById,
@@ -201,6 +202,7 @@ export interface DialState {
 export interface Pending {
   stand: boolean
   recycle: boolean
+  cook: boolean
   fish: boolean
   locker: boolean
   buy: { station: number; kind: string } | null
@@ -224,6 +226,7 @@ export interface Pending {
 const NOTHING_PENDING: Pending = {
   stand: false,
   recycle: false,
+  cook: false,
   fish: false,
   locker: false,
   buy: null,
@@ -490,6 +493,14 @@ export function applyFrame(
     // Rule 33: loose change found in the 3D valley, for the log.
     case 'found':
       return told(s, foundLine(msg.dimes), wall)
+    // Rule 39: fish cooked, here or in the 3D valley; the pack frame
+    // follows.
+    case 'cooked': {
+      const done = { ...s, pending: { ...s.pending, cook: false } }
+      return s.pending.cook
+        ? news(done, cookedLine(msg), now, wall)
+        : told(done, cookedLine(msg), wall)
+    }
     // Rule 36: the angler as read, or after a dig, the rod or a catch; the
     // phone's own dig or rod is answered on the screen and in the log, as
     // the stand's is.
@@ -735,6 +746,12 @@ export function applyFrame(
           return saying(
             { ...s, pending: { ...s.pending, recycle: false } },
             recycleRefusal(msg.reason),
+            now
+          )
+        case 'cook':
+          return saying(
+            { ...s, pending: { ...s.pending, cook: false } },
+            cookRefusal(msg.reason),
             now
           )
         // Rule 36. A reel refused has no line left to reel.

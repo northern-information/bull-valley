@@ -131,6 +131,8 @@ interface BvHook {
   readonly angler: AnglerWire | null
   readonly line: LineOut | null
   readonly ponds: PondPlace[]
+  // Rule 39: each pond's campfire, in pond order.
+  readonly campfires: XZ[]
   // The slurms crawling on the parked Citgo's lot, in the world (what a
   // jar can catch).
   readonly slurms: SlurmSpot[]
@@ -356,6 +358,9 @@ export function installDevHook(game: Game, actions: Actions): void {
           z,
         })
       )
+    },
+    get campfires() {
+      return game.world.ponds.map(({ campfire }) => campfire.at)
     },
     get ponds() {
       return game.world.ponds.map(({ place }) => ({

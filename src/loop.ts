@@ -839,6 +839,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       // (actions.ts jarSlurm).
       slurms:
         s.held === 'jar' && jarRoom(s.inventory) ? crawlingSlurms(world) : [],
+      campfires: world.ponds.map((pond) => pond.campfire.at),
       tackle: nearestLanding(
         world.ponds.map((pond) => pond.place),
         player.pos

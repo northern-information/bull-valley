@@ -2,14 +2,17 @@
 // 35) as it stands in the valley: the fireflies over it and its shores,
 // whose haven no shadow comes inside, the old tackle box on a picnic
 // table on the landing nearest the Citgo, a lit oil lantern beside it to
-// find it by from across the field, two rods leaning on its end, and the
+// find it by from across the field, two rods leaning on its end, a
+// campfire back from it to cook the catch on (rule 39), and the
 // bobber that floats out from the landing while the raider has a line in
 // the water. Three glue: the pond's place and
 // every rule are fishing.ts's.
 
 import * as THREE from 'three'
+import { buildCampfire } from './campfiremodel.ts'
 import { hoistPose } from './catchfanfare.ts'
 import { CONFIG } from './config.ts'
+import { campfireOf } from './cooking.ts'
 import { buildFireflies } from './fireflyrig.ts'
 import {
   buildBobber,
@@ -32,6 +35,9 @@ export interface PondRig {
   place: Pond
   // Where the tackle box stands, for E.
   landing: XZ
+  // The campfire back from the landing (cooking.ts campfireOf): where it
+  // burns, for E, and the fire itself, for the glow.
+  campfire: { at: XZ; group: THREE.Group }
   // The bobber out on the water (`out`), bobbing; `bite` pulls it under.
   setLine(out: boolean, bite: boolean): void
   // The fish last landed (`kind`, null for none), `since` seconds after
@@ -128,6 +134,14 @@ export function placePond(pond: Pond, ground: Ground, walls: Walls): PondRig {
     table.add(rod)
   }
 
+  // The campfire, back from the landing and off to its side, to cook the
+  // catch on (cooking.ts, sharedworld.ts rule 39).
+  const fireAt = campfireOf(pond)
+  const campfire = buildCampfire()
+  campfire.group.position.set(fireAt.x, ground.at(fireAt.x, fireAt.z), fireAt.z)
+  group.add(campfire.group)
+  walls.addWall(fireAt, fireAt, CONFIG.fishing.campfire.radius)
+
   const fireflies = buildFireflies(
     { x: pond.x, z: pond.z },
     pond.radius - CONFIG.fishing.pond.margin / 2,
@@ -186,6 +200,7 @@ export function placePond(pond: Pond, ground: Ground, walls: Walls): PondRig {
     group,
     place: pond,
     landing,
+    campfire: { at: fireAt, group: campfire.group },
     setHoist(kind, since, view) {
       for (const fish of hoisted.values()) fish.visible = false
       hoistLine.visible = false
@@ -237,6 +252,7 @@ export function placePond(pond: Pond, ground: Ground, walls: Walls): PondRig {
     update(t, valley) {
       fireflies.update(t)
       lantern.update(t)
+      campfire.update(t)
       const leap = leapAt(valley, seed, pond.shore.length)
       for (const [kind, fish] of leapers) {
         fish.visible = leap?.kind === kind

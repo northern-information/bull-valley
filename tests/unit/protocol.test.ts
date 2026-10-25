@@ -493,6 +493,16 @@ describe('parseClientMessage', () => {
       line: 'dimes',
     })
     expect(parse({ type: 'recycle', line: 'beam' })).toBeNull()
+    // Which fish cook is the valley's to check; a count is whole and one
+    // or more.
+    expect(parse({ type: 'cook', kind: 'bluegill', count: 3 })).toEqual({
+      type: 'cook',
+      kind: 'bluegill',
+      count: 3,
+    })
+    expect(parse({ type: 'cook', kind: 'bluegill', count: 0 })).toBeNull()
+    expect(parse({ type: 'cook', kind: 'bluegill', count: 1.5 })).toBeNull()
+    expect(parse({ type: 'cook', count: 1 })).toBeNull()
     // Fishing at the firefly pond (rule 36).
     expect(parse({ type: 'angler' })).toEqual({ type: 'angler' })
     expect(parse({ type: 'tackle' })).toEqual({ type: 'tackle' })

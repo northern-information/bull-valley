@@ -1120,6 +1120,19 @@ export const CONFIG = {
       // How close the landing must be for E to open the tackle box.
       reach: 3,
     },
+    // The campfire by every pond's landing (cooking.ts, sharedworld.ts
+    // rule 39): this far further from the water than the landing, and this
+    // far to its side, clear of the picnic table. It blocks as a post this
+    // wide; E opens it from within `reach` of its middle, and the valley
+    // cooks for a raider whose last state frame put them within
+    // `tendReach` of it, generous since frames lag.
+    campfire: {
+      back: 2.5,
+      aside: 3.5,
+      radius: 0.75,
+      reach: 2.6,
+      tendReach: 8,
+    },
     // The skill has no top. Once no fish stands over it, every fish landed
     // raises it a tenth at this chance.
     pastTopChance: 0.04,

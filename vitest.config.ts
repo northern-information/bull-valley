@@ -117,6 +117,8 @@ const THREE_AND_DOM = [
   'partyhud',
   'payphonemodel',
   'recyclermodel',
+  'campfiremodel',
+  'cookdialog',
   'peers',
   'phone',
   'pickups',

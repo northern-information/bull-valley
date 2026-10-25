@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
+import { campfireOf } from '../../src/cooking.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
 import {
   costIn,
@@ -1016,6 +1017,76 @@ describe('rule 4, cash: a pickup of cash goes into the wallet', () => {
     expect(r.earn).toEqual({ account: 'acct-a', amount: 8 * 25 })
     expect(r.pack).toBeUndefined()
     expect(r.xp).toEqual([{ account: 'acct-a', source: 'pickup' }])
+  })
+})
+
+describe('rule 39: the campfire cooks the catch', () => {
+  const fire = campfireOf(POND)
+  const cookAs = (
+    id: string,
+    kind = 'bluegill',
+    count = 2,
+    at: XZ | null = fire
+  ): ValleyAction => ({ type: 'cook', id, kind, count, at })
+
+  it('cooks raw fish into what they cook into, out of the pack', () => {
+    const v = valleyWith(join('a'))
+    v.setPack({ bluegill: 3, 'channel-catfish': 1 })
+    const r = v.step(cookAs('a'))
+    expect(r.reply).toBeUndefined()
+    expect(r.broadcast).toEqual([])
+    expect(r.barter).toEqual({
+      account: 'acct-a',
+      give: { bluegill: 2 },
+      take: { kind: 'fried-panfish', count: 2 },
+    })
+    expect(r.cooked).toEqual({
+      account: 'acct-a',
+      kind: 'bluegill',
+      count: 2,
+      into: 'fried-panfish',
+    })
+    // A large fish grills into a fillet, at the other pond's fire too.
+    const far = v.step(cookAs('a', 'channel-catfish', 1, campfireOf(FAR_POND)))
+    expect(far.barter?.take).toEqual({ kind: 'grilled-fillet', count: 1 })
+  })
+
+  it('refuses from afar, aboard, short, or for what does not cook', () => {
+    const v = valleyWith(join('a'))
+    v.setPack({ bluegill: 1, cabbage: 4 })
+    const reason = (r: Reduced) => r.reply?.reason
+    expect(v.step(cookAs('a', 'bluegill', 1, null)).reply).toEqual({
+      type: 'nack',
+      re: 'cook',
+      reason: 'no-campfire',
+      item: 'bluegill',
+    })
+    expect(reason(v.step(cookAs('a', 'bluegill', 1, POND.landing)))).toBe(
+      undefined
+    )
+    expect(reason(v.step(cookAs('a', 'bluegill', 1, { x: 0, z: 0 })))).toBe(
+      'no-campfire'
+    )
+    expect(reason(v.step(cookAs('a', 'bluegill', 2)))).toBe('short')
+    expect(reason(v.step(cookAs('a', 'cabbage', 1)))).toBe('raw-only')
+    expect(reason(v.step(cookAs('a', 'fried-panfish', 1)))).toBe('raw-only')
+    expect(reason(v.step(cookAs('z')))).toBe('not-in-valley')
+    v.step({ type: 'board', id: 'a', at: HERE })
+    expect(reason(v.step(cookAs('a', 'bluegill', 1)))).toBe('aboard')
+  })
+
+  it('cooks for a raider dialed in, wherever they are', () => {
+    const v = valleyWith({
+      type: 'dial',
+      id: 'p',
+      account: 'acct-p',
+      name: 'P',
+      outfit: 'coleman',
+      level: 3,
+    })
+    v.setPack({ bluegill: 1 })
+    const r = v.step(cookAs('p', 'bluegill', 1, null))
+    expect(r.barter?.take).toEqual({ kind: 'fried-panfish', count: 1 })
   })
 })
 

@@ -18,6 +18,7 @@ import {
   whisperLine,
 } from './chat.ts'
 import { CONFIG } from './config.ts'
+import { cookedLine, cookRefusal } from './cooklines.ts'
 import { copy } from './copy.ts'
 import { toCosmetics } from './cosmetics.ts'
 import { crewNews, crewRefusal } from './crews.ts'
@@ -502,6 +503,10 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.recycle = false
       s.researchSaid = recycleRefusal(msg.reason)
       hud.tell(s.researchSaid)
+    } else if (msg.re === 'cook') {
+      s.pending.cook = false
+      s.cookSaid = cookRefusal(msg.reason)
+      hud.tell(s.cookSaid)
     } else if (msg.re === 'jar-slurm') {
       // Rule 36: gone, out of reach, or no jar with room in it.
       s.pending.jar = false
@@ -651,6 +656,12 @@ export function wireValley(game: Game, actions: Actions): void {
     } else if (msg.type === 'found') {
       // Rule 33: loose change, already in the wallet the pack frame says.
       hud.tell(foundLine(msg.dimes))
+    } else if (msg.type === 'cooked') {
+      // Rule 39: fish cooked, to every socket on the account; the pack
+      // frame follows.
+      s.pending.cook = false
+      s.cookSaid = cookedLine(msg)
+      hud.tell(s.cookSaid)
     } else if (msg.type === 'angler') {
       // Rule 36: the angler as read, or after a dig, the rod or a catch,
       // to every socket on the account. A dig's and the rod's pack frame

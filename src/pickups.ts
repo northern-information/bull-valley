@@ -14,13 +14,21 @@ import { paintTwenty } from './billart.ts'
 import { canvas } from './canvas.ts'
 import { buildDrink } from './drinkmodels.ts'
 import {
+  buildCookedFish,
   buildFish,
   buildFishingRod,
   buildNightcrawlers,
   buildSlurmCatch,
   buildSlurmJar,
 } from './fishmodels.ts'
-import { isCigarette, isDrink, isFish, isMedicine, isRod } from './items.ts'
+import {
+  isCigarette,
+  isDrink,
+  isFish,
+  isFood,
+  isMedicine,
+  isRod,
+} from './items.ts'
 import {
   buildCitgoPhone,
   buildFlashlightItem,
@@ -1132,6 +1140,7 @@ export function buildPickup(
   if (empty) return empty({ glow })
   if (isMedicine(kind)) return buildMedicine(kind, { glow })
   if (isFish(kind)) return buildFish(kind, { glow })
+  if (isFood(kind)) return buildCookedFish(kind, { glow })
   if (kind === 'slurm-jar') return buildSlurmJar({ glow })
   if (kind === 'slurm') return buildSlurmCatch()
   if (kind === 'fishing-rod' || isRod(kind)) {

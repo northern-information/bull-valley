@@ -118,6 +118,8 @@ export interface Pending {
   stand: boolean
   // Rule 33: a level bought at the Recycling Center.
   recycle: boolean
+  // Rule 39: fish cooked over the campfire.
+  cook: boolean
   // Rule 36: a rod, a dig, a cast or a reel at the firefly pond, and a
   // slurm into the jar.
   fish: boolean
@@ -142,6 +144,7 @@ export function freshPending(): Pending {
     crew: null,
     stand: false,
     recycle: false,
+    cook: false,
     fish: false,
     jar: false,
   }
@@ -288,6 +291,8 @@ export interface GameState {
   // word on a level, for the dialog.
   research: Research | null
   researchSaid: string | null
+  // Rule 39: the last word on fish cooked, for the campfire's dialog.
+  cookSaid: string | null
   // Rule 36: the account's angler as the valley last sent it (asked for
   // as the tackle box opens); null before it has. The line in the water,
   // as cast (fishing.ts LineOut), and the last word on fishing.
@@ -411,6 +416,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     standSaid: null,
     research: null,
     researchSaid: null,
+    cookSaid: null,
     angler: null,
     line: null,
     fishSaid: null,

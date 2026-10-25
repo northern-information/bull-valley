@@ -436,6 +436,17 @@ type StandTendMessage =
 type RecycleTendMessage =
   { type: 'research' } | { type: 'recycle'; line: ResearchLine }
 
+// The campfire by the firefly pond (sharedworld.ts rule 39): `count` of
+// the raw fish `kind` cooked. The valley checks the raider's last state
+// frame put them beside a campfire (dialed in, anywhere), takes the fish
+// out of the pack and puts what they cook into in, and answers with a
+// CookedMessage and a PackMessage, or a nack.
+interface CookMessage {
+  type: 'cook'
+  kind: string
+  count: number
+}
+
 // Fishing at the firefly pond (sharedworld.ts rule 36): the account's
 // angler, please; a rod out of the tackle box; nightcrawlers dug out of
 // the bank; a line cast with `bait` on the hook; or the line out reeled in
@@ -722,6 +733,7 @@ export type ClientMessage =
   | StowMessage
   | StandTendMessage
   | RecycleTendMessage
+  | CookMessage
   | FishMessage
   | ExpeditionTendMessage
   | TradeMessage
@@ -881,6 +893,16 @@ export interface ResearchMessage {
 export interface FoundMessage {
   type: 'found'
   dimes: number
+}
+
+// Fish cooked over the campfire (rule 39): `count` of `kind` gone into as
+// many of `into`, to every socket signed in to the account, a pack frame
+// following.
+export interface CookedMessage {
+  type: 'cooked'
+  kind: string
+  count: number
+  into: string
 }
 
 // The account's angler (rule 36), to every socket signed in to it: in
@@ -1235,6 +1257,7 @@ export type ServerMessage =
   | StandMessage
   | ResearchMessage
   | FoundMessage
+  | CookedMessage
   | AnglerMessage
   | LineMessage
   | CatchMessage
@@ -1868,6 +1891,11 @@ const CLIENT_PARSERS: ClientParsers = {
       : null,
   recycle: ({ line }) =>
     isResearchLine(line) ? { type: 'recycle', line } : null,
+  // Which fish cook is the valley's to check.
+  cook: (value) => {
+    const units = parseUnits(value)
+    return units && { type: 'cook', ...units }
+  },
   'stand-upgrade': bare('stand-upgrade'),
   'expedition-claim': bare('expedition-claim'),
   // Which runs there are is the valley's to check.

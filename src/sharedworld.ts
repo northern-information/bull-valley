@@ -375,12 +375,22 @@
 //    or passed. A whistle (`call`) needs the whistle in the pack, and a
 //    portal (`open-portal`, rule 28) the phone (ValleyContext.holdings
 //    in, as the valley just read them).
+// 39. The campfire (cooking.ts): every firefly pond has one by its landing
+//    (campfireOf, from where the world was opened with each pond). A raider
+//    out of the bed whose last state frame put them beside one, or dialed
+//    in from anywhere, cooks a count of one raw fish (a `cook` action):
+//    the valley reads the pack, refuses a kind that does not cook or a
+//    count the pack does not hold, and takes the fish out and puts what
+//    they cook into in together, or neither, as a barter with Erwin is
+//    written (ValleyContext.holdings in, Reduced.barter and Reduced.cooked
+//    out). Every socket on the account hears what cooked, then the pack.
 
 import { bountyOf, GIFTS } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
 import { heartPoint, theMaze } from './caretaker.ts'
 import { citgoAt, findPhone, NO_CITGOS, visit } from './citgos.ts'
 import { CONFIG } from './config.ts'
+import { atCampfire, cookedOf } from './cooking.ts'
 import { insideRing } from './coords.ts'
 import { corpseWire, isEmpty, keysOff, spilledDimes } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
@@ -507,6 +517,7 @@ import type { Hurt } from './fall.ts'
 import type { Angler, Bait, PondPlace } from './fishing.ts'
 import type { Burial, Grave } from './graves.ts'
 import type { Inventory, Metres, ShopStock, XZ } from './interfaces.ts'
+import type { ItemId } from './items.ts'
 import type { Lair } from './lairs.ts'
 import type { TruckChange, TruckRoutes, TruckState } from './marx.ts'
 import type { MazePlace } from './maze.ts'
@@ -828,6 +839,8 @@ export type ValleyAction =
   // Rule 33: the next level on `line`, bought with empties at the
   // recycling machine.
   | { type: 'recycle'; id: string; line: ResearchLine; at: XZ | null }
+  // Rule 39: `count` of the raw fish `kind` cooked over a campfire.
+  | { type: 'cook'; id: string; kind: string; count: number; at: XZ | null }
   // Rule 36: a rod out of the tackle box; the bank dug, with the valley's
   // roll; a line cast, with the valley's roll for what bites and the seed
   // for when and how it fights; and the line reeled in or given up, with
@@ -969,6 +982,8 @@ export interface Reduced {
     give: Inventory
     take: { kind: string; count: number }
   }
+  // Rule 39: what cooked, once the barter that cooks it stands.
+  cooked?: { account: string; kind: string; count: number; into: ItemId }
   // Rule 14: a trade that stands once the valley has taken the price out
   // of the account's pack and given it the cosmetic, together.
   trade?: {
@@ -1631,6 +1646,8 @@ function act(
       return onStand(valley, action, context)
     case 'recycle':
       return onRecycle(valley, action, context)
+    case 'cook':
+      return onCook(valley, action, context)
     case 'tackle':
     case 'dig':
     case 'cast':
@@ -2898,6 +2915,42 @@ function onRecycle(
       level: levels[action.line] + 1,
       items: price,
     },
+  })
+}
+
+function onCook(
+  valley: Valley,
+  action: ActionOf<'cook'>,
+  { now, holdings }: ValleyContext
+): Reduced {
+  // Rule 39.
+  const member = valley.members[action.id]
+  const world = valley.world
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, {
+      broadcast: [],
+      reply: { type: 'nack', re: 'cook', reason, item: action.kind },
+    })
+  if (!member) return refuse('not-in-valley')
+  // Rule 29: dialed in, the campfire is wherever they are, as the stand is.
+  if (!member.dialup) {
+    if (!world) return refuse('not-in-valley')
+    if (isAboard(world.truck, action.id)) return refuse('aboard')
+    if (!atCampfire(action.at, world.ponds)) return refuse('no-campfire')
+  }
+  const into = cookedOf(action.kind)
+  if (!into) return refuse('raw-only')
+  if (!holdings) return refuse('unavailable')
+  if ((holdings.pack[action.kind] ?? 0) < action.count) return refuse('short')
+  const { account } = member
+  return done(valley, now, {
+    broadcast: [],
+    barter: {
+      account,
+      give: { [action.kind]: action.count },
+      take: { kind: into, count: action.count },
+    },
+    cooked: { account, kind: action.kind, count: action.count, into },
   })
 }
 

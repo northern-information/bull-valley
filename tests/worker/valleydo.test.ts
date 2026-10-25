@@ -3,6 +3,7 @@ import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { BOOK } from '../../src/book.ts'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
 import { CONFIG } from '../../src/config.ts'
+import { campfireOf } from '../../src/cooking.ts'
 import { dayKey } from '../../src/daily.ts'
 import { DAILY_TASK, NO_TASK } from '../../src/dailytask.ts'
 import { costIn, goodOf } from '../../src/dealer.ts'
@@ -27,6 +28,7 @@ import type {
   AnglerMessage,
   BookMessage,
   CatchMessage,
+  CookedMessage,
   DailyMessage,
   ExpeditionMessage,
   LineMessage,
@@ -2926,6 +2928,51 @@ describe('ValleyDO: the Recycling Center', () => {
       console.error = error
       v.packStore = store
     }
+  })
+})
+
+describe('ValleyDO: the campfire', () => {
+  const nack = (socket: MockSocket) =>
+    socket.frames().findLast((m): m is NackMessage => m.type === 'nack')
+  const cooked = (socket: MockSocket) =>
+    socket.frames().findLast((m): m is CookedMessage => m.type === 'cooked')
+  const fire = campfireOf(POND)
+
+  it('cooks fish beside the fire, the fish out and the food in together', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const other = await join(v, s, 'A2', { account: 'acct-A' })
+    await v.webSocketMessage(ws(a), state(fire.x + 1, fire.z))
+    const cook = '{"type":"cook","kind":"bluegill","count":2}'
+    await v.webSocketMessage(ws(a), cook)
+    expect(nack(a)).toMatchObject({ re: 'cook', reason: 'short' })
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"dev","op":"grant","kind":"bluegill","count":3}'
+    )
+    await v.webSocketMessage(ws(a), cook)
+    const said = {
+      type: 'cooked',
+      kind: 'bluegill',
+      count: 2,
+      into: 'fried-panfish',
+    }
+    expect(cooked(a)).toEqual(said)
+    expect(cooked(other)).toEqual(said)
+    const pack = a.last<PackMessage>().pack
+    expect(pack.bluegill).toBe(1)
+    expect(pack['fried-panfish']).toBe(2)
+  })
+
+  it('stays cold away from the fire', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    await v.webSocketMessage(ws(a), state(fire.x + 400, fire.z))
+    await v.webSocketMessage(
+      ws(a),
+      '{"type":"cook","kind":"bluegill","count":1}'
+    )
+    expect(nack(a)).toMatchObject({ re: 'cook', reason: 'no-campfire' })
   })
 })
 

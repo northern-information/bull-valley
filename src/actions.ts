@@ -25,6 +25,7 @@ import {
   stopAt,
 } from './citgos.ts'
 import { CONFIG } from './config.ts'
+import { openCookDialog } from './cookdialog.ts'
 import { copy } from './copy.ts'
 import { emptied, fallen, isEmpty, spilledDimes } from './corpses.ts'
 import { affords, cosmeticById, gainedOf, tradeRefusal } from './cosmetics.ts'
@@ -732,6 +733,26 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
   }
 
+  // E at the campfire by the firefly pond: cook the catch (rule 39), the
+  // pointer free for it as at the Recycling Center. The cooked and pack
+  // frames that answer show in it as they land.
+  const cook = () => {
+    if (s.talking || !s.world) return
+    s.cookSaid = null
+    withDialog(() =>
+      openCookDialog({
+        pack: () => s.inventory,
+        pending: () => s.pending.cook,
+        said: () => s.cookSaid,
+        onCook: (kind, count) => {
+          s.pending.cook = true
+          s.cookSaid = null
+          net.send({ type: 'cook', kind, count })
+        },
+      })
+    )
+  }
+
   // A frame to the valley about fishing, the last word on one cleared.
   const askFish = (msg: Parameters<typeof net.send>[0]) => {
     s.pending.fish = true
@@ -1409,6 +1430,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'recycle':
         recycle()
+        return
+      case 'cook':
+        cook()
         return
       case 'fish':
         fish()
