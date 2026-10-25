@@ -79,6 +79,7 @@ import { damageOf } from '../../src/wards.ts'
 import { WAYPOINT_MAX } from '../../src/waypoints.ts'
 import { unitsLeft } from './stock.ts'
 import type { CosmeticId } from '../../src/cosmetics.ts'
+import type { Facing } from '../../src/drops.ts'
 import type { ExpeditionRun } from '../../src/expeditions.ts'
 import type { Inventory, XZ } from '../../src/interfaces.ts'
 import type { PickupKind } from '../../src/items.ts'
@@ -1700,6 +1701,21 @@ describe('rule 12: raiders drop what they carry', () => {
     expect(lying.z).toBeLessThan(at.z)
   })
 
+  it('keeps the height of the feet it was set down from', () => {
+    const v = valleyWith(join('a'))
+    v.step({
+      type: 'drop',
+      id: 'a',
+      kind: 'joints',
+      count: 1,
+      at: { ...at, y: -30 },
+    })
+    v.step(drop('a'))
+    const [low, unheard] = v.valley.world?.drops ?? []
+    expect(low.y).toBe(-30)
+    expect(unheard).not.toHaveProperty('y')
+  })
+
   it('refuses a drop from the bed, with no place, of no item, or of nothing', () => {
     const v = valleyWith(join('a'))
     expect(v.step(drop('a', 'joints', 1, null)).reply?.reason).toBe(
@@ -1793,7 +1809,7 @@ describe('rule 17: a burst shadowman leaves its tombstone', () => {
 })
 
 describe('rule 18: corpse runs', () => {
-  const fell = (id: string, at: { x: number; z: number; yaw: number } | null) =>
+  const fell = (id: string, at: Facing | null) =>
     ({
       type: 'fall',
       id,
@@ -1850,6 +1866,18 @@ describe('rule 18: corpse runs', () => {
       account: 'acct-b',
       amount: dimes * DIME_CENTS,
     })
+  })
+
+  it('lays the body and its dimes at the height the raider fell from', () => {
+    const v = valleyWith(join('a'), join('b'))
+    v.setCash(1234)
+    v.step(fell('a', { x: 40, y: -30, z: 50, yaw: 0 }))
+    expect(v.valley.world?.drops.at(-1)?.y).toBe(-30)
+    const wire = toWire(v.valley)?.corpses
+    expect(wire).toEqual([expect.objectContaining({ x: 40, y: -30, z: 50 })])
+    // A raider the valley heard no height of: none on the wire.
+    v.step(fell('b', { x: 1, z: 1, yaw: 0 }))
+    expect(toWire(v.valley)?.corpses.at(-1)).not.toHaveProperty('y')
   })
 
   it('spills nothing from an empty wallet, or where no one heard the raider', () => {

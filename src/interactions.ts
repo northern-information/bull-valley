@@ -15,7 +15,7 @@ import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Bait } from './fishing.ts'
 import type { HallucinationShape } from './hallucinations.ts'
-import type { Vec3, XZ } from './interfaces.ts'
+import type { LieAt, Vec3, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { NpcId, NpcSpot } from './npcs.ts'
 import type { DailyWire } from './protocol.ts'
@@ -140,14 +140,24 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
     }
 
 // What the eye sees: the eye, the unit look direction, the feet's height,
-// the ground (or the floor) under any point, and how high each pickup
-// stands (its middle).
+// the ground (or the floor) under any point, the deck under a height
+// where one is given (ground.ts lieAt), and how high each pickup stands
+// (its middle).
 export interface View<P extends PickupSpot> {
   eye: Vec3
   dir: Vec3
   feet: number
-  groundAt: (x: number, z: number) => number
+  groundAt: LieAt
   heightOf: (pickup: P) => number
+}
+
+// Where a thing E answers stands, and the height it was set down from
+// (a raider's feet, for a body or a hallucination; the floor, for a slurm
+// on the moat's) where decks stack and the highest is not its own: its
+// sight stands on the deck under that (ground.ts lieAt). Left out, on the
+// highest ground there.
+export interface Spot extends XZ {
+  y?: number
 }
 
 // What a thing E answers is to the eye: a column from `low` to `high`
@@ -224,7 +234,7 @@ export function sightAngle(
 }
 
 // A hallucination as the resolver sees it.
-export interface HallucinationSpot extends XZ {
+export interface HallucinationSpot extends Spot {
   id: number
   shape: HallucinationShape
   item?: string
@@ -236,15 +246,12 @@ export interface LockerSpot extends XZ {
   station: number
 }
 
-// A slurm a jar could catch (slurmrig.ts): which, where it crawls, and
-// how high it lies there: in the moat, under the pipes along the walls,
-// that is the floor, not the deck over it (ground.at). Left out, the
-// ground under it.
-export interface SlurmSpot extends XZ {
+// A slurm a jar could catch (slurmrig.ts): which, and where it crawls,
+// with the floor under it (Spot).
+export interface SlurmSpot extends Spot {
   station: number
   slot: number
   index: number
-  y?: number
 }
 
 export interface InteractionInput<P extends PickupSpot> {
@@ -339,9 +346,9 @@ export function resolveInteraction<P extends PickupSpot>(
   if (input.riding) return { kind: 'hopOut' }
   // Whatever stands at `spot` as `sight` is to the eye: in view, about the
   // raider's own level, with no wall between.
-  const sees = (spot: XZ, sight: Sight, base?: number) =>
+  const sees = (spot: Spot, sight: Sight) =>
     (!view ||
-      sightAngle(view, spot, base ?? view.groundAt(spot.x, spot.z), sight) <=
+      sightAngle(view, spot, view.groundAt(spot.x, spot.z, spot.y), sight) <=
         CONFIG.player.pickupCone) &&
     !walled?.(player, spot)
   const seen = nearestHallucination(
@@ -366,7 +373,7 @@ export function resolveInteraction<P extends PickupSpot>(
   let slurmD: number = CONFIG.fishing.jar.reach
   for (const spot of input.slurms ?? []) {
     const d = Math.hypot(spot.x - player.x, spot.z - player.z)
-    if (d < slurmD && sees(spot, SIGHTS.slurm, spot.y)) {
+    if (d < slurmD && sees(spot, SIGHTS.slurm)) {
       slurm = spot
       slurmD = d
     }

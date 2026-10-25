@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
+import { Ground } from '../../src/ground.ts'
 import {
   dailyStatus,
   interactionKey,
@@ -602,16 +603,26 @@ describe('resolveInteraction: bodies and lockers', () => {
     ).toBeNull()
   })
 
+  // Down in the moat, looking at the floor by the wall: a pipe's deck
+  // runs 4 m up along it, over whatever lies under it.
+  const moat = new Ground(() => 0)
+  moat.addRibbon(
+    [
+      { x: 240, z: 248, y: 4 },
+      { x: 260, z: 248, y: 4 },
+    ],
+    1,
+    0
+  )
+  const inMoat: View<PickupSpot> = {
+    eye: [250, 1.6, 250],
+    dir: [0, -0.6, -0.8],
+    feet: 0,
+    groundAt: moat.lieAt,
+    heightOf: () => 0.1,
+  }
+
   it('takes a moat slurm on the floor under a pipe, by its own height', () => {
-    // Down in the moat, looking at the floor by the wall: a pipe's deck
-    // runs 6 m up over the slurm, so the ground there is the deck.
-    const inMoat: View<PickupSpot> = {
-      eye: [250, 1.6, 250],
-      dir: [0, -0.6, -0.8],
-      feet: 0,
-      groundAt: (_x, z) => (z < 249 ? 6 : 0),
-      heightOf: () => 0.1,
-    }
     const under = { x: 250, y: 0, z: 248, station: -1, slot: 3, index: 0 }
     expect(
       resolveInteraction(input({ slurms: [under], view: inMoat }))
@@ -621,6 +632,29 @@ describe('resolveInteraction: bodies and lockers', () => {
     expect(
       resolveInteraction(input({ slurms: [lost], view: inMoat }))
     ).toBeNull()
+  })
+
+  it('loots a body and sees a hallucination under a pipe, by their height', () => {
+    const body = {
+      id: 4,
+      x: 250,
+      y: 0,
+      z: 248,
+      yaw: 0,
+      name: 'A',
+      outfit: 'coleman' as const,
+    }
+    expect(
+      resolveInteraction(input({ corpses: [body], view: inMoat }))
+    ).toEqual({ kind: 'loot', corpse: 4 })
+    const { y: _y, ...lost } = body
+    expect(
+      resolveInteraction(input({ corpses: [lost], view: inMoat }))
+    ).toBeNull()
+    const seen = { id: 2, x: 250, y: 0, z: 248, shape: 'raider' as const }
+    expect(
+      resolveInteraction(input({ hallucinations: [seen], view: inMoat }))
+    ).toMatchObject({ kind: 'hallucination', id: 2 })
   })
 
   it('opens the tackle box on the firefly pond, within its reach', () => {
