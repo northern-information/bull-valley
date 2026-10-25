@@ -1437,7 +1437,8 @@ canvas {
 }
 
 .bv-map-count,
-.bv-map-hint {
+.bv-map-hint,
+.bv-map-zoom {
   margin: 0;
   opacity: 0.6;
 }
