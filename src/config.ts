@@ -1180,7 +1180,7 @@ export const CONFIG = {
     // The lone pine among the dishes behind the spawn Citgo, station-local
     // like the dishes: between the second and third rows, a little off the
     // middle. No other tree grows inside the array. Its shape is a scatter
-    // tree's (world.ts buildTrees).
+    // pine's, sized as buildTrees (scatter.ts) sizes one.
     at: { x: -44.65, z: -12.47 },
     trunkH: 3.9,
     canopyH: 7.5,
@@ -1537,6 +1537,74 @@ export const CONFIG = {
     // `clear` off its footprint.
     lookout: { at: { x: 61, z: -8 }, climbReach: 1.6, clear: 4 },
   },
+  // The topiaries (topiaries.ts): the hedge animals of The Shining's
+  // Overlook, two lions, a dog, a rabbit and a buffalo, standing broadside
+  // across the maze's corridors. Not shadows: no beam burns them and they
+  // never strike; only a torch harms them (CONFIG.torch). They stand in corridors `minWidth` to `maxWidth` metres
+  // across, at least `clearOfHeart` from the portal and `clearOfGate` from
+  // the gate, the spots `spacing` apart. Every `slotSeconds` on the valley's
+  // clock each moves to another of its spots (staggered, so they never all
+  // move at once), but a raider sees it move only while they look at
+  // neither end within `sightRange`, and never onto a spot within
+  // `holdNear` of them; it rustles where it lands within `hearRange`. Each
+  // is drawn `length` nose to tail and blocks its corridor wall to wall,
+  // `gateHalf` thick either side of its spine.
+  topiaries: {
+    seed: 0x70a1a,
+    slotSeconds: 70,
+    minWidth: 3,
+    maxWidth: 4.5,
+    clearOfHeart: 16,
+    clearOfGate: 14,
+    spacing: 9,
+    sightRange: 90,
+    holdNear: 4,
+    hearRange: 30,
+    length: 3.5,
+    gateHalf: 0.7,
+    // Each stands `hp` whole, the valley's to keep (sharedworld.ts rule
+    // 39); burned to nothing, it grows back `regrowSeconds` later, where
+    // the clock has it then, while nobody looks. Burned to nothing it dies
+    // over `deathSeconds` (topiaries.ts deathPose): it bursts into flame,
+    // falls onto its back, kicks, and burns down to ash. Its bar shows
+    // over it as every enemy's does (CONFIG.healthBars).
+    hp: 100,
+    regrowSeconds: 180,
+    deathSeconds: 4.5,
+  },
+  // The Elden Ring bar over an enemy (healthbar.ts, enemybars.ts): every
+  // shadow, the Caretaker, the tunnel shades and the Warden, and the
+  // topiaries. It shows once it is hurt (a beam on it, a hit it stands, a
+  // torch's blow), to a raider within `range` metres, `over` metres above
+  // the top of its body, `perMetre` as wide as the body is tall (never
+  // under `minWidth` or over `maxWidth`).
+  healthBars: {
+    range: 30,
+    over: 0.35,
+    perMetre: 0.35,
+    minWidth: 0.5,
+    maxWidth: 1.8,
+  },
+  // The torch (held.ts, sharedworld.ts rule 39): out of the toolbox at the
+  // lookout's foot, one an account, within `toolboxReach` of it. A swing
+  // takes `swingSeconds`, lands at `hitAt` into it on a topiary whose
+  // spine is within `reach` (the valley allows `slack` more, the raider's
+  // last state frame being a beat behind), and takes `damage` off it, give
+  // or take `spread` on the valley's roll. Held lit, its fire is a light
+  // as well (sharedworld.ts rule 11): a shadowman, spider or spiderling
+  // within `lightRadius` of the holder burns at `burnRate` of a beam's
+  // pace, and to the Caretaker it is one of the two lights it takes.
+  torch: {
+    lightRadius: 3.5,
+    burnRate: 0.5,
+    toolboxReach: 1.8,
+    swingSeconds: 0.6,
+    hitAt: 0.22,
+    reach: 2.6,
+    slack: 2,
+    damage: 20,
+    spread: 0.15,
+  },
   // The Caretaker: one floating shade that walks the corn maze's paths
   // (caretaker.ts, sharedworld.ts rule 13). It patrols out to a random
   // corner of the maze and back to the heart, by turns, at patrolSpeed.
@@ -1544,9 +1612,10 @@ export const CONFIG = {
   // within senseRadius whether it can see them or not, it hunts at
   // huntSpeed (faster than a walk, slower than a sprint), and gives up
   // forgetSeconds after it last saw them. Its touch at touchRadius is a
-  // strike, as a shadowman's. Two raiders' beams on it at once for
-  // burnSeconds burn it, and it forms again at the heart respawnSeconds
-  // later; one beam alone does nothing. It floats hover metres over the
+  // strike, as a shadowman's. Two raiders' lights on it at once (a beam,
+  // or a torch held close, CONFIG.torch) for burnSeconds burn it, and it
+  // forms again at the heart respawnSeconds later; one alone does
+  // nothing. It floats hover metres over the
   // paths, and a beam is aimed at chestHeight over the holder's feet.
   caretaker: {
     patrolSpeed: 2.2,

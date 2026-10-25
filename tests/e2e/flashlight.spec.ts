@@ -195,7 +195,26 @@ test('a shadow spider takes twice as long and leaves a $20 bill', async ({
       page.evaluate(() => !!window.__bv?.scene.getObjectByName('shadow-spider'))
     )
     .toBe(true)
-  // Held in the beam, it bursts and leaves one $20 bill where it stood.
+  // Held in the beam, its health bar shows over it as it burns
+  // (enemybars.ts), watched every frame, the burn being short.
+  await page.evaluate(() => {
+    const w = window as unknown as { barSeen?: boolean }
+    w.barSeen = false
+    const look = () => {
+      const group = window.__bv?.scene.getObjectByName('shadowmen')
+      group?.traverse((o) => {
+        if (o.name === 'health-bar' && o.visible) w.barSeen = true
+      })
+      if (!w.barSeen) requestAnimationFrame(look)
+    }
+    look()
+  })
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as unknown as { barSeen?: boolean }).barSeen)
+    )
+    .toBe(true)
+  // It bursts and leaves one $20 bill where it stood.
   const twenties = () =>
     page.evaluate(
       ({ x, z }) =>

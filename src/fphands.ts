@@ -1,5 +1,6 @@
 // The player's own hands in first person, hung off the camera: the left
-// holds the flashlight, or the slurm jar or a rod in its place (held.ts),
+// holds the flashlight, or the slurm jar or a rod in its place (held.ts;
+// the torch is held as the phone is, torchhand.ts),
 // the right holds up whatever was just used. Each
 // comes up from below the frame by its lift (hands.ts) and goes back down
 // out of view. The forearms are the outfit's own (figure.ts buildForearm).

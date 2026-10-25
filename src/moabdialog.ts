@@ -3,7 +3,8 @@
 // Dial-Up's lobby. He counts gold by the troy ounce (cosmetics.ts
 // moabWorth), so the window prints ounces; his goods are his cosmetics
 // (MOAB_OFFERS), each yours for good once had. The valley takes the price
-// and writes the cosmetic.
+// and writes the cosmetic, and the trade is made a big deal of
+// (tradefanfare.ts) as a fish landed is.
 
 import { copy } from './copy.ts'
 import {
@@ -16,6 +17,7 @@ import {
 import { openTradeWindow } from './tradewindow.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Inventory } from './interfaces.ts'
+import type { TradeCheer, Turntable } from './tradewindow.ts'
 
 interface MoabDialogOptions {
   // Read again every tick: whether the valley is there to trade with, the
@@ -28,6 +30,9 @@ interface MoabDialogOptions {
   said: () => string | null
   icon: (kind: string) => Promise<string>
   onTrade: (offer: CosmeticId) => void
+  // The last trade made a big deal of, and its cheer (tradewindow.ts).
+  fanfare: TradeCheer
+  turntable: Turntable
 }
 
 // What he says as the window opens: his offer for what the pack holds,
@@ -82,6 +87,8 @@ export function openMoabDialog(options: MoabDialogOptions): Promise<void> {
     pending: options.pending,
     said: options.said,
     icon: options.icon,
+    fanfare: options.fanfare,
+    turntable: options.turntable,
     onTrade: (id) => {
       const cosmetic = cosmeticById(id)
       if (cosmetic) options.onTrade(cosmetic.id as CosmeticId)

@@ -17,7 +17,8 @@ import { mulberry32, range } from './rng.ts'
 // lantern of cold light swinging from its right hand, so it shows down a
 // corridor before it turns the corner. A dark smudge of air hangs round
 // it. update(t) bobs it, sways it, swings the lantern and flickers the
-// eyes; setBurn(0..1) pales it as two beams burn it; setStrike(windup,
+// eyes; setBurn(0..1) pales it as two lights burn it, its arms thrashing
+// and its lantern swinging wild, harder the nearer it is to coming apart; setStrike(windup,
 // lunge), each 0 to 1, draws the lantern back flaring as it winds up and
 // swings it out as it lurches forward. Origin on the ground under it; it
 // floats CONFIG.caretaker.hover over that, facing +Z.
@@ -95,6 +96,7 @@ export function buildCaretaker(seed = 0xca2e): CaretakerRig {
   // Arms too long, hanging a little out from the shroud, bony fingers past
   // the hem's highest rag.
   const hands: THREE.Group[] = []
+  const arms: THREE.Group[] = []
   for (const side of [-1, 1]) {
     const arm = new THREE.Group()
     arm.position.set(side * 0.36, 2.2, 0.02)
@@ -119,6 +121,7 @@ export function buildCaretaker(seed = 0xca2e): CaretakerRig {
     arm.add(hand)
     body.add(arm)
     hands.push(hand)
+    arms.push(arm)
   }
 
   // The lantern, from the right hand on a short bail: a dark frame round a
@@ -167,6 +170,8 @@ export function buildCaretaker(seed = 0xca2e): CaretakerRig {
   // Striking: drawn back over the windup, thrown out over the lunge.
   let rear = 0
   let slam = 0
+  // How hard it thrashes as it burns (setBurn).
+  let thrash = 0
   const update = (t: number) => {
     body.position.y = CONFIG.caretaker.hover + Math.sin(t * 1.3) * 0.12
     body.position.z = -0.2 * rear + 0.7 * slam
@@ -175,6 +180,15 @@ export function buildCaretaker(seed = 0xca2e): CaretakerRig {
     lantern.rotation.x = Math.sin(t * 1.9) * 0.35 * (1 - rear) - 1.3 * rear
     lantern.rotation.x += 1.9 * slam
     lantern.rotation.z = Math.sin(t * 1.3 + 1) * 0.15
+    // Burning, its arms thrash and the lantern swings wild.
+    arms.forEach((arm, i) => {
+      const side = i === 0 ? -1 : 1
+      arm.rotation.x = Math.sin(t * (11 + i * 2.3) + i) * 1.2 * thrash
+      arm.rotation.z =
+        side * (0.1 + Math.abs(Math.sin(t * 8.2 + i)) * 0.9 * thrash)
+    })
+    lantern.rotation.z += Math.sin(t * 13) * 0.8 * thrash
+    body.rotation.z += Math.sin(t * 6.4) * 0.12 * thrash
     // The eyes go out now and then, for a blink's length; never mid-strike.
     eyes.visible =
       rear + slam > 0 || Math.sin(t * 0.9) * Math.sin(t * 2.3) < 0.92
@@ -190,6 +204,7 @@ export function buildCaretaker(seed = 0xca2e): CaretakerRig {
     group,
     update,
     setBurn(burn) {
+      thrash = burn * burn
       shroud.color.lerpColors(CARETAKER_BODY, CARETAKER_PALE, burn)
     },
     setStrike(windup, lunge) {

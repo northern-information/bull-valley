@@ -171,6 +171,10 @@ test('Moab Coldë trades David Coleman: #1 for ten ounces of gold', async ({
   await expect
     .poll(() => page.evaluate(() => window.__bv?.cosmetics))
     .toEqual(['coleman-1'])
+  // A trade is a big deal, as a fish landed: his banner across the window.
+  await expect(moab.locator('.bv-banner')).toContainText(
+    copy('moab.fanfare') + copy('cosmetics.coleman-1.label')
+  )
   expect(
     await page.evaluate(() => window.__bv?.inventory['gold-bullion'])
   ).toBe(0)

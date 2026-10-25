@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { lambert, makeGlowSprite, makeGlowTexture } from './assetkit.ts'
 import { applyPS1 } from './ps1.ts'
 import type { Part } from './assetkit.ts'
@@ -11,27 +12,187 @@ import type { Vec3 } from './interfaces.ts'
 
 // --- Trees ---------------------------------------------------------------
 
-// Unit-height trunk and canopy, scaled per instance. TREE_SAMPLE is a
-// mid-range instance for the Akashic page.
-export const TREE_CANOPY_LOW = '#1c2f1e'
-export const TREE_CANOPY_HIGH = '#31482a'
+// The kinds of tree in the woods. Each draws as a unit-height trunk and a
+// canopy fitted to unit height and unit radius, scaled per instance; its
+// TreeForm turns a scatter tree's drawn sizes (buildTrees) into its own
+// habit. TREE_SAMPLE is a mid-range instance for the Akashic page.
+export const TREE_SPECIES = [
+  'whiteOak',
+  'hickory',
+  'ash',
+  'elm',
+  'spruce',
+  'pine',
+] as const
+export type TreeSpecies = (typeof TREE_SPECIES)[number]
+
+export interface TreeForm {
+  // Multipliers on the drawn trunk height, canopy height and canopy radius.
+  trunk: number
+  height: number
+  radius: number
+  // Where the canopy's foot sits up the trunk, as a share of its height.
+  seat: number
+  // The trunk's radius at its top and at its foot, per metre of trunk.
+  girth: [top: number, foot: number]
+  bark: string
+  // Each instance's canopy lerps between these by its tint.
+  low: string
+  high: string
+}
+
+export const TREE_FORMS: Record<TreeSpecies, TreeForm> = {
+  // Short and stout, the crown spreading wider than it stands tall.
+  whiteOak: {
+    trunk: 0.75,
+    height: 0.75,
+    radius: 1.9,
+    seat: 0.8,
+    girth: [0.22, 0.42],
+    bark: '#5a5247',
+    low: '#22331c',
+    high: '#3a4a26',
+  },
+  // A tall straight bole under a narrow oblong crown, shagbark grey.
+  hickory: {
+    trunk: 1.3,
+    height: 1.15,
+    radius: 0.85,
+    seat: 0.85,
+    girth: [0.12, 0.24],
+    bark: '#4c473f',
+    low: '#26361a',
+    high: '#404f22',
+  },
+  // An open oval crown in loose clumps, the palest green in the woods.
+  ash: {
+    trunk: 1.1,
+    height: 0.95,
+    radius: 1.2,
+    seat: 0.8,
+    girth: [0.13, 0.26],
+    bark: '#514b42',
+    low: '#2a3a20',
+    high: '#45542c',
+  },
+  // The vase: limbs flaring out from low on the trunk to an arching top.
+  elm: {
+    trunk: 1.2,
+    height: 1,
+    radius: 1.5,
+    seat: 0.55,
+    girth: [0.15, 0.3],
+    bark: '#3d3229',
+    low: '#1f3220',
+    high: '#35492b',
+  },
+  // Dark blue-green tiers from near the ground, the tallest in the woods.
+  spruce: {
+    trunk: 0.5,
+    height: 1.6,
+    radius: 0.9,
+    seat: 0.4,
+    girth: [0.12, 0.28],
+    bark: '#3a2a1e',
+    low: '#142420',
+    high: '#22382f',
+  },
+  // The woods' first tree, and the lone pine among the dishes.
+  pine: {
+    trunk: 1,
+    height: 1,
+    radius: 1,
+    seat: 0.8,
+    girth: [0.15, 0.3],
+    bark: '#33271a',
+    low: '#1c2f1e',
+    high: '#31482a',
+  },
+}
+
 export const TREE_SAMPLE = { trunkH: 3.2, canopyH: 6, canopyR: 2.25, tint: 0.5 }
 
-export function treeParts() {
-  const trunk = new THREE.CylinderGeometry(0.15, 0.3, 1, 5)
+// Lobes merged into one canopy and fitted to unit height (foot at y = 0)
+// and unit radius about the trunk, so every species scales alike.
+function canopyOf(lobes: THREE.BufferGeometry[]): THREE.BufferGeometry {
+  const geometry = mergeGeometries(
+    lobes.map((lobe) => (lobe.index ? lobe.toNonIndexed() : lobe))
+  )
+  geometry.computeBoundingBox()
+  const { min, max } = geometry.boundingBox as THREE.Box3
+  const r = Math.max(-min.x, max.x, -min.z, max.z)
+  geometry.translate(0, -min.y, 0)
+  geometry.scale(1 / r, 1 / (max.y - min.y), 1 / r)
+  geometry.computeVertexNormals()
+  return geometry
+}
+
+function lobe(
+  geometry: THREE.BufferGeometry,
+  [x, y, z]: Vec3,
+  [sx, sy, sz]: Vec3
+): THREE.BufferGeometry {
+  return geometry.scale(sx, sy, sz).translate(x, y, z)
+}
+
+const CANOPIES: Record<TreeSpecies, () => THREE.BufferGeometry> = {
+  whiteOak: () =>
+    canopyOf([
+      lobe(new THREE.IcosahedronGeometry(1, 0), [0, 0.7, 0], [1.1, 0.6, 1.1]),
+      lobe(
+        new THREE.IcosahedronGeometry(1, 0),
+        [0.9, 0.45, 0.3],
+        [0.7, 0.45, 0.7]
+      ),
+      lobe(
+        new THREE.IcosahedronGeometry(1, 0),
+        [-0.8, 0.5, -0.4],
+        [0.7, 0.45, 0.7]
+      ),
+    ]),
+  hickory: () =>
+    canopyOf([new THREE.DodecahedronGeometry(1, 0).scale(0.8, 1, 0.8)]),
+  ash: () =>
+    canopyOf([
+      lobe(new THREE.IcosahedronGeometry(1, 0), [0, 0.6, 0], [0.9, 0.7, 0.9]),
+      lobe(
+        new THREE.IcosahedronGeometry(1, 0),
+        [0.3, 1.25, -0.2],
+        [0.65, 0.5, 0.65]
+      ),
+    ]),
+  elm: () =>
+    canopyOf([
+      new THREE.CylinderGeometry(1, 0.2, 1, 7, 1, true).translate(0, 0.5, 0),
+      lobe(
+        new THREE.IcosahedronGeometry(1, 0),
+        [0, 1.05, 0],
+        [1.15, 0.45, 1.15]
+      ),
+    ]),
+  spruce: () =>
+    canopyOf(
+      [1, 0.75, 0.5].map((r, i) =>
+        new THREE.ConeGeometry(r, 0.55, 7).translate(0, 0.275 + i * 0.32, 0)
+      )
+    ),
+  pine: () => new THREE.ConeGeometry(1, 1, 6).translate(0, 0.5, 0),
+}
+
+export function treeParts(species: TreeSpecies = 'pine') {
+  const { girth, bark } = TREE_FORMS[species]
+  const trunk = new THREE.CylinderGeometry(girth[0], girth[1], 1, 5)
   trunk.translate(0, 0.5, 0)
-  const canopy = new THREE.ConeGeometry(1, 1, 6)
-  canopy.translate(0, 0.5, 0)
   return {
     trunk: {
       name: 'trunk',
       geometry: trunk,
-      material: lambert({ color: '#33271a' }),
+      material: lambert({ color: bark }),
     },
     // White base: each instance carries its own tint via instanceColor.
     canopy: {
       name: 'canopy',
-      geometry: canopy,
+      geometry: CANOPIES[species](),
       material: lambert({ color: '#ffffff' }),
     },
   }

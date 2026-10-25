@@ -98,6 +98,8 @@ export class Hud {
   chat: ChatHud
   phone: HTMLDivElement
   phoneCanvas: HTMLCanvasElement
+  torch: HTMLDivElement
+  torchCanvas: HTMLCanvasElement
   promptEl: HTMLParagraphElement
   itemLabelEl: HTMLParagraphElement
   // The pack over the valley, and the hotbar along the bottom.
@@ -184,6 +186,13 @@ export class Hud {
     this.phoneCanvas = el('canvas', 'bv-phone-screen')
     this.phone.appendChild(this.phoneCanvas)
     ui.appendChild(this.phone)
+
+    // The torch in the same hand (torchhand.ts), drawn the same way.
+    this.torch = el('div', 'bv-torch')
+    this.torch.setAttribute('aria-hidden', 'true')
+    this.torchCanvas = el('canvas', 'bv-torch-hand')
+    this.torch.appendChild(this.torchCanvas)
+    ui.appendChild(this.torch)
 
     // Interaction prompt, and the name over the item E would act on.
     this.promptEl = el('p', 'bv-prompt')

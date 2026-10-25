@@ -586,6 +586,15 @@ export const ITEMS = [
     category: 'key-item',
     start: 0,
   },
+  // Out of the toolbox at the foot of the corn maze's lookout, one an
+  // account (sharedworld.ts rule 39): the only thing that harms a
+  // topiary; held, its fire burns the shadows close by, and is a light to
+  // the Caretaker.
+  {
+    id: 'torch',
+    category: 'key-item',
+    start: 0,
+  },
   // Erwin von Dutch's jar (dealer.ts): a slurm goes in it alive. Each one
   // carried holds CONFIG.fishing.jar.holds of them.
   {

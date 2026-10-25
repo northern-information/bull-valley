@@ -15,7 +15,12 @@ import { fightOf, quickestMs } from '../../src/fishing.ts'
 import { BASE_GEOMETRIE, maxGeometrie } from '../../src/health.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { contentsOf, getItem, healsOf } from '../../src/items.ts'
-import { LADDER_FOOT, LADDER_TOP, lookoutToWorld } from '../../src/lookout.ts'
+import {
+  LADDER_FOOT,
+  LADDER_TOP,
+  lookoutToWorld,
+  toolboxOf,
+} from '../../src/lookout.ts'
 import { nextChange } from '../../src/marx.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import { inChannel } from '../../src/moat.ts'
@@ -62,6 +67,12 @@ import {
 } from '../../src/sharedworld.ts'
 import { FRESH_STAND, standXp, upgradePrice } from '../../src/stand.ts'
 import { STORE_LAYOUT } from '../../src/store.ts'
+import {
+  freshTopiaries,
+  theTopiaries,
+  TOPIARIES,
+  torchDamage,
+} from '../../src/topiaries.ts'
 import { UNDERCROFT } from '../../src/undercroft.ts'
 import { damageOf } from '../../src/wards.ts'
 import { WAYPOINT_MAX } from '../../src/waypoints.ts'
@@ -2801,6 +2812,22 @@ describe("rule 11: the shadowmen are the valley's", () => {
     expect(r.y).toBe(12.5)
   })
 
+  it('lights a raider holding a torch all round, with no beam', () => {
+    const v = valley()
+    const [torch, bare] = shadowRaiders(
+      v,
+      createShadows(),
+      [
+        { id: 'a', at: state({ held: 'torch' }) },
+        { id: 'b', at: state({ light: true }) },
+      ],
+      T0
+    )
+    expect(torch.torch).toBe(true)
+    expect(torch.beam).toBeNull()
+    expect(bare.torch).toBe(false)
+  })
+
   it('aims a beam only for a raider whose light is on', () => {
     const v = valley()
     const [dark, lit] = shadowRaiders(
@@ -4615,5 +4642,136 @@ describe('rule 36: slurms into the jar', () => {
       expect(reason(moatJar(v, { slot: moatSlot + 100 }))).toBe('gone')
       expect(reason(moatJar(v, { index: 99 }))).toBe('gone')
     })
+  })
+})
+
+describe('rule 39: the topiaries and the torch', () => {
+  const box = toolboxOf(MAZE)
+  // On the spine of topiary 0's first spot, in the world.
+  const spot = theTopiaries().pools[0][0]
+  const onSpine = mazeToWorld(MAZE, { x: spot.a.x + 0.5, z: spot.z })
+  const inMaze = () => {
+    const v = valleyWith({ ...join('a'), maze: MAZE } as ValleyAction)
+    v.setPack({ torch: 1 })
+    return v
+  }
+  const swing = (
+    over: Partial<Extract<ValleyAction, { type: 'torch' }>> = {}
+  ) =>
+    ({
+      type: 'torch',
+      id: 'a',
+      index: 0,
+      at: onSpine,
+      roll: 0.5,
+      ...over,
+    }) as ValleyAction
+  const reason = (r: Reduced) => r.reply?.reason
+
+  it('stands every topiary whole in a world opened fresh, on the wire', () => {
+    const v = inMaze()
+    expect(v.valley.world?.topiaries).toEqual(freshTopiaries())
+    expect(toWire(v.valley)?.topiaries).toHaveLength(TOPIARIES.length)
+  })
+
+  it('hands a torch out of the toolbox to a raider by it with none', () => {
+    const v = inMaze()
+    v.setPack({})
+    const r = v.step({ type: 'toolbox', id: 'a', at: box })
+    expect(r.pack).toEqual({ account: 'acct-a', kind: 'torch', delta: 1 })
+    v.setPack({ torch: 1 })
+    expect(reason(v.step({ type: 'toolbox', id: 'a', at: box }))).toBe(
+      'has-torch'
+    )
+    const far = { x: box.x + 20, z: box.z }
+    v.setPack({})
+    expect(reason(v.step({ type: 'toolbox', id: 'a', at: far }))).toBe(
+      'too-far'
+    )
+    expect(reason(v.step({ type: 'toolbox', id: 'a', at: null }))).toBe(
+      'too-far'
+    )
+  })
+
+  it('takes a swing off the topiary for everyone to see', () => {
+    const v = inMaze()
+    const r = v.step(swing())
+    const damage = torchDamage(0.5)
+    expect(reasons(r)).toEqual(['topiary-hit'])
+    expect(r.broadcast[0]).toMatchObject({ by: 'a', index: 0, damage })
+    expect(r.valley.world?.topiaries[0]).toEqual({
+      hp: CONFIG.topiaries.hp - damage,
+      back: null,
+    })
+    expect(r.broadcast[0].world?.topiaries[0].hp).toBe(
+      CONFIG.topiaries.hp - damage
+    )
+  })
+
+  it('refuses a swing too soon after the last, without a torch, or out of reach', () => {
+    const v = inMaze()
+    v.step(swing())
+    expect(reason(v.step(swing()))).toBe('too-soon')
+    v.tick(CONFIG.torch.swingSeconds * 1000)
+    expect(reasons(v.step(swing()))).toEqual(['topiary-hit'])
+    v.tick(CONFIG.torch.swingSeconds * 1000)
+    v.setPack({})
+    expect(reason(v.step(swing()))).toBe('no-torch')
+    v.setPack({ torch: 1 })
+    const far = { x: onSpine.x + 500, z: onSpine.z + 500 }
+    expect(reason(v.step(swing({ at: far })))).toBe('too-far')
+    expect(reason(v.step(swing({ at: null })))).toBe('too-far')
+    expect(reason(v.step(swing({ index: 99 })))).toBe('too-far')
+  })
+
+  it('burns one away at nothing, and grows it back whole later', () => {
+    const v = inMaze()
+    let last: Reduced = v.last()
+    for (let i = 0; i < 20 && reasons(last)[0] !== 'topiary-burned'; i++) {
+      last = v.step(swing({ roll: 1 }))
+      v.tick(CONFIG.torch.swingSeconds * 1000)
+    }
+    expect(reasons(last)).toEqual(['topiary-burned'])
+    const burned = v.valley.world?.topiaries[0]
+    expect(burned?.hp).toBe(0)
+    expect(burned?.back).toBeGreaterThan(v.now)
+    // Burned away, a swing finds nothing.
+    expect(reason(v.step(swing()))).toBe('gone')
+    // The valley wakes for it, and it is back whole.
+    const back = burned?.back ?? 0
+    expect(wakeAt(v.valley, v.now)).toBeLessThanOrEqual(back)
+    v.tick(back - v.now)
+    const r = v.step(swing({ index: 1, at: null }))
+    expect(reasons(r)).toContain('topiary-back')
+    expect(r.valley.world?.topiaries[0]).toEqual({
+      hp: CONFIG.topiaries.hp,
+      back: null,
+    })
+  })
+
+  it('needs a body', () => {
+    const v = valleyWith({
+      type: 'dial',
+      id: 'a',
+      account: 'acct-a',
+      name: 'A',
+      outfit: 'coleman',
+      level: 1,
+    })
+    expect(reason(v.step(swing()))).toBe('dialup')
+    expect(reason(v.step({ type: 'toolbox', id: 'a', at: box }))).toBe('dialup')
+  })
+
+  it('stands the topiaries whole in a world stored before they had health', () => {
+    const v = inMaze()
+    const world = { ...v.valley.world } as Partial<NonNullable<Valley['world']>>
+    delete world.topiaries
+    delete world.swings
+    const restored = restoreValley({
+      ...v.valley,
+      world: world as NonNullable<Valley['world']>,
+    })
+    expect(restored.world?.topiaries).toEqual(freshTopiaries())
+    expect(restored.world?.swings).toEqual({})
   })
 })

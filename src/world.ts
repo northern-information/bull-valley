@@ -85,6 +85,7 @@ import type { CrawlingSlurm } from './slurmrig.ts'
 import type { Feet } from './slurms.ts'
 import type { StoreOrigin, WorldFacing } from './store.ts'
 import type { Streetlights } from './streetlights.ts'
+import type { TopiaryRig } from './topiaryrig.ts'
 
 export type { CastleSite } from './castlesite.ts'
 export type { CroftRig, PlazaRig } from './plazasite.ts'
@@ -252,6 +253,9 @@ export interface World {
   portal: MazePortal | null
   // The lookout tower by the maze's gate; null without a spawn station.
   lookout: LookoutRig | null
+  // The hedge animals in the corn maze (topiaries.ts), update(t) on the
+  // valley's clock; null without a spawn station.
+  topiaries: TopiaryRig | null
   // Where the corn maze lies, for the Caretaker (caretaker.ts); null
   // without a spawn station.
   mazePlace: MazePlace | null
@@ -313,11 +317,15 @@ export interface MazePortal {
 
 // The lookout tower by the corn maze's gate (lookout.ts): where E climbs
 // up (the ladder's foot) and where it climbs down (the top, on the deck),
-// each where the climb leaves you, and whether a point is up on the deck.
+// each where the climb leaves you, whether a point is up on the deck, and
+// the toolbox at its foot.
 export interface LookoutRig {
   foot: Spawn
   top: Spawn
   on(x: number, z: number): boolean
+  // The toolbox at its foot the torches come out of (sharedworld.ts rule
+  // 39).
+  toolbox: XZ
 }
 
 // Beacon markers for the hand-placed landmarks, color-coded so they read
@@ -545,11 +553,13 @@ export function buildWorld(
   group.add(pickupSet.group)
   let portal: MazePortal | null = null
   let lookout: LookoutRig | null = null
+  let topiaries: TopiaryRig | null = null
   if (spawnStation && maze) {
     const corn = buildCornMaze(maze, spawnStation, heightAt, ground, walls)
     group.add(corn.group)
     portal = corn.portal
     lookout = corn.lookout
+    topiaries = corn.topiaries
   }
 
   const spawn: Spawn = spawnStation
@@ -622,6 +632,7 @@ export function buildWorld(
     streetlights,
     portal,
     lookout,
+    topiaries,
     mazePlace,
     donutField,
     sights: bookSights({

@@ -86,6 +86,7 @@ import { openShopDialog } from './shopdialog.ts'
 import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
+import { tradeFanfare } from './tradefanfare.ts'
 import { planLeg } from './truckplan.ts'
 import { dose, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
@@ -816,6 +817,27 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     net.send({ type: 'jar-slurm', station, slot, index })
   }
 
+  // Rule 39: E at the toolbox by the lookout's foot: a torch out of it. The
+  // pack frame after puts it in the hand's bar; a refusal says why.
+  const takeTorch = () => {
+    net.send({ type: 'toolbox' })
+    hud.tell(copy('log.torch_taken'))
+  }
+
+  // Rule 39: the click with the torch in hand: a swing, at the topiary in
+  // front within reach, if any. The blow is sent as it lands (loop.ts).
+  const swingTorch = () => {
+    if (s.swingAt !== null && s.time - s.swingAt < CONFIG.torch.swingSeconds) {
+      return
+    }
+    s.swingAt = s.time
+    // The camera looks along (-sin yaw, -cos yaw).
+    const dir = { x: -Math.sin(player.yaw), z: -Math.cos(player.yaw) }
+    s.swingTarget =
+      world.topiaries?.target(player.pos, dir, CONFIG.torch.reach) ?? null
+    game.sfx?.play('torch-swing')
+  }
+
   // What the hand holds: the selected slot's kind, while the pack does.
   const heldKind = () => inHand(s.hotbar, s.selected, s.inventory)
 
@@ -837,6 +859,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'cast':
         if (!s.aboard) castOrReel()
+        return
+      case 'swing':
+        if (!s.aboard) swingTorch()
         return
       case 'dial':
         dialPortal()
@@ -868,6 +893,13 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     shelveKind(kind)
   }
 
+  // Every trader's window cheers the last trade made a big deal of
+  // (tradefanfare.ts) with the fish's fanfare.
+  const tradeCheer = {
+    now: () => s.tradeCheer,
+    cheer: () => game.sfx?.play('fish-fanfare'),
+  }
+
   // E beside Erwin von Dutch, the squatter in the plaza: what he deals
   // and what he wants for it, and his quest, in a dialog with the pointer
   // free, as at the stand (rules 25 and 26).
@@ -894,6 +926,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
             }
           : null,
       icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
+      fanfare: tradeCheer,
+      turntable: game.thumbs,
       onDeal: (kind, offer) => {
         s.pendingDeal = true
         s.dealSaid = null
@@ -1032,6 +1066,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       pending: () => s.pending.buys.size > 0,
       said: () => s.shopSaid,
       icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
+      fanfare: tradeCheer,
+      turntable: game.thumbs,
       onBuy: (item, unit) => buy({ station, item, unit }),
     }).then(() => {
       s.talking = false
@@ -1110,6 +1146,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       npcSays('moab', cosmetic.traded)
       hud.tell(cosmetic.worn)
       moabSaid = cosmetic.worn
+      s.tradeCheer = tradeFanfare('moab', id, cosmetic.label)
     }
   }
 
@@ -1149,6 +1186,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       said: () => moabSaid,
       icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
       onTrade: trade,
+      fanfare: tradeCheer,
+      turntable: game.thumbs,
     }).then(() => {
       s.talking = false
       engagePointer()
@@ -1459,6 +1498,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         hud.tell(copy(up ? 'log.climb_tower' : 'log.leave_tower'))
         return
       }
+      case 'toolbox':
+        takeTorch()
+        return
       case 'locked':
         hud.tell(copy('log.locked'))
         return
