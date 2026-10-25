@@ -275,6 +275,42 @@ describe('the industrial park', () => {
     }
   })
 
+  it('leaves a dead forklift in every building, in nothing else', () => {
+    for (const b of INDUSTRIAL.buildings) {
+      const boxes = buildingBoxes(b)
+      const bodies = boxes.filter((one) => /^forklift-.*-body$/.test(one.name))
+      expect(bodies.length, b.id).toBe(b.bays.length >= 3 ? 2 : 1)
+      const others = boxes.filter(
+        (one) => one.blocks && !one.name.startsWith('forklift-')
+      )
+      for (const body of bodies) {
+        const r = rect(body)
+        // Inside the walls, with the forks too.
+        expect(Math.abs(body.center[0]) + body.size[0] / 2).toBeLessThan(
+          b.w / 2 - 1
+        )
+        expect(Math.abs(body.center[2]) + body.size[2] / 2).toBeLessThan(
+          b.d / 2 - 1
+        )
+        for (const other of others) {
+          const o = rect(other)
+          const apart =
+            r.x1 <= o.x0 || o.x1 <= r.x0 || r.z1 <= o.z0 || o.z1 <= r.z0
+          expect(apart, `${b.id} ${body.name} and ${other.name}`).toBe(true)
+        }
+        // Clear of every pickup and lurk.
+        for (const spot of [...buildingLoot(b), ...buildingLurks(b)]) {
+          const inside =
+            spot.x > r.x0 - 1 &&
+            spot.x < r.x1 + 1 &&
+            spot.z > r.z0 - 1 &&
+            spot.z < r.z1 + 1
+          expect(inside, `${b.id} ${body.name}`).toBe(false)
+        }
+      }
+    }
+  })
+
   it('leaves its pickups inside, out of reach through the walls', () => {
     for (const b of INDUSTRIAL.buildings) {
       for (const spot of buildingLoot(b)) {

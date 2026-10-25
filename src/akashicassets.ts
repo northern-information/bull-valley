@@ -52,7 +52,11 @@ import {
   buildStringer,
   buildTackleBox,
 } from './fishmodels.ts'
-import { buildWarehouse, buildWorksProp } from './industrialmodel.ts'
+import {
+  buildForklift,
+  buildWarehouse,
+  buildWorksProp,
+} from './industrialmodel.ts'
 import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
 import { buildJeep, buildRadarDish } from './jeep.ts'
@@ -756,6 +760,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'park-sign',
     label: 'The sign out front of Bull Valley Industrial Park #4',
     build: () => buildWorksProp({ kind: 'sign', x: 0, z: 0, yaw: 0 }),
+  },
+  {
+    id: 'forklift',
+    label: 'A dead forklift in an industrial park warehouse',
+    build: buildForklift,
   },
   {
     id: 'semi-trailer',

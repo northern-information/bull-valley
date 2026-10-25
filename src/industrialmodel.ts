@@ -9,6 +9,7 @@ import {
 import {
   buildingBoxes,
   buildingSigns,
+  forklift,
   INDUSTRIAL,
   propBoxes,
   propSigns,
@@ -249,6 +250,35 @@ export function buildWarehouse(i: number): IndustrialRig {
     buildings: INDUSTRIAL.buildings.map((_, k) => (k === i ? [0, 0, 0] : null)),
     props: [],
   })
+}
+
+// A dead forklift alone, loaded, for Akashic.
+export function buildForklift(): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'forklift'
+  const byFinish = new Map<WorksFinish, THREE.BufferGeometry[]>()
+  for (const b of forklift('forklift', {
+    x: 0,
+    z: 0,
+    along: 'z',
+    ahead: 1,
+    burnt: false,
+    loaded: true,
+    flat: 'rear-left',
+  })) {
+    const list = byFinish.get(b.finish) ?? []
+    list.push(boxGeometry(b, null))
+    byFinish.set(b.finish, list)
+  }
+  for (const [finish, geometries] of byFinish) {
+    const mesh = new THREE.Mesh(
+      mergeGeometries(geometries),
+      WORKS_FINISH[finish]()
+    )
+    mesh.castShadow = true
+    group.add(mesh)
+  }
+  return group
 }
 
 // One prop alone, for Akashic.

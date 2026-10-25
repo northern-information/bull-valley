@@ -1390,6 +1390,35 @@ function works(b: Building, plan: Plan, rng: () => number): WorksBox[] {
       camp()
       break
   }
+  // A dead forklift on the open floor inside the front door, forks to
+  // the back; and where there are bays enough, another in the aisle
+  // along them, parked between the last two.
+  const burnt = b.id === 'scorched'
+  boxes.push(
+    ...forklift('forklift-front', {
+      x: -b.w / 2 + 4.5,
+      z: b.d / 2 - 4.5,
+      along: 'z',
+      ahead: -1,
+      burnt,
+      loaded: b.seed % 3 === 0,
+      flat: 'rear-left',
+    })
+  )
+  if (plan.bays.length >= 3) {
+    const n = plan.bays.length
+    boxes.push(
+      ...forklift('forklift-dock', {
+        x: (plan.bays[n - 2] + plan.bays[n - 1]) / 2 - 0.4,
+        z: -b.d / 2 + 2.6,
+        along: 'x',
+        ahead: 1,
+        burnt,
+        loaded: b.seed % 2 === 0,
+        flat: 'front-right',
+      })
+    )
+  }
   // A pallet jack left out, a drum or two by the bays, a puddle under a
   // hole: what every floor kept.
   boxes.push(
@@ -1434,6 +1463,141 @@ function works(b: Building, plan: Plan, rng: () => number): WorksBox[] {
         [0.012, 0.02],
         [-b.d * 0.3, b.d * 0.05],
         'puddle'
+      )
+    )
+  }
+  return boxes
+}
+
+// A forklift dead where it was left (`x`, `z` its body's middle, its
+// length `along` x or z, its forks `ahead` that way): forks dropped to the
+// floor, a tyre gone flat, the hood up, the mast leaning, a pallet still
+// on the forks if `loaded`, charred black if `burnt`. Its body blocks,
+// square, from the counterweight to the mast; nothing else of it does.
+export const FORKLIFT = { back: 1.3, front: 0.7, forks: 2.15, half: 0.55 }
+
+export function forklift(
+  name: string,
+  {
+    x,
+    z,
+    along,
+    ahead,
+    burnt,
+    loaded,
+    flat,
+  }: {
+    x: number
+    z: number
+    along: 'x' | 'z'
+    ahead: 1 | -1
+    burnt: boolean
+    loaded: boolean
+    flat: 'rear-left' | 'front-right'
+  }
+): WorksBox[] {
+  // Its own frame: u forward (to the forks), v across, y up; each box is
+  // given there and laid into the building's.
+  const paint: WorksFinish = burnt ? 'debris' : 'hazard'
+  const metal: WorksFinish = burnt ? 'debris' : 'steel'
+  const at = (u: number, v: number): [number, number] =>
+    along === 'x'
+      ? [x + ahead * u, z + ahead * v]
+      : [x + ahead * v, z + ahead * u]
+  const part = (
+    tag: string,
+    [u0, u1]: [number, number],
+    [y0, y1]: [number, number],
+    [v0, v1]: [number, number],
+    finish: WorksFinish,
+    blocks = false,
+    tip = 0
+  ): WorksBox => {
+    const [cx, cz] = at((u0 + u1) / 2, (v0 + v1) / 2)
+    const lu = u1 - u0
+    const lv = v1 - v0
+    const size: Vec3 = along === 'x' ? [lu, y1 - y0, lv] : [lv, y1 - y0, lu]
+    // A tip leans it forward about its across axis.
+    const turn: Vec3 | undefined =
+      tip === 0
+        ? undefined
+        : along === 'x'
+          ? [0, 0, -ahead * tip]
+          : [ahead * tip, 0, 0]
+    return box(
+      `${name}-${tag}`,
+      [cx, (y0 + y1) / 2, cz],
+      size,
+      finish,
+      blocks,
+      turn
+    )
+  }
+  const { back, front, forks, half } = FORKLIFT
+  const boxes: WorksBox[] = [
+    part('body', [-back, front], [0.2, 1.15], [-half, half], paint, true),
+    part('weight', [-back, -back + 0.4], [1.15, 1.3], [-half, half], metal),
+    part('seat', [-0.55, -0.15], [1.15, 1.5], [-0.25, 0.25], 'rubber'),
+    part('hood', [-1.0, -0.3], [1.3, 1.36], [-0.45, 0.45], paint, false, 0.6),
+    part('roof', [-0.8, 0.55], [2.15, 2.22], [-half, half], metal),
+    part(
+      'mast-l',
+      [0.75, 0.85],
+      [0.1, 2.3],
+      [-0.42, -0.32],
+      metal,
+      false,
+      0.08
+    ),
+    part('mast-r', [0.75, 0.85], [0.1, 2.3], [0.32, 0.42], metal, false, 0.08),
+    part('carriage', [0.85, 0.95], [0.05, 0.6], [-0.42, 0.42], metal),
+    part('fork-l', [0.95, forks], [0, 0.05], [-0.36, -0.24], metal),
+    part('fork-r', [0.95, forks], [0, 0.05], [0.24, 0.36], metal),
+  ]
+  for (const u of [-0.75, 0.5]) {
+    for (const v of [-0.5, 0.5]) {
+      boxes.push(
+        part(
+          `guard-${u}-${v}`,
+          [u - 0.03, u + 0.03],
+          [1.15, 2.15],
+          [v - 0.03, v + 0.03],
+          metal
+        )
+      )
+    }
+  }
+  // The tyres, one of them flat.
+  for (const [u, end] of [
+    [-0.85, 'rear'],
+    [0.45, 'front'],
+  ] as const) {
+    for (const [v, side] of [
+      [-half, 'left'],
+      [half, 'right'],
+    ] as const) {
+      const down = flat === `${end}-${side}`
+      const top = down ? 0.32 : 0.55
+      boxes.push(
+        part(
+          `tyre-${end}-${side}`,
+          [u - 0.27, u + 0.27],
+          [0, top],
+          [v - 0.12, v + 0.12],
+          'rubber'
+        )
+      )
+    }
+  }
+  if (loaded) {
+    boxes.push(
+      part('pallet', [0.98, forks], [0.05, 0.19], [-0.6, 0.6], 'pallet'),
+      part(
+        'load',
+        [1.05, forks - 0.05],
+        [0.19, 1.05],
+        [-0.55, 0.55],
+        burnt ? 'debris' : 'cardboard'
       )
     )
   }
