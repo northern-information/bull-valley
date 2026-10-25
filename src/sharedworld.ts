@@ -216,7 +216,9 @@
 //    the Video Vault's back-room key. Gron, where the world was opened
 //    with him (SharedWorld.gron), gives his quests one after another, each
 //    once the last is done: bring him a berry, find Erwin (who finishes
-//    it), and bring him the floppy disk from the industrial zone. Each
+//    it), and bring him the floppy disk, which each raider on that quest
+//    finds for themselves where the world was opened with it
+//    (SharedWorld.disk, in the industrial park). Each
 //    step is judged against where the raider's last state frame put them,
 //    the account's stage on every quest and what the pack holds
 //    (ValleyContext.quest in, Reduced.quest out); the valley writes the
@@ -519,7 +521,14 @@ import {
 } from './party.ts'
 import { fieldEnd, freeSlot, nextClose, openAt, ringEnd } from './portals.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
-import { atGron, atHeart, isQuest, QUESTS, questStep } from './quests.ts'
+import {
+  atDisk,
+  atGron,
+  atHeart,
+  isQuest,
+  QUESTS,
+  questStep,
+} from './quests.ts'
 import {
   affordsResearch,
   atRecycler,
@@ -650,8 +659,10 @@ interface SharedWorld {
   // 25).
   dealer: XZ | null
   dealerStock: DealerStock
-  // Where Gron stands, or null (rule 26: his quests are taken beside him).
+  // Where Gron stands, or null (rule 26: his quests are taken beside him),
+  // and where the floppy disk lies for his last, or null.
   gron: XZ | null
+  disk: XZ | null
   // Where the Undercroft lies, or null (rule 11: the tunnel shades).
   undercroft: MazePlace | null
   // Where Castle Entropy's moat lies, or null (rule 11: the valley cuts it
@@ -779,6 +790,7 @@ export type ValleyAction =
       bushes: XZ[]
       dealer: XZ | null
       gron: XZ | null
+      disk: XZ | null
       undercroft: MazePlace | null
       moat: MazePlace | null
       rings: XZ[]
@@ -1658,7 +1670,7 @@ function bodiless(
 ): Reduced | null {
   if (!('id' in action) || !valley.members[action.id]?.dialup) return null
   const re =
-    action.type === 'quest' && action.step === 'lay'
+    action.type === 'quest' && (action.step === 'lay' || action.step === 'find')
       ? 'quest'
       : NEEDS_A_BODY[action.type]
   if (!re) return null
@@ -1826,6 +1838,7 @@ function onJoin(
         dealer: action.dealer,
         dealerStock: freshDealerStock(),
         gron: action.gron,
+        disk: action.disk,
         undercroft: action.undercroft,
         moat: action.moat,
         rings: action.rings,
@@ -2237,10 +2250,12 @@ function onQuest(
     quest.pack,
     {
       // Rule 29: dialed in, Erwin and Gron are a call away; the heart of
-      // the maze is not (laying the rose takes a body, bodiless).
+      // the maze and the floppy disk are not (laying the rose and finding
+      // the disk take a body, bodiless).
       atErwin: !!member.dialup || atDealer(action.at, world.dealer),
       atGron: !!member.dialup || atGron(action.at, world.gron),
       atHeart: atHeart(action.at, heart),
+      atDisk: atDisk(action.at, world.disk),
     }
   )
   if (!step.ok) return refuse(step.reason)

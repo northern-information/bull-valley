@@ -1033,6 +1033,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     net.send({ type: 'quest', quest: 'rose', step: 'lay' })
   }
 
+  // E at the floppy disk in the industrial park, on Gron's last quest
+  // (rule 26): the valley puts it in the pack.
+  const findDisk = () => {
+    if (!s.world || s.pendingQuest) return
+    s.pendingQuest = true
+    net.send({ type: 'quest', quest: 'gron-floppy', step: 'find' })
+  }
+
   const stowKind = (kind: string, all: boolean) => restash(kind, all, true)
   const unstowKind = (kind: string, all: boolean) => restash(kind, all, false)
 
@@ -1572,6 +1580,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'lay':
         layRose()
+        return
+      case 'find':
+        findDisk()
         return
       case 'descend':
       case 'ascend': {

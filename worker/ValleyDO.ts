@@ -1609,6 +1609,7 @@ export class ValleyDO extends DurableObject<Env> {
               bushes: hello.bushes,
               dealer: hello.dealer,
               gron: hello.gron,
+              disk: hello.disk,
               undercroft: hello.undercroft,
               moat: hello.moat,
               rings: hello.rings,

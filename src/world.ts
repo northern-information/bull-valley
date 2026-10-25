@@ -247,9 +247,14 @@ export interface World {
   // the plaza.
   undercroft: CroftRig | null
   // The industrial park behind the plaza (industrialsite.ts): where its
-  // lurkers keep (the hello's lurks) and the flicker of what still burns
-  // inside; null without a spawn station.
-  industrial: { lurks: XZ[]; update(t: number): void } | null
+  // lurkers keep (the hello's lurks), the floppy disk for Gron's last
+  // quest, and the flicker of what still burns inside; null without a
+  // spawn station.
+  industrial: {
+    lurks: XZ[]
+    disk: { at: XZ; object: THREE.Object3D }
+    update(t: number): void
+  } | null
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the berry bush, Gron,
@@ -655,7 +660,11 @@ export function buildWorld(
     plaza: plaza ? plaza.rig : null,
     undercroft: croft ? croft.rig : null,
     industrial: industrial
-      ? { lurks: industrial.lurks, update: (t) => industrial.update(t) }
+      ? {
+          lurks: industrial.lurks,
+          disk: industrial.disk,
+          update: (t) => industrial.update(t),
+        }
       : null,
     ground,
     walls,

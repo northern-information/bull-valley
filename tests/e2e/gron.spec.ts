@@ -6,7 +6,7 @@ import type { Page } from '@playwright/test'
 // glows, with no prompt; E opens his dialog, where he gives his quests one
 // after another (rule 26): a berry off a bush, then Erwin next door at the
 // Golden Wok, who finishes the errand on his own quest tab, then the
-// floppy disk from the industrial zone. Each earns quest XP.
+// floppy disk from the burned office in the industrial park. Each earns quest XP.
 
 async function standAtGron(page: Page): Promise<void> {
   const gron = await page.evaluate(() => {
@@ -65,6 +65,27 @@ async function standAtErwin(page: Page): Promise<void> {
     .toBe(true)
 }
 
+// Beside the floppy disk in the burned office, looking down at it, heard
+// there, once it glows.
+async function standAtDisk(page: Page): Promise<void> {
+  const at = await page.evaluate(() => {
+    const bv = window.__bv
+    const disk = bv?.world.industrial?.disk
+    if (!bv || !disk) throw new Error('no industrial park')
+    bv.player.relocate(disk.at.x + 1, disk.at.z, bv.player.yaw)
+    return disk.at
+  })
+  await faceSpot(page, at.x, at.z, 0)
+  await heardWhere(page)
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.__bv?.glow === window.__bv?.world.industrial?.disk.object
+      )
+    )
+    .toBe(true)
+}
+
 const stage = (page: Page, quest: string) =>
   page.evaluate((q) => window.__bv?.quests?.[q] ?? null, quest)
 const xp = (page: Page) => page.evaluate(() => window.__bv?.xp ?? 0)
@@ -91,7 +112,9 @@ test("Gron's quests: a berry, Erwin next door, the floppy disk", async ({
     exact: true,
   })
   await expect(gron).toBeVisible()
-  expect(await page.evaluate(() => window.__bv?.player.locked)).toBe(false)
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.player.locked))
+    .toBe(false)
 
   // First: a berry. Taken on, he waits for one.
   const go = gron.locator('[data-bv="gron-quest-go"]')
@@ -145,7 +168,27 @@ test("Gron's quests: a berry, Erwin next door, the floppy disk", async ({
   await expect(gron).toContainText(copy('quests.floppy_title'))
   await go.click()
   await expect.poll(() => stage(page, 'gron-floppy')).toBe('given')
-  await page.evaluate(() => window.__bv?.grant('floppy-disk'))
+  await page.keyboard.press('KeyE')
+  await expect(gron).toHaveCount(0)
+
+  // It lies in the burned office in the industrial park, for this raider:
+  // E takes it.
+  await standAtDisk(page)
+  await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.find'))
+  await page.keyboard.press('KeyE')
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.inventory['floppy-disk'] ?? 0))
+    .toBe(1)
+  // Taken, it lies there no more for them.
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.__bv?.world.industrial?.disk.object.visible)
+    )
+    .toBe(false)
+
+  await standAtGron(page)
+  await page.keyboard.press('KeyE')
+  await expect(gron).toBeVisible()
   await expect(go).toHaveText(copy('quests.floppy_reward'))
   await go.click()
   await expect.poll(() => stage(page, 'gron-floppy')).toBe('done')

@@ -603,7 +603,7 @@ export const ITEMS = [
     start: 0,
   },
   // The construction data Gron sends a raider for (quests.ts), out of
-  // the industrial zone.
+  // the industrial park (industrial.ts DISK).
   {
     id: 'floppy-disk',
     category: 'key-item',

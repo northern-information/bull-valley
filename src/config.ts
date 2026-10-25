@@ -1434,6 +1434,10 @@ export const CONFIG = {
     heartReach: 10,
     // How near the portal E lays it.
     layReach: 4,
+    // How close E must be to the floppy disk to take it, and how far from
+    // it the valley gives it (quests.ts atDisk), past that as frames lag.
+    takeReach: 2.2,
+    findReach: 5,
   },
   emotes: {
     // A raider within this many metres of one who emotes (emotes.ts) gets

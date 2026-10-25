@@ -134,6 +134,7 @@ const STAND = { x: 5, z: -20 }
 const RECYCLERS = HAVENS.map(({ x, z }) => ({ x: x + 30, z: z + 40 }))
 const DEALER = { x: -30, z: -60 }
 const GRON = { x: 12, z: -40 }
+const DISK = { x: -140, z: -220 }
 // The firefly ponds (rule 36), away from every station.
 const POND = { x: 800, z: 0, radius: 100, landing: { x: 720, z: 0 } }
 const FAR_POND = { x: -800, z: 900, radius: 60, landing: { x: -760, z: 860 } }
@@ -243,6 +244,7 @@ const join = (id: string): ValleyAction => ({
   bushes: BUSH_SPOTS,
   dealer: DEALER,
   gron: GRON,
+  disk: DISK,
   undercroft: null,
   moat: null,
   rings: RINGS,
@@ -1304,7 +1306,7 @@ describe("rule 26: Gron's quests", () => {
   const step = (
     id: string,
     quest: string,
-    s: 'accept' | 'lay' | 'reward',
+    s: 'accept' | 'lay' | 'find' | 'reward',
     at: { x: number; z: number } | null
   ): ValleyAction => ({ type: 'quest', id, quest, step: s, at })
   const atGron = { x: GRON.x + 1, z: GRON.z }
@@ -1363,6 +1365,19 @@ describe("rule 26: Gron's quests", () => {
     expect(
       v.step(step('a', 'gron-floppy', 'accept', atGron)).quest
     ).toMatchObject({ to: 'given' })
+    v.setStages({ ...before, 'gron-floppy': 'given' }, {})
+    // Found where it lies, one for this raider; not from beside Gron.
+    expect(v.step(step('a', 'gron-floppy', 'find', atGron)).reply?.reason).toBe(
+      'too-far'
+    )
+    expect(
+      v.step(step('a', 'gron-floppy', 'find', { x: DISK.x + 1, z: DISK.z }))
+        .quest
+    ).toMatchObject({
+      from: 'given',
+      to: 'given',
+      change: { kind: 'floppy-disk', delta: 1 },
+    })
     v.setStages({ ...before, 'gron-floppy': 'given' }, { 'floppy-disk': 1 })
     expect(
       v.step(step('a', 'gron-floppy', 'reward', atGron)).quest

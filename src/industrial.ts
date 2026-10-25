@@ -2406,6 +2406,12 @@ export function waysOf(b: Building): (XZ & { name: string; open: boolean })[] {
   ]
 }
 
+// Where the construction data lies for Gron's last quest (quests.ts): on
+// the office floor of the burned-out building, what they meant to build
+// left where the fire stopped. Each raider on the quest finds their own
+// there (sharedworld.ts rule 26); it is no pickup of the day's.
+export const DISK = { building: 'scorched', at: 'office' as Spot } as const
+
 // --- Space ---------------------------------------------------------------
 
 // The park's frame: the spawn station's moved to CONFIG.industrial.at
@@ -2541,6 +2547,14 @@ export function parkLoot(
       return { x, z, kind: l.kind, count: l.count }
     })
   })
+}
+
+// Where the floppy disk lies, in the world (the hello's `disk`).
+export function parkDisk(park: StoreOrigin): XZ {
+  const i = INDUSTRIAL.buildings.findIndex((b) => b.id === DISK.building)
+  const spot = spotOf(INDUSTRIAL.buildings[i], DISK.at)
+  const [x, , z] = toWorld(buildingOrigin(park, i, 0), [spot.x, 0, spot.z])
+  return { x, z }
 }
 
 // Every lurk in the park, in the world (the hello's `lurks`).
