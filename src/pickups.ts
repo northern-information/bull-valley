@@ -29,6 +29,7 @@ import {
 import { buildMedicine } from './medicinemodels.ts'
 import { paintPack } from './packart.ts'
 import { mulberry32, range } from './rng.ts'
+import { buildTorch } from './torchmodel.ts'
 import type { PickupOptions } from './assetkit.ts'
 import type { CanvasArt } from './canvas.ts'
 import type { Vec3 } from './interfaces.ts'
@@ -1029,6 +1030,7 @@ export function buildPickup(
   if (empty) return empty({ glow })
   if (isMedicine(kind)) return buildMedicine(kind, { glow })
   if (isFish(kind)) return buildFish(kind, { glow })
+  if (kind === 'torch') return buildTorch({ glow })
   if (kind === 'slurm-jar') return buildSlurmJar({ glow })
   if (kind === 'slurm') return buildSlurmCatch()
   if (kind === 'fishing-rod' || isRod(kind)) {

@@ -19,12 +19,13 @@ import { outfitById } from './outfits.ts'
 const BLUE = '#6aa8ff'
 const DIM = 'rgba(106, 168, 255, 0.3)'
 // The hand is the player's: same skin and sleeve as the player outfit, with
-// the shadow facet a darker tone of the skin.
+// the shadow facet a darker tone of the skin. The torch's grip
+// (torchhand.ts) is the same hand.
 const PLAYER = outfitById('player').colors
-const SKIN = PLAYER.skin
-const SKIN_SHADE = darken(PLAYER.skin, 0.88)
-const SLEEVE = PLAYER.shirt
-const CUFF = '#0f172a'
+export const SKIN = PLAYER.skin
+export const SKIN_SHADE = darken(PLAYER.skin, 0.88)
+export const SLEEVE = PLAYER.shirt
+export const CUFF = '#0f172a'
 const BODY = '#0b0f14'
 const SCREEN = '#020617'
 
@@ -43,7 +44,7 @@ const SW = 108
 const SH = 208
 
 // A flat polygon: its fill and its corners in grid units.
-type Poly = [color: string, points: [number, number][]]
+export type Poly = [color: string, points: [number, number][]]
 
 // Back layer, drawn before the phone body.
 // prettier-ignore
@@ -69,7 +70,7 @@ function darken(hex: string, factor: number): string {
   return `rgb(${channel(16)}, ${channel(8)}, ${channel(0)})`
 }
 
-function fillPolys(
+export function fillPolys(
   ctx: CanvasRenderingContext2D,
   polys: readonly Poly[]
 ): void {
