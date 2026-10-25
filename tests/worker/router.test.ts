@@ -37,6 +37,16 @@ function env(): WorkerEnv & { calls: string[]; fetched: Request[] } {
         return stub
       },
     } as unknown as Env['VALLEY'],
+    // The films are tested in films.test.ts against a fake bucket; an
+    // empty one lists nothing here.
+    FILMS: {
+      list: () =>
+        Promise.resolve({
+          objects: [],
+          truncated: false,
+          delimitedPrefixes: [],
+        }),
+    } as unknown as R2Bucket,
     ASSETS: {
       fetch(request: Request) {
         calls.push(`assets ${new URL(request.url).pathname}`)
@@ -55,6 +65,13 @@ const upgrade = (
   new Request(url, { headers: { Upgrade: 'websocket', ...headers } })
 
 describe('router', () => {
+  it('lists the drive-in films out of R2', async () => {
+    const e = env()
+    const res = await worker.fetch(new Request('https://bvsw.net/films'), e)
+    expect(await res.json()).toEqual({ films: [] })
+    expect(e.calls).toEqual([])
+  })
+
   it('knows the dev hosts', () => {
     expect(isDevHost('localhost')).toBe(true)
     expect(isDevHost('127.0.0.1')).toBe(true)

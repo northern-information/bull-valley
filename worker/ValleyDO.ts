@@ -456,6 +456,10 @@ export class ValleyDO extends DurableObject<Env> {
       case 'toolbox':
         await this.withPack(ws, account, { type: 'toolbox', id, at })
         return
+      // Rule 41.
+      case 'thread':
+        await this.act(ws, { type: 'thread', id, film: msg.film, at })
+        return
       case 'torch':
         await this.withPack(ws, account, {
           type: 'torch',

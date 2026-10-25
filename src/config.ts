@@ -1576,6 +1576,27 @@ export const CONFIG = {
     // `clear` off its footprint.
     lookout: { at: { x: 61, z: -8 }, climbReach: 1.6, clear: 4 },
   },
+  // The drive-in past the corn maze's far end (drivein.ts, sharedworld.ts
+  // rule 41), maze-local: the middle of its lot, on the grass between the
+  // road and the far pond, its screen at the end away from the maze. The
+  // lot runs `half.x` either side across and `half.z` along. Trees keep
+  // `treeClear` off the lot. E within `projectorReach` of the projector
+  // in the booth threads a film; the valley allows `slack` more for the
+  // frames' own jitter. The sound carries `hearRange` metres from the
+  // screen at the Music setting, and a reel more than `resyncSeconds` off
+  // the valley's clock is put back on it. The film is fetched only within
+  // `loadRange` of the screen (past the fog, so it is playing before it
+  // shows).
+  driveIn: {
+    at: { x: 50, z: 250 },
+    half: { x: 32, z: 30 },
+    treeClear: 6,
+    projectorReach: 2,
+    slack: 2,
+    hearRange: 70,
+    resyncSeconds: 2,
+    loadRange: 220,
+  },
   // The topiaries (topiaries.ts): the hedge animals of The Shining's
   // Overlook, two lions, a dog, a rabbit and a buffalo, standing broadside
   // across the maze's corridors. Not shadows: no beam burns them and they

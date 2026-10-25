@@ -103,6 +103,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     world,
     truck,
     radio,
+    reel,
     donutWake,
     music,
     sfx,
@@ -321,6 +322,17 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       engine: truck.engineSeconds(),
       distance: truck.distanceTo(player.pos.x, player.pos.z),
       aboard: s.aboard,
+    })
+    // The drive-in's film, on the valley's reel and clock, heard from the
+    // screen at the music setting (rule 41).
+    reel?.update({
+      reel: s.world?.reel ?? null,
+      now: net.clock.serverNow(now),
+      t: now / 1000,
+      x: player.pos.x,
+      z: player.pos.z,
+      started: s.started,
+      setting: settings.current.music,
     })
     // The valley's sounds, heard from the camera at the raider's setting.
     sfx?.update({
@@ -896,6 +908,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       slurms:
         s.held === 'jar' && jarRoom(s.inventory) ? crawlingSlurms(world) : [],
       campfires: world.ponds.map((pond) => pond.campfire.at),
+      projector: world.driveIn?.projector ?? null,
       tackle: nearestLanding(
         world.ponds.map((pond) => pond.place),
         player.pos

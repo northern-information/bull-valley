@@ -540,6 +540,14 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'torch', index: -1 })).toBeNull()
     expect(parse({ type: 'torch', index: 1.5 })).toBeNull()
     expect(parse({ type: 'torch' })).toBeNull()
+    // A film threaded at the drive-in (rule 41), by a name it could show.
+    expect(parse({ type: 'thread', film: 'night.mp4' })).toEqual({
+      type: 'thread',
+      film: 'night.mp4',
+    })
+    expect(parse({ type: 'thread', film: 'a/b.mp4' })).toBeNull()
+    expect(parse({ type: 'thread', film: 3 })).toBeNull()
+    expect(parse({ type: 'thread' })).toBeNull()
     // A hello says where the stand stands, or that there is none.
     expect(parse({ ...hello, stand: null })).toEqual({ ...hello, stand: null })
     expect(parse({ ...hello, stand: { x: 'here' } })).toBeNull()

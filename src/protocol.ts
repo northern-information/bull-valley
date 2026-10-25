@@ -4,6 +4,7 @@
 // JSON text; every number the server stores is checked here first.
 
 import { USERNAME_MAX } from './account.ts'
+import { isFilmName } from './drivein.ts'
 import { EMOTE_IDS } from './emotes.ts'
 import { isFallHeight } from './fall.ts'
 import { isBait, toPondPlace } from './fishing.ts'
@@ -17,6 +18,7 @@ import type { CitgoLog } from './citgos.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { DealerStock } from './dealer.ts'
+import type { Reel } from './drivein.ts'
 import type { Drop } from './drops.ts'
 import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
 import type { Hurt } from './fall.ts'
@@ -46,7 +48,7 @@ import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 55
+export const PROTOCOL_VERSION = 56
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -202,6 +204,10 @@ export interface WorldWire {
   // Each topiary's health, and while it is burned away when it grows back
   // (sharedworld.ts rule 39), in topiaries.ts TOPIARIES order.
   topiaries: TopiaryHealth[]
+  // The film the drive-in shows and since when (server ms), or null
+  // before one was threaded (sharedworld.ts rule 41). Every client plays
+  // it from there on the valley's clock (drivein.ts reelSeconds).
+  reel: Reel | null
 }
 
 // Where an account last stood on foot, to come back to.
@@ -252,6 +258,7 @@ export type WorldReason =
   | 'topiary-hit'
   | 'topiary-burned'
   | 'topiary-back'
+  | 'threaded'
 
 // --- Client → server -------------------------------------------------------
 
@@ -477,6 +484,15 @@ type FishMessage =
 // and the pack, and answers with a PackMessage, or a world frame
 // ('topiary-hit' or 'topiary-burned') for everyone, or a nack.
 type TopiaryTendMessage = { type: 'toolbox' } | { type: 'torch'; index: number }
+
+// The drive-in (sharedworld.ts rule 41): the film named (drivein.ts
+// isFilmName, a name in the films bucket) threaded on the projector. The
+// valley checks the raider's last state frame put them at it, and answers
+// with a world frame ('threaded') for everyone, or a nack.
+interface ThreadMessage {
+  type: 'thread'
+  film: string
+}
 
 // An expedition (sharedworld.ts rule 30): a run of `kind` sent out, or the
 // run home claimed. Dial-Up only; the valley answers with an
@@ -751,6 +767,7 @@ export type ClientMessage =
   | CookMessage
   | FishMessage
   | TopiaryTendMessage
+  | ThreadMessage
   | ExpeditionTendMessage
   | TradeMessage
   | DealMessage
@@ -1896,6 +1913,8 @@ const CLIENT_PARSERS: ClientParsers = {
   toolbox: bare('toolbox'),
   // Which topiaries there are is the valley's to check.
   torch: ({ index }) => (isCount(index) ? { type: 'torch', index } : null),
+  // Which films there are is the bucket's; the name only has to be one.
+  thread: ({ film }) => (isFilmName(film) ? { type: 'thread', film } : null),
   dig: bare('dig'),
   cast: ({ bait }) => (isBait(bait) ? { type: 'cast', bait } : null),
   reel: ({ landed }) =>

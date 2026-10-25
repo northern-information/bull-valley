@@ -101,6 +101,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The tackle box on the firefly pond's landing: E opens it to fish
   // (rule 36).
   | { kind: 'fish' }
+  // The projector in the drive-in's booth: E opens the films to thread
+  // one (rule 41).
+  | { kind: 'projector' }
   // A slurm crawling on a Citgo's lot, a jar with room carried: E or the
   // click brings the jar to hand and catches it (rule 36).
   | { kind: 'jar-slurm'; station: number; slot: number; index: number }
@@ -193,6 +196,8 @@ export const SIGHTS = {
   recycler: { low: 0, high: 1.9, r: 0.6 },
   // The campfire, the stones to the flames' tips.
   campfire: { low: 0, high: 1, r: 0.8 },
+  // The projector on its pedestal, the reels over it.
+  projector: { low: 0, high: 2.2, r: 0.6 },
   hatch: { low: -0.2, high: 0.3, r: 0.7 },
   // A ladder going up from its foot, and down from its top.
   ladder: { low: 0, high: 3, r: 0.5 },
@@ -298,6 +303,8 @@ export interface InteractionInput<P extends PickupSpot> {
   campfires?: readonly XZ[]
   // The tackle box on the firefly pond's landing, or null.
   tackle?: XZ | null
+  // The projector in the drive-in's booth, or null.
+  projector?: XZ | null
   // The slurms crawling on the lot, while this raider holds a jar with
   // room in it; none otherwise.
   slurms?: readonly SlurmSpot[]
@@ -335,7 +342,7 @@ export interface InteractionInput<P extends PickupSpot> {
 // nearest NPC in his reach, unless a shelf unit is in view; climb into the
 // truck standing still beside you, when it is yours to climb into; buy off
 // a shelf; take your things back off your nearest body; open the lockers;
-// sit down at the laptop; tend the Cabbage Stand; deal with the squatter; take the nearest pickup
+// sit down at the laptop; tend the Cabbage Stand; thread the drive-in's projector; deal with the squatter; take the nearest pickup
 // in reach of a locked door, or else rattle it; Gron or the nearest berry
 // bush, whichever is nearer; inspect the raider in front; take the
 // nearest pickup.
@@ -467,6 +474,16 @@ export function resolveInteraction<P extends PickupSpot>(
     if (d < CONFIG.fishing.campfire.reach && sees(fire, SIGHTS.campfire)) {
       return { kind: 'cook', pond }
     }
+  }
+
+  const projector = input.projector
+  if (
+    projector &&
+    Math.hypot(projector.x - player.x, projector.z - player.z) <
+      CONFIG.driveIn.projectorReach &&
+    sees(projector, SIGHTS.projector)
+  ) {
+    return { kind: 'projector' }
   }
 
   const tackle = input.tackle
@@ -764,6 +781,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.fish')
     case 'cook':
       return copy('prompts.cook')
+    case 'projector':
+      return copy('prompts.projector')
     case 'jar-slurm':
       return copy('prompts.jar_slurm')
     case 'cast':

@@ -41,6 +41,14 @@ import { ruinsAt } from './crumble.ts'
 import { dayKey } from './daily.ts'
 import { buildDishArray } from './dishes.ts'
 import { buildDrink } from './drinkmodels.ts'
+import { CAR_KINDS, DRIVE_IN, PROJECTOR_AT } from './drivein.ts'
+import {
+  buildBurntCar,
+  buildDriveInBooth,
+  buildDriveInScreen,
+  buildProjector,
+  buildSpeakerPost,
+} from './driveinmodel.ts'
 import { buildTyler } from './figure.ts'
 import { buildFireRoots, buildRaincloud } from './fire.ts'
 import {
@@ -680,6 +688,37 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'lookout',
     label: 'The lookout tower by the corn maze',
     build: () => buildLookout(),
+  },
+  {
+    id: 'drive-in-screen',
+    label: 'The drive-in’s screen, past the corn maze',
+    build: () => buildDriveInScreen().group,
+  },
+  {
+    id: 'drive-in-booth',
+    label: 'The drive-in’s projection booth, the projector inside',
+    build: () => {
+      const booth = buildDriveInBooth().group
+      const projector = buildProjector().group
+      projector.position.set(0, 0.12, PROJECTOR_AT.z - DRIVE_IN.booth.z)
+      booth.add(projector)
+      return booth
+    },
+  },
+  {
+    id: 'projector',
+    label: 'The drive-in’s 35mm projector',
+    build: () => buildProjector().group,
+  },
+  ...CAR_KINDS.map((kind) => ({
+    id: `burnt-${kind}`,
+    label: `A burnt-out ${kind} at the drive-in`,
+    build: () => buildBurntCar(kind, 7),
+  })),
+  {
+    id: 'speaker-post',
+    label: 'A drive-in speaker post',
+    build: () => buildSpeakerPost(3),
   },
   {
     id: 'castle-entropy',

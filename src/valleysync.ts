@@ -25,6 +25,7 @@ import { crewNews, crewRefusal } from './crews.ts'
 import { DAILY_TASK, taskLine, taskNews, taskOf } from './dailytask.ts'
 import { boughtLine, dealRefusal } from './dealer.ts'
 import { seenEmote } from './emotes.ts'
+import { threadedLine, threadRefusal } from './filmlines.ts'
 import { lineOutOf, toAnglerWire } from './fishing.ts'
 import {
   anglerNews,
@@ -70,6 +71,7 @@ import {
   newLeg,
   portalNews,
   reconcileBed,
+  reelNews,
   settledBy,
   toolsIn,
   topiaryNews,
@@ -457,6 +459,23 @@ export function wireValley(game: Game, actions: Actions): void {
         hud.tell(copy('log.topiary_burned_other'))
       }
     }
+
+    // Rule 41: a film threaded on the drive-in's projector. The one who
+    // did it is told, and so is anyone near enough to see the screen.
+    const reel = reelNews({ reason, ...detail }, wire, me)
+    if (reel?.mine) {
+      s.pending.thread = false
+      s.reelSaid = threadedLine(reel)
+      hud.tell(s.reelSaid)
+    } else if (reel && world.driveIn) {
+      const [sx, , sz] = world.driveIn.screen
+      if (
+        Math.hypot(sx - player.pos.x, sz - player.pos.z) <=
+        CONFIG.driveIn.loadRange
+      ) {
+        hud.tell(threadedLine(reel))
+      }
+    }
   }
 
   const applyNack = (msg: NackMessage) => {
@@ -561,6 +580,10 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.cook = false
       s.cookSaid = cookRefusal(msg.reason)
       hud.tell(s.cookSaid)
+    } else if (msg.re === 'thread') {
+      s.pending.thread = false
+      s.reelSaid = threadRefusal(msg.reason)
+      hud.tell(s.reelSaid)
     } else if (msg.re === 'jar-slurm') {
       // Rule 36: gone, out of reach, or no jar with room in it.
       s.pending.jar = false

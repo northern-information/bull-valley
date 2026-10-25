@@ -15,6 +15,7 @@ import { createCorpseMeshes } from './corpsemeshes.ts'
 import { installDevHook } from './devhook.ts'
 import { donutRoute } from './donuts.ts'
 import { DonutWake } from './donutwakerig.ts'
+import { createReelPlayer } from './driveinrig.ts'
 import { createDropMeshes } from './dropmeshes.ts'
 import { finishById } from './finishes.ts'
 import { FishHud } from './fishhud.ts'
@@ -313,6 +314,7 @@ async function boot() {
     graph,
     truck,
     radio: SILENT ? null : createTruckRadio(),
+    reel: world.driveIn ? createReelPlayer(world.driveIn, SILENT) : null,
     donutWake: world.donutField
       ? new DonutWake({
           scene,

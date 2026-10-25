@@ -225,6 +225,22 @@ export function topiaryNews(
   }
 }
 
+// What a 'threaded' snapshot says (sharedworld.ts rule 41): the film the
+// drive-in shows now, whether this raider threaded it, and who did, by
+// name (empty if they have gone); null for any other.
+export function reelNews(
+  msg: Pick<WorldMessage, 'reason' | 'by'>,
+  wire: Pick<WorldWire, 'reel' | 'members'>,
+  me: string | null
+): { film: string; mine: boolean; name: string } | null {
+  if (msg.reason !== 'threaded' || !wire.reel) return null
+  return {
+    film: wire.reel.film,
+    mine: me !== null && msg.by === me,
+    name: wire.members.find((m) => m.id === msg.by)?.name ?? '',
+  }
+}
+
 // This raider's own bodies (the ids a pack frame names) among every body
 // the snapshot carries, less any they have asked to take back: the ones E
 // answers to, and the ones the map marks (sharedworld.ts rule 18).

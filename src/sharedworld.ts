@@ -409,6 +409,19 @@
 //    they cook into in together, or neither, as a barter with Erwin is
 //    written (ValleyContext.holdings in, Reduced.barter and Reduced.cooked
 //    out). Every socket on the account hears what cooked, then the pack.
+// 41. The drive-in past the corn maze's far end (drivein.ts): one reel
+//    for the whole valley (Valley.reel), the film and when it was
+//    threaded, so everyone sees the same frame at the same time on the
+//    valley's clock, round and round. A raider on foot, out of the bed,
+//    whose last state frame put them at the projector in the booth, where
+//    the world was opened with the maze (drivein.ts atProjector, with
+//    CONFIG.driveIn.slack), threads a film by its name in the films bucket
+//    (a `thread` action; drivein.ts isFilmName): it plays from its start
+//    for everyone, and everyone hears who threaded it ('threaded'). The
+//    reel is the valley's, not the world's: it outlasts the day's turn and
+//    a world opened afresh. Which films there are is the bucket's
+//    (worker/films.ts); the valley never reads it. Dialed in there is no
+//    booth (`dialup`).
 
 import { bountyOf, GIFTS } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
@@ -421,6 +434,7 @@ import { corpseWire, isEmpty, keysOff, spilledDimes } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { atDealer, deal, freshDealerStock } from './dealer.ts'
+import { atProjector, isFilmName } from './drivein.ts'
 import {
   centsOf,
   DIME_CENTS,
@@ -546,6 +560,7 @@ import type { CitgoLog } from './citgos.ts'
 import type { Corpse } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { DealerStock } from './dealer.ts'
+import type { Reel } from './drivein.ts'
 import type { Drop, Facing, Spill } from './drops.ts'
 import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
 import type { Hurt } from './fall.ts'
@@ -712,6 +727,9 @@ export interface Valley {
   anglers: Record<string, Angler>
   lines: Record<string, Line>
   jarred: string[]
+  // Rule 41: the film the drive-in shows, and since when; null until one
+  // is threaded.
+  reel: Reel | null
 }
 
 // Rule 36: a line out with a fish (or the junk) on it: whose, what took
@@ -894,6 +912,9 @@ export type ValleyAction =
   // where the raider's last state frame put them, or null.
   | { type: 'toolbox'; id: string; at: XZ | null }
   | { type: 'torch'; id: string; index: number; at: XZ | null; roll: number }
+  // Rule 41: the film named threaded on the drive-in's projector. at:
+  // where the raider's last state frame put them, or null.
+  | { type: 'thread'; id: string; film: string; at: XZ | null }
   // Rule 36: slurm `index` of slot `slot`'s drop at `station`, into the
   // jar. at: where the raider's last state frame put them, or null.
   | {
@@ -1185,6 +1206,7 @@ export function createValley(): Valley {
     anglers: {},
     lines: {},
     jarred: [],
+    reel: null,
   }
 }
 
@@ -1462,6 +1484,7 @@ export function toWire(valley: Valley): WorldWire | null {
       name,
     })),
     topiaries: world.topiaries,
+    reel: valley.reel,
   }
 }
 
@@ -1635,6 +1658,7 @@ const NEEDS_A_BODY: Partial<Record<ValleyAction['type'], NackRe>> = {
   'jar-slurm': 'jar-slurm',
   toolbox: 'toolbox',
   torch: 'torch',
+  thread: 'thread',
 }
 
 function bodiless(
@@ -1743,6 +1767,8 @@ function act(
     case 'toolbox':
     case 'torch':
       return onTopiary(valley, action, context)
+    case 'thread':
+      return onThread(valley, action, context)
     case 'expedition-send':
     case 'expedition-claim':
       return onExpedition(valley, action, context)
@@ -3270,6 +3296,32 @@ function onTopiary(
         damage,
       }),
     ],
+  })
+}
+
+// Rule 41: a film threaded on the drive-in's projector, from its start for
+// everyone.
+function onThread(
+  valley: Valley,
+  action: ActionOf<'thread'>,
+  { now }: ValleyContext
+): Reduced {
+  const world = valley.world
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, { broadcast: [], reply: nack('thread', reason) })
+  if (!valley.members[action.id] || !world) return refuse('not-in-valley')
+  if (isAboard(world.truck, action.id)) return refuse('aboard')
+  if (!isFilmName(action.film)) return refuse('no-film')
+  if (
+    !world.maze ||
+    !action.at ||
+    !atProjector(world.maze, action.at, CONFIG.driveIn.slack)
+  ) {
+    return refuse('too-far')
+  }
+  const next: Valley = { ...valley, reel: { film: action.film, since: now } }
+  return done(next, now, {
+    broadcast: [frame(next, 'threaded', { by: action.id })],
   })
 }
 
