@@ -70,6 +70,7 @@ import type { ShadowBodies } from './shadowbodies.ts'
 import type { ShadowBursts } from './shadowburst.ts'
 import type { StandLedger } from './stand.ts'
 import type { Titles } from './titles.ts'
+import type { TorchHand } from './torchhand.ts'
 import type { Trails } from './trails.ts'
 import type { TripSolids } from './tripsolidsrig.ts'
 import type { Truck } from './truck.ts'
@@ -495,6 +496,8 @@ export interface Game {
   pick: Titles
   // The phone, dialing Citgo portals (Q).
   phone: Phone
+  // The torch in hand, drawn as the phone is (rule 39).
+  torchHand: TorchHand
   shadowmen: ShadowBodies
   // The Caretaker in the corn maze.
   caretaker: CaretakerShade

@@ -347,10 +347,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (held !== s.held) {
       if (s.held === 'rod') game.fishHud.giveUp()
       s.held = held
-      s.flashlight = {
-        up: held === 'jar' || held === 'rod' || held === 'torch',
-        lift: 0,
-      }
+      s.flashlight = { up: held === 'jar' || held === 'rod', lift: 0 }
     }
     s.flashlight = stepHand(s.flashlight, dt)
     if (s.using && time - s.using.at >= useSeconds()) s.using = null
@@ -395,14 +392,23 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       left: ease(s.flashlight.lift),
       cast: s.castAt === null ? 0 : castPose(time - s.castAt).tilt,
       scoop: scoopPose(s.scoopAt === null ? -1 : time - s.scoopAt),
-      swing: swingPose(s.swingAt === null ? -1 : time - s.swingAt),
-      time,
       held:
-        s.held === 'rod' ? (rodIn(s.inventory) ?? BOX_ROD) : (s.held ?? 'none'),
+        s.held === 'rod'
+          ? (rodIn(s.inventory) ?? BOX_ROD)
+          : s.held === 'torch'
+            ? 'none'
+            : (s.held ?? 'none'),
       right: ease(using),
       kind: s.using?.kind ?? null,
       on: lit,
     })
+    // The torch is held as the phone is, in its own drawn hand
+    // (torchhand.ts), swung by the click.
+    game.torchHand.update(
+      s.held === 'torch' && !s.aboard,
+      time,
+      swingPose(s.swingAt === null ? -1 : time - s.swingAt)
+    )
     // The line in the water, stepped on the clock its bite was set by.
     game.fishHud.update(s.line, performance.now())
     return lit

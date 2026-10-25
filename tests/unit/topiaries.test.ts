@@ -10,6 +10,7 @@ import {
 import {
   burnedAway,
   dealSpots,
+  deathPose,
   freshTopiaries,
   hitTopiary,
   inTorchReach,
@@ -321,5 +322,53 @@ describe('where a swing lands', () => {
     expect(swingTarget([far, spine], { x: 2, z: 0 }, { x: -1, z: 0 }, 5)).toBe(
       1
     )
+  })
+})
+
+describe('a topiary burned away', () => {
+  const total = 10
+  const at = (k: number) => deathPose(k * total, total)
+
+  it('stands whole and unlit the moment it dies', () => {
+    expect(at(0)).toEqual({
+      fire: 0,
+      roll: 0,
+      flail: 0,
+      char: 0,
+      sink: 0,
+      over: false,
+    })
+    expect(deathPose(-1, total).roll).toBe(0)
+  })
+
+  it('bursts into flame, then falls onto its back, slow and then all at once', () => {
+    expect(at(0.1).fire).toBe(1)
+    expect(at(0.1).roll).toBe(0)
+    const early = at(0.15).roll
+    const late = at(0.25).roll - at(0.2).roll
+    expect(late).toBeGreaterThan(early)
+    expect(at(0.3).roll).toBeCloseTo(Math.PI)
+    expect(at(0.9).roll).toBeCloseTo(Math.PI)
+  })
+
+  it('kicks on its back once it lands, dying away as it burns down', () => {
+    expect(at(0.2).flail).toBe(0)
+    expect(at(0.35).flail).toBe(1)
+    expect(at(0.6).flail).toBeGreaterThan(0)
+    expect(at(0.6).flail).toBeLessThan(1)
+    expect(at(0.85).flail).toBe(0)
+  })
+
+  it('blackens, burns down into the ground, goes out, and is over', () => {
+    expect(at(0.6).char).toBe(1)
+    expect(at(0.7).sink).toBe(0)
+    expect(at(0.95).sink).toBeGreaterThan(0)
+    expect(at(1).fire).toBe(0)
+    expect(at(0.99).over).toBe(false)
+    expect(at(1).over).toBe(true)
+  })
+
+  it('takes CONFIG.topiaries.deathSeconds by default', () => {
+    expect(deathPose(CONFIG.topiaries.deathSeconds).over).toBe(true)
   })
 })

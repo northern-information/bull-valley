@@ -353,3 +353,45 @@ export function swingTarget(
   })
   return best
 }
+
+// --- Death -----------------------------------------------------------------
+
+// A topiary burned away, `seconds` into its death (CONFIG.topiaries
+// deathSeconds): the fire on it (0 to 1, how big), how far it has rolled
+// over onto its back (radians, about its spine), how hard its legs kick (0
+// to 1), how charred it is (0 to 1), how far it has burned down into ash
+// (0 to 1), and whether it is over. It bursts into flame, topples over as
+// a body falls (slow, then all at once), kicks on its back while it
+// blackens, and the kicking dies down as it burns down and goes out.
+export interface DeathPose {
+  fire: number
+  roll: number
+  flail: number
+  char: number
+  sink: number
+  over: boolean
+}
+
+export function deathPose(
+  seconds: number,
+  total: number = CONFIG.topiaries.deathSeconds
+): DeathPose {
+  const t = Math.max(0, seconds) / total
+  const span = (a: number, b: number) =>
+    Math.min(1, Math.max(0, (t - a) / (b - a)))
+  // Up in flames within the first tenth; out over the last.
+  const fire = span(0, 0.1) * (1 - span(0.88, 1))
+  // Over onto its back between a tenth and three tenths in, falling.
+  const fall = span(0.1, 0.3)
+  const roll = Math.PI * fall * fall
+  // Kicking from the moment it lands, dying away by eight tenths.
+  const flail = t < 0.28 ? 0 : 1 - span(0.45, 0.8)
+  return {
+    fire,
+    roll,
+    flail,
+    char: span(0.05, 0.6),
+    sink: span(0.72, 1),
+    over: t >= 1,
+  }
+}

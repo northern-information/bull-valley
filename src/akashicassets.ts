@@ -121,8 +121,8 @@ import { buildSlurm } from './slurmmodel.ts'
 import { buildForm } from './spomenikmodel.ts'
 import { STORE_LAYOUT } from './store.ts'
 import { STRIP_MALL } from './stripmall.ts'
-import { TOPIARIES } from './topiaries.ts'
-import { buildTopiary } from './topiarymodel.ts'
+import { deathPose, TOPIARIES } from './topiaries.ts'
+import { buildTopiary, buildTopiaryParts, poseDeath } from './topiarymodel.ts'
 import { buildToolbox } from './torchmodel.ts'
 import { buildTunnelShade } from './tunnelshademodel.ts'
 import { buildTrapdoor, buildUndercroft } from './undercroftmodel.ts'
@@ -578,6 +578,21 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: `Topiary ${kind}`,
     build: () => buildTopiary(kind, CONFIG.topiaries.length),
   })),
+  // A lion burned away, over and over: ablaze, over on its back, kicking,
+  // and down into ash, a beat of standing between.
+  {
+    id: 'topiary-dying',
+    label: 'Topiary lion: burned away',
+    build: () => {
+      const parts = buildTopiaryParts('lion', CONFIG.topiaries.length)
+      const loop = CONFIG.topiaries.deathSeconds + 1
+      setMotion(parts.group, (t) => {
+        const into = t % loop
+        poseDeath(parts, into < 1 ? null : deathPose(into - 1), t)
+      })
+      return parts.group
+    },
+  },
   {
     id: 'cabbage-stand',
     label: 'Bull Valley Cabbage Stand',

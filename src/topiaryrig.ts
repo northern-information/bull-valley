@@ -11,17 +11,19 @@
 // The valley keeps each one's health (sharedworld.ts rule 39): hurt by a
 // torch, it shows the Elden Ring bar over its back (healthbar.ts) to a
 // raider near enough, and shudders at every blow (`struck`). Burned away,
-// it goes up in flames, blackens and sinks, and its corridor opens; grown
+// it bursts into flame, falls onto its back and kicks while it blackens,
+// burns down into the ground (topiaries.ts deathPose), and its corridor
+// opens; grown
 // back, it shows itself again where the clock has it, the moment nobody
 // here is looking (topiaries.ts mayAppear).
 
 import * as THREE from 'three'
-import { castShadows, isMesh } from './assetkit.ts'
+import { castShadows } from './assetkit.ts'
 import { CONFIG } from './config.ts'
-import { buildFlames } from './fire.ts'
 import { buildHealthBar, setHealthBar, stepHealthBar } from './healthbar.ts'
 import {
   burnedAway,
+  deathPose,
   mayAppear,
   mayMove,
   spotOfGate,
@@ -31,13 +33,14 @@ import {
   topiariesAt,
   topiaryGate,
 } from './topiaries.ts'
-import { buildTopiary } from './topiarymodel.ts'
+import { buildTopiaryParts, poseDeath } from './topiarymodel.ts'
 import type { MazeFrame } from './cornmaze.ts'
 import type { Ground } from './ground.ts'
 import type { HealthBar } from './healthbar.ts'
 import type { XZ } from './interfaces.ts'
 import type { Cue } from './sfx.ts'
 import type { TopiaryHealth, TopiarySpot, TopiaryStand } from './topiaries.ts'
+import type { TopiaryParts } from './topiarymodel.ts'
 import type { Walls } from './walls.ts'
 
 // What the raider sees with this frame.
@@ -83,27 +86,19 @@ const BAR_WIDTH = 1.8
 // A blow shudders it this long, this far round, radians.
 const SHUDDER_SECONDS = 0.35
 const SHUDDER = 0.06
-// What is left of it once burned: this tall, this dark.
-const BURNT_HEIGHT = 0.15
-const BURNT_COLOR = new THREE.Color('#0d0b08')
 
 // One animal as drawn.
 interface Body {
   group: THREE.Group
   bar: HealthBar
-  // Its materials and the green each was made in.
-  greens: { material: THREE.MeshLambertMaterial; color: THREE.Color }[]
-  // The fire on it while it burns, built the first time it does.
-  flames: ReturnType<typeof buildFlames> | null
   // When (running time) its last blow landed, and when it caught fire;
   // null with none.
   struckAt: number | null
   burningAt: number | null
   // Whether it has ever been placed, since this raider came.
   placed: boolean
-  // The clipped hedge itself (topiarymodel.ts), and its height as built.
-  hedge: THREE.Object3D
-  tall: number
+  // The rig it is drawn as (topiarymodel.ts).
+  parts: TopiaryParts
 }
 
 export function placeTopiaries(
@@ -126,7 +121,8 @@ export function placeTopiaries(
   const group = new THREE.Group()
   group.name = 'topiaries'
   const bodies: Body[] = TOPIARIES.map((kind, i) => {
-    const body = buildTopiary(kind, cfg.length, 0x70b + i)
+    const parts = buildTopiaryParts(kind, cfg.length, 0x70b + i)
+    const body = parts.group
     castShadows(body)
     body.visible = false
     group.add(body)
@@ -134,21 +130,10 @@ export function placeTopiaries(
     bar.sprite.visible = false
     bar.sprite.position.y = BAR_HEIGHT
     body.add(bar.sprite)
-    const greens: Body['greens'] = []
-    body.traverse((o) => {
-      if (!isMesh(o) || Array.isArray(o.material)) return
-      const material = o.material as THREE.MeshLambertMaterial
-      if (greens.some((g) => g.material === material)) return
-      greens.push({ material, color: material.color.clone() })
-    })
-    const hedge = body.children[0]
     return {
       group: body,
-      hedge,
-      tall: hedge.scale.y,
+      parts,
       bar,
-      greens,
-      flames: null,
       struckAt: null,
       burningAt: null,
       placed: false,
@@ -176,37 +161,18 @@ export function placeTopiaries(
     body.placed = true
   }
 
-  // Animal `i` gone up in flames: it blackens and sinks while it burns,
-  // and its corridor opens once it is ash.
-  const burn = (i: number, k: number) => {
-    const body = bodies[i]
-    if (!body.flames) {
-      const half = cfg.length / 2
-      body.flames = buildFlames(
-        [-0.8, -0.4, 0, 0.4, 0.8].map((x, n) => ({
-          at: [x * half, 1.2 + (n % 2) * 0.5, (n % 3) * 0.2 - 0.2],
-          size: 1.1 + (n % 2) * 0.4,
-        })),
-        0xb0a + i
-      )
-      body.group.add(body.flames.group)
-    }
-    body.flames.group.visible = k < 1
-    body.flames.update(now)
-    const char = Math.min(1, k * 1.6)
-    for (const g of body.greens) {
-      g.material.color.copy(g.color).lerp(BURNT_COLOR, char)
-    }
-    body.hedge.scale.y = body.tall * (1 - (1 - BURNT_HEIGHT) * Math.min(1, k))
+  // Animal `i` dying, `seconds` in (topiaries.ts deathPose); whether it
+  // is over.
+  const burn = (i: number, seconds: number, time: number) => {
+    const pose = deathPose(seconds)
+    poseDeath(bodies[i].parts, pose, time)
+    return pose.over
   }
 
-  // Animal `i` whole again: green, upright and unlit.
+  // Animal `i` whole again: green, on its feet and unlit.
   const heal = (i: number) => {
-    const body = bodies[i]
-    for (const g of body.greens) g.material.color.copy(g.color)
-    body.hedge.scale.y = body.tall
-    if (body.flames) body.flames.group.visible = false
-    body.burningAt = null
+    poseDeath(bodies[i].parts, null, 0)
+    bodies[i].burningAt = null
   }
 
   // Animal `i` out of the valley: unseen, and its corridor open.
@@ -276,10 +242,9 @@ export function placeTopiaries(
             const at = world(shown[i].spot)
             cues.push({ id: 'topiary-burn', x: at.x, z: at.z, rate: 1 })
           }
-          const k = (time - body.burningAt) / cfg.burnSeconds
-          burn(i, k)
+          const over = burn(i, time - body.burningAt, time)
           body.bar.sprite.visible = false
-          if (k >= 1.4) {
+          if (over) {
             hide(i)
             heal(i)
           }
@@ -315,7 +280,7 @@ export function placeTopiaries(
           since < SHUDDER_SECONDS
             ? Math.sin(since * 60) * SHUDDER * (1 - since / SHUDDER_SECONDS)
             : 0
-        body.hedge.rotation.z = shudder
+        body.parts.roll.rotation.z = shudder
       })
       return cues
     },

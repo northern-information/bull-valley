@@ -56,13 +56,7 @@ export function buildHeldRod(kind: string, up: 1 | -1, scale = 1): THREE.Group {
 const TORCH_GRIP = TORCH.length * 0.3
 const TORCH_TIP_UP = 1.05
 
-// `tip` says how far up it is tipped: a figure holds it well up, and in
-// first person it leans out ahead so it never stands up through the view.
-export function buildHeldTorch(
-  up: 1 | -1,
-  scale = 1,
-  tip = TORCH_TIP_UP
-): THREE.Group {
+export function buildHeldTorch(up: 1 | -1, scale = 1): THREE.Group {
   const torch = buildTorch({ glow: false })
   torch.position.y = -TORCH_GRIP
   // Its +Y, butt to flame, down the forearm's -Y.
@@ -71,7 +65,7 @@ export function buildHeldTorch(
   along.add(torch)
   const group = new THREE.Group()
   group.name = 'held-torch'
-  group.rotation.x = -up * tip
+  group.rotation.x = -up * TORCH_TIP_UP
   group.add(along)
   group.scale.setScalar(scale)
   // Its fire burns on in the fist: whoever holds it plays it.

@@ -1536,12 +1536,13 @@ export const CONFIG = {
     gateHalf: 0.7,
     // Each stands `hp` whole, the valley's to keep (sharedworld.ts rule
     // 39); burned to nothing, it grows back `regrowSeconds` later, where
-    // the clock has it then, while nobody looks. The fire on it as it goes
-    // burns `burnSeconds`. Its bar shows over it within `barRange` once it
-    // is hurt.
+    // the clock has it then, while nobody looks. Burned to nothing it dies
+    // over `deathSeconds` (topiaries.ts deathPose): it bursts into flame,
+    // falls onto its back, kicks, and burns down to ash. Its bar shows
+    // over it within `barRange` once it is hurt.
     hp: 100,
     regrowSeconds: 180,
-    burnSeconds: 2.5,
+    deathSeconds: 4.5,
     barRange: 30,
   },
   // The torch (held.ts, sharedworld.ts rule 39): out of the toolbox at the

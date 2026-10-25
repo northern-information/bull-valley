@@ -164,6 +164,7 @@ const THREE_AND_DOM = [
   'titles',
   'topiarymodel',
   'topiaryrig',
+  'torchhand',
   'torchmodel',
   'trails',
   'tripsolidsrig',
