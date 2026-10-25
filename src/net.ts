@@ -68,6 +68,8 @@ interface NetIdentity {
   metres: Metres
   // The spiders' lairs; see HelloMessage.
   lairs: Lair[]
+  // Where the lurkers keep; see HelloMessage.
+  lurks: XZ[]
   // Where the corn maze lies (the Caretaker's, rule 13), or null.
   maze: MazePlace | null
   // Where each berry bush stands; see HelloMessage.
@@ -287,6 +289,7 @@ export class NetClient {
           havens: identity.havens,
           metres: identity.metres,
           lairs: identity.lairs,
+          lurks: identity.lurks,
           maze: identity.maze,
           truck: identity.truck,
           stand: identity.stand,

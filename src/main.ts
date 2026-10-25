@@ -412,6 +412,8 @@ async function boot() {
     metres: geo.metres,
     // The spiders' lairs round the spawn Citgo, none without one.
     lairs: world.spawnStation ? lairsOf(world.spawnStation) : [],
+    // The lurks in the industrial park's buildings, none without it.
+    lurks: world.industrial ? world.industrial.lurks : [],
     maze: world.mazePlace,
     truck: truckRoutes,
     bushes: world.bushes.map(({ x, z }) => ({ x, z })),

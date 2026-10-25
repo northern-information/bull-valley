@@ -27,6 +27,7 @@ describe('bookSights', () => {
       dishes: [],
       plaza: null,
       undercroft: null,
+      industrial: [],
       landmarks: [],
       castle: null,
     })
@@ -51,6 +52,10 @@ describe('bookSights', () => {
       ],
       plaza: { x: 50, z: 60 },
       undercroft: { x: -7000, z: -7000, yaw: 0 },
+      industrial: [
+        { x: 500, z: 500, radius: 95 },
+        { x: 500, z: 600, radius: 95 },
+      ],
       landmarks: [
         { n: KEEP, x: 7, z: 8 },
         { n: 'elsewhere', x: 9, z: 9 },
@@ -65,6 +70,8 @@ describe('bookSights', () => {
       'dishes',
       'strip-mall',
       'undercroft',
+      'industrial',
+      'industrial',
       'donut-field',
       'corn-maze',
       'corn-maze',

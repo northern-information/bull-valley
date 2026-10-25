@@ -46,7 +46,7 @@ import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 56
+export const PROTOCOL_VERSION = 57
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -275,6 +275,10 @@ export interface HelloMessage {
   // Bull Valley Plaza, or none; the shadow spiders come far more often
   // near them (rule 11).
   lairs: Lair[]
+  // Where the shadowmen that keep to one place lurk (industrial.ts: the
+  // industrial park's buildings), none or more: the valley forms one at
+  // each as a raider nears it (rule 11).
+  lurks: XZ[]
   // Where the corn maze lies, or null: the valley steps the Caretaker in
   // it (rule 13).
   maze: MazePlace | null
@@ -1591,6 +1595,9 @@ function parseHavens(value: unknown, stations: number): XZ[] | null {
   return parseSpots(value, stations)
 }
 
+// The lurks a hello may place.
+const LURKS_MAX = 64
+
 // The spiders' lairs: at most LAIRS_MAX, each a place inside the survey
 // and a reach no wider than it.
 const LAIRS_MAX = 8
@@ -1711,6 +1718,7 @@ type HelloPlaces = Pick<
   | 'havens'
   | 'metres'
   | 'lairs'
+  | 'lurks'
   | 'maze'
   | 'truck'
   | 'stand'
@@ -1731,6 +1739,7 @@ const NO_PLACES: HelloPlaces = {
   havens: [],
   metres: { width: 0, height: 0 },
   lairs: [],
+  lurks: [],
   maze: null,
   truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
   stand: null,
@@ -1759,12 +1768,13 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const havens = parseHavens(value.havens, stations)
   const metres = parseMetres(value.metres)
   const lairs = parseLairs(value.lairs)
+  const lurks = parseSpots(value.lurks, LURKS_MAX)
   const truck = parseRoutes(value.truck)
   const bushes = parseSpots(value.bushes, BUSHES_MAX)
   const rings = parseHavens(value.rings, stations)
   const recyclers = parseHavens(value.recyclers, stations)
   if (!havens || !metres || !lairs || !truck || !bushes || !rings) return null
-  if (!recyclers) return null
+  if (!recyclers || !lurks) return null
   const maze = nullable(value.maze, parseMazePlace)
   const stand = nullable(value.stand, parseXZ)
   const dealer = nullable(value.dealer, parseXZ)
@@ -1779,7 +1789,17 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   if (dealer === undefined || undercroft === undefined) return null
   if (gron === undefined) return null
   if (moat === undefined) return null
-  const places = { havens, metres, lairs, maze, truck, stand, bushes, dealer }
+  const places = {
+    havens,
+    metres,
+    lairs,
+    lurks,
+    maze,
+    truck,
+    stand,
+    bushes,
+    dealer,
+  }
   return {
     ...places,
     gron,

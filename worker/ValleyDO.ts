@@ -1600,6 +1600,7 @@ export class ValleyDO extends DurableObject<Env> {
               havens: hello.havens,
               metres: hello.metres,
               lairs: hello.lairs,
+              lurks: hello.lurks,
               maze: hello.maze,
               routes: hello.truck,
               stand: hello.stand,

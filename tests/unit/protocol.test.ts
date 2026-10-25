@@ -44,6 +44,7 @@ const hello = {
   havens: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100, z: i })),
   metres: { width: 15059, height: 15038 },
   lairs: [],
+  lurks: [{ x: -30, z: -60 }],
   maze: { x: 120, z: -40, yaw: 0.5 },
   truck: { home: { x: 10, z: -20 }, joyrideMs: 600_000 },
   stand: { x: 6, z: -24 },
@@ -283,6 +284,7 @@ describe('parseClientMessage', () => {
       havens: _havens,
       metres: _metres,
       lairs: _lairs,
+      lurks: _lurks,
       maze: _maze,
       truck: _truck,
       stand: _stand,
@@ -303,6 +305,7 @@ describe('parseClientMessage', () => {
       havens: [],
       metres: { width: 0, height: 0 },
       lairs: [],
+      lurks: [],
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
@@ -339,6 +342,7 @@ describe('parseClientMessage', () => {
       havens: [],
       metres: { width: 0, height: 0 },
       lairs: [],
+      lurks: [],
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
@@ -569,6 +573,13 @@ describe('parseClientMessage', () => {
     expect(parse({ ...hello, lairs: [{ ...lair, radius: 0 }] })).toBeNull()
     expect(parse({ ...hello, lairs: [{ ...lair, x: NaN }] })).toBeNull()
     expect(parse({ ...hello, lairs: Array(9).fill(lair) })).toBeNull()
+    // And the lurks, none or more, each a place (rule 11).
+    expect(parse({ ...hello, lurks: [] })).toEqual({ ...hello, lurks: [] })
+    expect(parse({ ...hello, lurks: null })).toBeNull()
+    expect(parse({ ...hello, lurks: [{ x: 1 }] })).toBeNull()
+    expect(
+      parse({ ...hello, lurks: Array(65).fill({ x: 1, z: 2 }) })
+    ).toBeNull()
     // A ring on every lot (rule 28), no fewer.
     expect(parse({ ...hello, rings: hello.rings.slice(1) })).toBeNull()
     // And where the squatter deals, or that there is none (rule 25).

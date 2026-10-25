@@ -52,6 +52,11 @@ import {
   buildStringer,
   buildTackleBox,
 } from './fishmodels.ts'
+import {
+  buildForklift,
+  buildWarehouse,
+  buildWorksProp,
+} from './industrialmodel.ts'
 import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
 import { buildJeep, buildRadarDish } from './jeep.ts'
@@ -747,6 +752,36 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildUndercroft().group,
   },
   { id: 'trapdoor', label: 'The trapdoor in the office', build: buildTrapdoor },
+  {
+    id: 'warehouse',
+    label: 'Bull Valley Box & Carton, in the industrial park',
+    build: () => {
+      const rig = buildWarehouse(4)
+      setMotion(rig.group, (t) => rig.update(t))
+      return rig.group
+    },
+  },
+  {
+    id: 'park-sign',
+    label: 'The sign out front of Bull Valley Industrial Park #4',
+    build: () => buildWorksProp({ kind: 'sign', x: 0, z: 0, yaw: 0 }),
+  },
+  {
+    id: 'forklift',
+    label: 'A dead forklift in an industrial park warehouse',
+    build: buildForklift,
+  },
+  {
+    id: 'pallet-load',
+    label: 'A pallet of boxes left in an industrial park truck court',
+    build: () =>
+      buildWorksProp({ kind: 'load', x: 0, z: 0, yaw: 0, layers: 3 }),
+  },
+  {
+    id: 'semi-trailer',
+    label: 'A semi trailer left at a bay in the industrial park',
+    build: () => buildWorksProp({ kind: 'trailer', x: 0, z: 0, yaw: 0 }),
+  },
   {
     id: 'tunnel-shade',
     label: 'A tunnel shade',

@@ -64,8 +64,12 @@
 //    dimes taken up are cash, into the taker's wallet (Reduced.earn), never
 //    the pack. Among them come the shadow spiders, twice the height, far
 //    more often near the lairs the world was opened with (lairs.ts: the
-//    dish array, Castle Entropy, Bull Valley Plaza),
+//    dish array, Castle Entropy, Bull Valley Plaza, the industrial park),
 //    twice as long to burn, and each leaves a $20 bill, cash the same way.
+//    And at each lurk the world was opened with (industrial.ts: the
+//    industrial park's buildings) a lurker forms as a raider nears, drifts
+//    round it and rushes like any shadowman (shadowmen.ts), forming again
+//    a while after it bursts.
 //    Marx's headlights burn them too, crediting no one: the valley never
 //    knows the roads, so it aims them from where a raider near the truck
 //    last said it stood (seeHeadlights), and only while that is fresh.
@@ -629,6 +633,8 @@ interface SharedWorld {
   metres: Metres
   // The spiders' lairs (rule 11, lairs.ts).
   lairs: Lair[]
+  // Where the lurkers keep (rule 11, industrial.ts).
+  lurks: XZ[]
   maze: MazePlace | null
   routes: TruckRoutes
   // Where the Cabbage Stand stands, or null (rule 23).
@@ -764,6 +770,7 @@ export type ValleyAction =
       havens: XZ[]
       metres: Metres
       lairs: Lair[]
+      lurks: XZ[]
       maze: MazePlace | null
       routes: TruckRoutes
       stand: XZ | null
@@ -1809,6 +1816,7 @@ function onJoin(
         havens: action.havens,
         metres: action.metres,
         lairs: action.lairs,
+        lurks: action.lurks,
         maze: action.maze,
         routes: action.routes,
         stand: action.stand,
