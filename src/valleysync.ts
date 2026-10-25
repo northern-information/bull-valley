@@ -59,6 +59,7 @@ import { seasonOf } from './season.ts'
 import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
+import { TOPIARIES } from './topiaries.ts'
 import { toWaypoints } from './waypoints.ts'
 import { jarSlurm } from './world.ts'
 import {
@@ -68,6 +69,7 @@ import {
   reconcileBed,
   settledBy,
   toolsIn,
+  topiaryNews,
 } from './worldsync.ts'
 import type { Actions } from './actions.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -80,7 +82,21 @@ import type {
   WorldMessage,
   WorldWire,
 } from './protocol.ts'
+import type { TopiaryKind } from './topiaries.ts'
 
+// Each topiary's name, as a burning one's line says it (rule 39).
+function animalName(kind: TopiaryKind): string {
+  switch (kind) {
+    case 'lion':
+      return copy('topiaries.lion')
+    case 'dog':
+      return copy('topiaries.dog')
+    case 'rabbit':
+      return copy('topiaries.rabbit')
+    case 'buffalo':
+      return copy('topiaries.buffalo')
+  }
+}
 export function wireValley(game: Game, actions: Actions): void {
   const { state: s, hud, net, peers, world, player } = game
 
@@ -278,6 +294,7 @@ export function wireValley(game: Game, actions: Actions): void {
       | 'count'
       | 'corpse'
       | 'portal'
+      | 'damage'
     > = {}
   ) => {
     s.world = wire
@@ -403,6 +420,28 @@ export function wireValley(game: Game, actions: Actions): void {
     // His comings and goings, for everyone.
     if (reason === 'donuts') hud.tell(copy('log.marx_donuts'))
     if (reason === 'back') hud.tell(copy('log.marx_back'))
+
+    // Rule 39: a blow of a torch on a topiary shudders it where it stands
+    // here, and is heard; burned away, the one who did it is told, and so
+    // is anyone near enough to see the fire.
+    const blow = topiaryNews({ reason, ...detail }, me)
+    const at = blow ? (world.topiaries?.struck(blow.index) ?? null) : null
+    if (blow && at) {
+      game.sfx?.play('torch-hit', {
+        x: at.x,
+        y: world.ground.at(at.x, at.z) + 1.2,
+        z: at.z,
+      })
+      const near =
+        Math.hypot(at.x - player.pos.x, at.z - player.pos.z) <=
+        CONFIG.topiaries.barRange * 2
+      if (blow.burned && blow.mine) {
+        const animal = animalName(TOPIARIES[blow.index])
+        hud.tell(copy('log.topiary_burned', { animal }))
+      } else if (blow.burned && near) {
+        hud.tell(copy('log.topiary_burned_other'))
+      }
+    }
   }
 
   const applyNack = (msg: NackMessage) => {
@@ -522,6 +561,17 @@ export function wireValley(game: Game, actions: Actions): void {
       if (msg.re === 'reel') s.line = null
       s.fishSaid = fishRefusal(msg.reason)
       hud.tell(s.fishSaid)
+    } else if (msg.re === 'toolbox') {
+      // Rule 39: a torch already carried, or out of reach.
+      hud.tell(
+        copy(
+          msg.reason === 'has-torch'
+            ? 'log.torch_have'
+            : msg.reason === 'too-far' || msg.reason === 'aboard'
+              ? 'log.toolbox_far'
+              : 'log.torch_refused'
+        )
+      )
     } else if (msg.re.startsWith('laptop-')) {
       s.laptop?.refused(msg.reason)
     } else if (msg.re === 'portal') {
@@ -657,7 +707,7 @@ export function wireValley(game: Game, actions: Actions): void {
       // Rule 33: loose change, already in the wallet the pack frame says.
       hud.tell(foundLine(msg.dimes))
     } else if (msg.type === 'cooked') {
-      // Rule 39: fish cooked, to every socket on the account; the pack
+      // Rule 40: fish cooked, to every socket on the account; the pack
       // frame follows.
       s.pending.cook = false
       s.cookSaid = cookedLine(msg)

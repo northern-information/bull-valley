@@ -87,3 +87,12 @@ export function lookoutWalls(): { a: XZ; b: XZ; half: number }[] {
 // the -x face, the top just inside it.
 export const LADDER_FOOT: XZ = { x: -LOOKOUT.half - LOOKOUT.footOut, z: 0 }
 export const LADDER_TOP: XZ = { x: -LOOKOUT.half + LOOKOUT.topIn, z: 0 }
+
+// The toolbox the torches come out of (sharedworld.ts rule 39), on the
+// ground against the -x face beside the ladder's foot, lookout-local.
+export const TOOLBOX_AT: XZ = { x: -LOOKOUT.half - 0.55, z: 1.5 }
+
+// The toolbox in the world.
+export function toolboxOf(maze: MazePlace): XZ {
+  return lookoutToWorld(maze, TOOLBOX_AT)
+}

@@ -493,7 +493,7 @@ export function applyFrame(
     // Rule 33: loose change found in the 3D valley, for the log.
     case 'found':
       return told(s, foundLine(msg.dimes), wall)
-    // Rule 39: fish cooked, here or in the 3D valley; the pack frame
+    // Rule 40: fish cooked, here or in the 3D valley; the pack frame
     // follows.
     case 'cooked': {
       const done = { ...s, pending: { ...s.pending, cook: false } }

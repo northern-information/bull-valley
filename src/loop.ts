@@ -26,6 +26,7 @@ import {
   inHand,
   SCOOP,
   scoopPose,
+  swingPose,
   toolOf,
 } from './held.ts'
 import { cooldownOf, shownSlots } from './hotbar.ts'
@@ -44,6 +45,7 @@ import { poseOf, stateChanged } from './presence.ts'
 import { aimHeightOf, burstScaleOf, headlightsDue } from './shadowmen.ts'
 import { drawnAt } from './shadowsync.ts'
 import { formatCash } from './store.ts'
+import { isTopiaryGate } from './topiaries.ts'
 import { tripBlur } from './trip.ts'
 import { burstHeight, burstScale } from './tunnelrig.ts'
 import { levelsAt } from './wardlevels.ts'
@@ -122,14 +124,18 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   } = game
   // The back room's locked door lets this raider through while they carry
   // its key, or once they are behind it (keys.ts); everyone else's game
-  // decides for them.
+  // decides for them. A corridor of the corn maze lets anyone through
+  // unless a topiary stands in it as this raider sees it (topiaries.ts).
   const plaza = world.plaza
-  if (plaza) {
-    world.walls.setGates(
-      (gate, x, z) =>
-        isLock(gate) && passes(gate, s.inventory, plaza.inBackRoom(x, z))
+  const topiaries = world.topiaries
+  world.walls.setGates((gate, x, z) => {
+    if (isTopiaryGate(gate)) return !topiaries?.stands(gate)
+    return (
+      plaza !== null &&
+      isLock(gate) &&
+      passes(gate, s.inventory, plaza.inBackRoom(x, z))
     )
-  }
+  })
 
   // Marx's countdown, for whoever is in the bed or standing by it, and
   // only with someone else in the valley (with no one else, he leaves once
@@ -208,6 +214,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   // The slurms' sounds, heard with the shadows' on the next frame.
   let slurmCues: Cue[] = []
   let moatCues: Cue[] = []
+  let topiaryCues: Cue[] = []
   // A hard landing for the valley to hear, after where we came down.
   let landing: number | null = null
   let last = performance.now()
@@ -365,16 +372,43 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     ) {
       s.scoopAt = null
     }
+    // The torch's swing, its blow sent to the valley as it lands on the
+    // topiary it was aimed at (rule 39), and done with once the arm is
+    // back.
+    if (s.swingAt !== null) {
+      const into = time - s.swingAt
+      if (s.swingTarget !== null && into >= CONFIG.torch.hitAt) {
+        if (s.held === 'torch' && !s.aboard) {
+          net.send({ type: 'torch', index: s.swingTarget })
+        }
+        s.swingTarget = null
+      }
+      if (s.held !== 'torch' || into >= CONFIG.torch.swingSeconds) {
+        s.swingAt = null
+        s.swingTarget = null
+      }
+    }
     hands.update({
       left: ease(s.flashlight.lift),
       cast: s.castAt === null ? 0 : castPose(time - s.castAt).tilt,
       scoop: scoopPose(s.scoopAt === null ? -1 : time - s.scoopAt),
       held:
-        s.held === 'rod' ? (rodIn(s.inventory) ?? BOX_ROD) : (s.held ?? 'none'),
+        s.held === 'rod'
+          ? (rodIn(s.inventory) ?? BOX_ROD)
+          : s.held === 'torch'
+            ? 'none'
+            : (s.held ?? 'none'),
       right: ease(using),
       kind: s.using?.kind ?? null,
       on: lit,
     })
+    // The torch is held as the phone is, in its own drawn hand
+    // (torchhand.ts), swung by the click.
+    game.torchHand.update(
+      s.held === 'torch' && !s.aboard,
+      time,
+      swingPose(s.swingAt === null ? -1 : time - s.swingAt)
+    )
     // The line in the water, stepped on the clock its bite was set by.
     game.fishHud.update(s.line, performance.now())
     return lit
@@ -447,6 +481,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         ...tunnelCues,
         ...slurmCues,
         ...moatCues,
+        ...topiaryCues,
       ],
       [...swarm.heard.holds, ...keeper.heard.holds],
       (x, z) => world.ground.at(x, z)
@@ -468,7 +503,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   }
 
   // What stands in the valley and moves on its own clock.
-  const stepScenery = ({ now, time }: FrameClock, feetY: number) => {
+  const stepScenery = ({ now, time, dt }: FrameClock, feetY: number) => {
     // Gron's rain falls on its own clock, Moab's fire burns on it too, the
     // wreck smoulders and blinks on it, and the plaza's last tube flickers.
     if (world.gronRig && world.gron && live(world.gron)) {
@@ -500,6 +535,22 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       )
       // The building is long: its tube and candles flicker from a way off.
       if (live(plaza.doorAt, 60)) plaza.update(time)
+    }
+    // The topiaries move on the valley's clock, but only while this raider
+    // looks at neither where one stands nor where it is going.
+    if (topiaries) {
+      topiaryCues = topiaries.update(
+        net.clock.serverNow(now) / 1000,
+        {
+          camera,
+          eye: player.pos,
+          overCorn: world.lookout?.on(player.pos.x, player.pos.z) ?? false,
+          blocked: world.walls.between,
+        },
+        s.world?.topiaries ?? null,
+        time,
+        dt
+      )
     }
     if (world.wreck && live(world.wreck.group.position)) {
       world.wreck.update(time)
@@ -858,6 +909,11 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       trapdoor: world.undercroft?.hatch ?? null,
       ladder: world.undercroft?.foot ?? null,
       lookout: lookoutSpot(),
+      // Rule 39: the toolbox, while the pack holds no torch.
+      toolbox:
+        world.lookout && (s.inventory.torch ?? 0) < 1
+          ? world.lookout.toolbox
+          : null,
       heart: heartSpot(),
       locked: lockedDoor(),
       hallucinations: s.aboard ? [] : game.hallucinations.spots(),

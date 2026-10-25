@@ -958,7 +958,26 @@ canvas {
   bottom: calc(var(--bv-phone-w) * -0.3);
 }
 
-.bv-phone-screen {
+.bv-torch {
+  --bv-torch-w: 15rem;
+
+  position: absolute;
+  right: 12%;
+  bottom: calc(var(--bv-torch-w) * -2.2);
+  width: var(--bv-torch-w);
+  aspect-ratio: 200 / 400;
+  transform: rotate(-7deg);
+  transform-origin: 50% 100%;
+  transition: bottom 0.25s steps(6);
+  filter: drop-shadow(5px 5px 0 var(--fi-black-shadow));
+}
+
+.bv-torch--raised {
+  bottom: calc(var(--bv-torch-w) * -0.25);
+}
+
+.bv-phone-screen,
+.bv-torch-hand {
   display: block;
   width: 100%;
   height: 100%;
@@ -997,7 +1016,7 @@ canvas {
    the screen, over the valley, which keeps drawing. The pointer is free
    while it is open; the hovered cell lights Citgo red and its card shows
    beside it. The aiming HUD steps aside. */
-.bv-shell--inventory :is(.bv-phone, .bv-prompt, .bv-item-label) {
+.bv-shell--inventory :is(.bv-phone, .bv-torch, .bv-prompt, .bv-item-label) {
   visibility: hidden;
 }
 
@@ -2143,6 +2162,10 @@ canvas {
 @media (width <= 900px) {
   .bv-phone {
     --bv-phone-w: 12rem;
+  }
+
+  .bv-torch {
+    --bv-torch-w: 10rem;
   }
 
   .bv-vitals-tetra {

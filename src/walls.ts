@@ -6,8 +6,9 @@
 // (stripmall.ts), and the utility poles and streetlights (roadside.ts),
 // each a post (a capsule of zero length) unless noted; trees, the truck,
 // and everything else stay walk-through. A gate is a wall that stands for
-// some and not for others: a locked door (keys.ts), asked whether it is
-// open for the body at (x, z) every time it is met. A wall is a
+// some and not for others: a locked door (keys.ts), or a corridor of the
+// corn maze while a topiary stands across it (topiaries.ts), asked
+// whether it is open for the body at (x, z) every time it is met. A wall is a
 // capsule: a segment on the ground plane, `half` its thickness either side.
 // The player asks resolve() after every move and is pushed back out of any
 // wall it walked into. A wall with a band stands only for a body whose

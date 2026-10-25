@@ -14,7 +14,8 @@ import type { Page } from '@playwright/test'
 
 // The heart of the corn maze and the Caretaker, who keeps it. Its touch
 // is a strike; one beam does nothing to it, and two at once burn it. The
-// berry bushes round the portal are daily.spec.ts's.
+// topiaries stand in the way. The berry bushes round the portal are
+// daily.spec.ts's.
 
 // A spot at the heart, `along` metres down the court (the maze's own z,
 // the way its length runs) and `across` it, in the world.
@@ -61,6 +62,36 @@ const shown = (page: Page) =>
 
 test("the Caretaker's touch puts you back at the Citgo", async ({ page }) => {
   await beginRaid(page)
+  // Before it, the topiaries (topiaries.ts): each stands across a
+  // corridor, and the walls hold a body there and nowhere along from it.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.__bv?.world.topiaries?.shown().filter(Boolean).length
+      )
+    )
+    .toBeGreaterThan(0)
+  const pushed = await page.evaluate((reach) => {
+    const bv = window.__bv
+    const place = bv?.world.mazePlace
+    const stand = bv?.world.topiaries?.shown().find(Boolean)
+    if (!bv || !place || !stand) throw new Error('no topiary')
+    const cos = Math.cos(place.yaw)
+    const sin = Math.sin(place.yaw)
+    // How far the walls push a body off a maze-local point.
+    const push = (x: number, z: number) => {
+      const at = {
+        x: place.x + cos * x - sin * z,
+        z: place.z + sin * x + cos * z,
+      }
+      const out = bv.world.walls.resolve(at.x, at.z, 0.3)
+      return Math.hypot(out.x - at.x, out.z - at.z)
+    }
+    const { x, z } = stand.spot
+    return { on: push(x, z), along: push(x, z + reach) }
+  }, CONFIG.topiaries.gateHalf + 1)
+  expect(pushed.on).toBeGreaterThan(0.5)
+  expect(pushed.along).toBe(0)
   // In the court, and the Caretaker a few strides down it.
   const me = await court(page, 2)
   const there = await court(page, -3)

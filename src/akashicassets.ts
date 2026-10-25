@@ -123,6 +123,9 @@ import { buildSlurm } from './slurmmodel.ts'
 import { buildForm } from './spomenikmodel.ts'
 import { STORE_LAYOUT } from './store.ts'
 import { STRIP_MALL } from './stripmall.ts'
+import { deathPose, TOPIARIES } from './topiaries.ts'
+import { buildTopiary, buildTopiaryParts, poseDeath } from './topiarymodel.ts'
+import { buildToolbox } from './torchmodel.ts'
 import { buildTunnelShade } from './tunnelshademodel.ts'
 import { buildTrapdoor, buildUndercroft } from './undercroftmodel.ts'
 import { buildWreck } from './wreck.ts'
@@ -484,6 +487,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'Fishing rod',
     build: () => buildPickup('fishing-rod'),
   },
+  { id: 'torch', label: 'Torch', build: () => buildPickup('torch') },
   {
     id: 'slurm-jar',
     label: 'Slurm jar',
@@ -508,6 +512,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildPickup('nightcrawlers'),
   },
   { id: 'tackle-box', label: 'Tackle box', build: () => buildTackleBox() },
+  { id: 'toolbox', label: 'Toolbox of torches', build: () => buildToolbox() },
   {
     id: 'picnic-table',
     label: 'Picnic table',
@@ -588,6 +593,27 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'caretaker',
     label: 'The Caretaker',
     build: () => buildCaretaker().group,
+  },
+  // One of each hedge animal, as long as one stands across a corridor.
+  ...[...new Set(TOPIARIES)].map((kind) => ({
+    id: `topiary-${kind}`,
+    label: `Topiary ${kind}`,
+    build: () => buildTopiary(kind, CONFIG.topiaries.length),
+  })),
+  // A lion burned away, over and over: ablaze, over on its back, kicking,
+  // and down into ash, a beat of standing between.
+  {
+    id: 'topiary-dying',
+    label: 'Topiary lion: burned away',
+    build: () => {
+      const parts = buildTopiaryParts('lion', CONFIG.topiaries.length)
+      const loop = CONFIG.topiaries.deathSeconds + 1
+      setMotion(parts.group, (t) => {
+        const into = t % loop
+        poseDeath(parts, into < 1 ? null : deathPose(into - 1), t)
+      })
+      return parts.group
+    },
   },
   {
     id: 'cabbage-stand',

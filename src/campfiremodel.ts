@@ -11,7 +11,7 @@ import { buildFlames } from './fire.ts'
 import { mulberry32, range } from './rng.ts'
 
 // The campfire by a firefly pond's landing (cooking.ts places it,
-// sharedworld.ts rule 39): a ring of fieldstones round a bed of ash, split
+// sharedworld.ts rule 40): a ring of fieldstones round a bed of ash, split
 // logs leaned together in a teepee and burning, a blackened grate laid
 // across two of the stones to cook on, and the fire's glow on the ground
 // round it. Origin on the ground under its middle.

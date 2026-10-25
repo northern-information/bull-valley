@@ -62,6 +62,7 @@ import {
   showTitles,
   signOutAndReload,
 } from './titles.ts'
+import { TorchHand } from './torchhand.ts'
 import { createTrails } from './trails.ts'
 import { TripSolids } from './tripsolidsrig.ts'
 import { Truck } from './truck.ts'
@@ -340,6 +341,7 @@ async function boot() {
     fishHud,
     pick,
     phone: new Phone(hud.phoneCanvas, hud.phone),
+    torchHand: new TorchHand(hud.torchCanvas, hud.torch),
     shadowmen: new ShadowBodies({
       scene,
       groundAt: world.ground.at,

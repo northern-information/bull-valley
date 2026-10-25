@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CONFIG } from '../../src/config.ts'
 import {
   baitFor,
   CAST,
@@ -8,6 +9,8 @@ import {
   SCOOP,
   scoopPose,
   stepSlot,
+  SWING,
+  swingPose,
   toolOf,
   TOOLS,
   useOf,
@@ -20,14 +23,15 @@ const BAR = EMPTY_HOTBAR.map((_, i) =>
 )
 
 describe('what the hand holds', () => {
-  it('knows the three tools a hand shows', () => {
-    expect(TOOLS).toEqual(['flashlight', 'jar', 'rod'])
+  it('knows the four tools a hand shows', () => {
+    expect(TOOLS).toEqual(['flashlight', 'jar', 'rod', 'torch'])
     expect(isTool('rod')).toBe(true)
     expect(isTool('lantern')).toBe(false)
   })
 
-  it('shows the flashlight, the jar and any rod; the rest out of sight', () => {
+  it('shows the flashlight, the jar, any rod and the torch; the rest out of sight', () => {
     expect(toolOf('flashlight')).toBe('flashlight')
+    expect(toolOf('torch')).toBe('torch')
     expect(toolOf('slurm-jar')).toBe('jar')
     expect(toolOf('fishing-rod')).toBe('rod')
     expect(toolOf('g-loomis')).toBe('rod')
@@ -57,6 +61,7 @@ describe('what the hand holds', () => {
     expect(useOf('flashlight', false)).toBe('light')
     expect(useOf('slurm-jar', false)).toBe('catch')
     expect(useOf('zebco-33', false)).toBe('cast')
+    expect(useOf('torch', false)).toBe('swing')
     expect(useOf('citgo-phone', false)).toBe('dial')
     expect(useOf('marx-whistle', false)).toBe('whistle')
     expect(useOf('marlboro', true)).toBe('use')
@@ -72,6 +77,29 @@ describe('what the hand holds', () => {
     expect(baitFor('berries', pack)).toBe('nightcrawlers')
     expect(baitFor('slurm', { slurm: 0, berries: 3 })).toBe('berries')
     expect(baitFor(null, BARE)).toBeNull()
+  })
+})
+
+describe('a swing of the torch', () => {
+  it('rests before it and once the arm is back', () => {
+    expect(swingPose(-1)).toEqual({ tilt: 0, sweep: 0 })
+    expect(swingPose(SWING.settle)).toEqual({ tilt: 0, sweep: 0 })
+  })
+
+  it('draws back, then chops down and across past rest, then comes back', () => {
+    expect(swingPose(SWING.back).tilt).toBeCloseTo(SWING.up)
+    expect(swingPose(SWING.chop).tilt).toBeCloseTo(-SWING.down)
+    expect(swingPose(SWING.chop).sweep).toBeCloseTo(SWING.across)
+    const late = swingPose((SWING.chop + SWING.settle) / 2)
+    expect(late.tilt).toBeLessThan(0)
+    expect(late.tilt).toBeGreaterThan(-SWING.down)
+  })
+
+  it('lands its blow on the way down', () => {
+    const at = swingPose(CONFIG.torch.hitAt)
+    expect(CONFIG.torch.hitAt).toBeGreaterThan(SWING.back)
+    expect(CONFIG.torch.hitAt).toBeLessThan(SWING.chop)
+    expect(at.tilt).toBeLessThan(SWING.up)
   })
 })
 

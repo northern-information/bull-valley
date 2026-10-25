@@ -439,6 +439,19 @@ export class ValleyDO extends DurableObject<Env> {
       case 'jar-slurm':
         await this.withPack(ws, account, { ...msg, id, at })
         return
+      // Rule 39.
+      case 'toolbox':
+        await this.withPack(ws, account, { type: 'toolbox', id, at })
+        return
+      case 'torch':
+        await this.withPack(ws, account, {
+          type: 'torch',
+          id,
+          index: msg.index,
+          at,
+          roll: this.roll(),
+        })
+        return
       case 'cast':
         await this.withPack(ws, account, {
           type: 'cast',
@@ -482,7 +495,7 @@ export class ValleyDO extends DurableObject<Env> {
       case 'deal':
         await this.barter(ws, attachment, { ...msg, id, at })
         return
-      // Rule 39: written as a barter is.
+      // Rule 40: written as a barter is.
       case 'cook':
         await this.barter(ws, attachment, { ...msg, id, at })
         return
@@ -2155,14 +2168,24 @@ export class ValleyDO extends DurableObject<Env> {
 
   // Rule 36: a rod out of the tackle box or a cast, with the pack read
   // first, so the valley knows the rod and the bait are in it; rule 38: a
-  // whistle or a portal, the whistle or the phone. A pack that cannot be
+  // whistle or a portal, the whistle or the phone; rule 39: a torch out of
+  // the toolbox, or a swing of one. A pack that cannot be
   // read is refused.
   private withPack(
     ws: WebSocket,
     account: string | null,
     action: Extract<
       ValleyAction,
-      { type: 'tackle' | 'cast' | 'jar-slurm' | 'call' | 'open-portal' }
+      {
+        type:
+          | 'tackle'
+          | 'cast'
+          | 'jar-slurm'
+          | 'call'
+          | 'open-portal'
+          | 'toolbox'
+          | 'torch'
+      }
     >
   ): Promise<boolean> {
     return this.locked(async () => {
@@ -2487,7 +2510,7 @@ export class ValleyDO extends DurableObject<Env> {
   }
 
   // A barter with Erwin von Dutch, alone (rule 25), or fish cooked over
-  // the campfire (rule 39), written the same way: no other frame runs
+  // the campfire (rule 40), written the same way: no other frame runs
   // between reading the pack, judging the change against it, and writing
   // both sides of it. On success everyone sees his stock go down, the
   // account's sockets hear what cooked, and they get the pack.
@@ -3383,6 +3406,7 @@ function unwrittenNack(action: ValleyAction): NackMessage | null {
     case 'cast':
     case 'reel':
     case 'jar-slurm':
+    case 'toolbox':
       return { type: 'nack', re: action.type, reason }
     default:
       return null

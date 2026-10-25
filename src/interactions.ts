@@ -96,7 +96,7 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // Recycling Center (rule 33).
   | { kind: 'recycle'; station: number }
   // The campfire by firefly pond `pond`: E opens it to cook the catch
-  // (rule 39).
+  // (rule 40).
   | { kind: 'cook'; pond: number }
   // The tackle box on the firefly pond's landing: E opens it to fish
   // (rule 36).
@@ -123,6 +123,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // foot climbs up onto the deck; at its top, E climbs back down.
   | { kind: 'climbTower' }
   | { kind: 'leaveTower' }
+  // The toolbox at the lookout's foot, the pack holding no torch: E takes
+  // one out (sharedworld.ts rule 39).
+  | { kind: 'toolbox' }
   // Another raider in reach and in front (buffs.ts passTarget): E opens
   // their card (inspect.ts).
   | { kind: 'inspect'; name: string }
@@ -184,6 +187,8 @@ export const SIGHTS = {
   ladderTop: { low: -1.5, high: 1.2, r: 0.6 },
   door: { low: 0, high: 2.2, r: 0.6 },
   portal: { low: 0, high: 2.6, r: 1.2 },
+  // The toolbox, the torches standing up out of it.
+  toolbox: { low: 0, high: 0.7, r: 0.45 },
 } as const satisfies Record<string, Sight>
 
 // How far off the look `sight` at (x, z), its column standing on `base`,
@@ -300,6 +305,9 @@ export interface InteractionInput<P extends PickupSpot> {
   // The lookout tower's ladder, its foot and its top, and whether this
   // raider is up on the deck; or null.
   lookout?: { foot: XZ; top: XZ; on: boolean } | null
+  // The toolbox at the lookout's foot, while the pack holds no torch; or
+  // null.
+  toolbox?: XZ | null
   // What a trip shows this raider that is not there, each answering E
   // from as far as the real one would (CONFIG.hallucinations.reach).
   hallucinations?: readonly HallucinationSpot[]
@@ -475,6 +483,18 @@ export function resolveInteraction<P extends PickupSpot>(
     sees(spot, sight)
   if (reach(input.ladder, SIGHTS.ladder)) return { kind: 'ascend' }
   if (reach(input.trapdoor, SIGHTS.hatch)) return { kind: 'descend' }
+
+  // The toolbox beside the ladder's foot, looked at: the ladder takes E
+  // only when the look is on it.
+  const toolbox = input.toolbox
+  if (
+    toolbox &&
+    Math.hypot(toolbox.x - player.x, toolbox.z - player.z) <
+      CONFIG.torch.toolboxReach &&
+    sees(toolbox, SIGHTS.toolbox)
+  ) {
+    return { kind: 'toolbox' }
+  }
 
   // Up on the deck only the way down is offered, and below only the way
   // up, so the two never meet.
@@ -755,6 +775,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.climb_tower')
     case 'leaveTower':
       return copy('prompts.leave_tower')
+    case 'toolbox':
+      return copy('prompts.toolbox')
     case 'inspect':
       return copy('prompts.inspect', { name: interaction.name })
   }

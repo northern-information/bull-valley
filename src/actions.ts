@@ -733,7 +733,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
   }
 
-  // E at the campfire by the firefly pond: cook the catch (rule 39), the
+  // E at the campfire by the firefly pond: cook the catch (rule 40), the
   // pointer free for it as at the Recycling Center. The cooked and pack
   // frames that answer show in it as they land.
   const cook = () => {
@@ -836,6 +836,27 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     net.send({ type: 'jar-slurm', station, slot, index })
   }
 
+  // Rule 39: E at the toolbox by the lookout's foot: a torch out of it. The
+  // pack frame after puts it in the hand's bar; a refusal says why.
+  const takeTorch = () => {
+    net.send({ type: 'toolbox' })
+    hud.tell(copy('log.torch_taken'))
+  }
+
+  // Rule 39: the click with the torch in hand: a swing, at the topiary in
+  // front within reach, if any. The blow is sent as it lands (loop.ts).
+  const swingTorch = () => {
+    if (s.swingAt !== null && s.time - s.swingAt < CONFIG.torch.swingSeconds) {
+      return
+    }
+    s.swingAt = s.time
+    // The camera looks along (-sin yaw, -cos yaw).
+    const dir = { x: -Math.sin(player.yaw), z: -Math.cos(player.yaw) }
+    s.swingTarget =
+      world.topiaries?.target(player.pos, dir, CONFIG.torch.reach) ?? null
+    game.sfx?.play('torch-swing')
+  }
+
   // What the hand holds: the selected slot's kind, while the pack does.
   const heldKind = () => inHand(s.hotbar, s.selected, s.inventory)
 
@@ -857,6 +878,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'cast':
         if (!s.aboard) castOrReel()
+        return
+      case 'swing':
+        if (!s.aboard) swingTorch()
         return
       case 'dial':
         dialPortal()
@@ -1473,6 +1497,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         hud.tell(copy(up ? 'log.climb_tower' : 'log.leave_tower'))
         return
       }
+      case 'toolbox':
+        takeTorch()
+        return
       case 'locked':
         hud.tell(copy('log.locked'))
         return

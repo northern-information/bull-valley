@@ -131,7 +131,7 @@ interface BvHook {
   readonly angler: AnglerWire | null
   readonly line: LineOut | null
   readonly ponds: PondPlace[]
-  // Rule 39: each pond's campfire, in pond order.
+  // Rule 40: each pond's campfire, in pond order.
   readonly campfires: XZ[]
   // The slurms crawling on the parked Citgo's lot, in the world (what a
   // jar can catch).

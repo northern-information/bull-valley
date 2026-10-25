@@ -3,7 +3,7 @@
 // whose haven no shadow comes inside, the old tackle box on a picnic
 // table on the landing nearest the Citgo, a lit oil lantern beside it to
 // find it by from across the field, two rods leaning on its end, a
-// campfire back from it to cook the catch on (rule 39), and the
+// campfire back from it to cook the catch on (rule 40), and the
 // bobber that floats out from the landing while the raider has a line in
 // the water. Three glue: the pond's place and
 // every rule are fishing.ts's.
@@ -135,7 +135,7 @@ export function placePond(pond: Pond, ground: Ground, walls: Walls): PondRig {
   }
 
   // The campfire, back from the landing and off to its side, to cook the
-  // catch on (cooking.ts, sharedworld.ts rule 39).
+  // catch on (cooking.ts, sharedworld.ts rule 40).
   const fireAt = campfireOf(pond)
   const campfire = buildCampfire()
   campfire.group.position.set(fireAt.x, ground.at(fireAt.x, fireAt.z), fireAt.z)

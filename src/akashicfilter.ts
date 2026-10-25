@@ -74,6 +74,7 @@ const ITEMS = new Set([
   'g-loomis',
   'slurm-jar',
   'slurm-caught',
+  'torch',
   'nightcrawlers',
   'gold-bullion',
   'empty-can',

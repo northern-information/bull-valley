@@ -40,6 +40,7 @@ import type { QuestId, QuestStage, QuestStep } from './quests.ts'
 import type { Research, ResearchLine } from './recycling.ts'
 import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
+import type { TopiaryHealth } from './topiaries.ts'
 import type { TunnelKind } from './tunnelshades.ts'
 import type { Waypoints } from './waypoints.ts'
 
@@ -118,7 +119,7 @@ export interface PeerStateWire {
 
 // 'none': the hand holds something out of sight (the phone, the whistle,
 // a pack of cigarettes), or nothing (held.ts toolOf).
-export type HeldWire = 'jar' | 'rod' | 'none'
+export type HeldWire = 'jar' | 'rod' | 'torch' | 'none'
 
 // A player as the server knows them. `at` is null until their first state
 // frame; a figure is only drawn once it is placed. cosmetics: what they
@@ -198,6 +199,9 @@ export interface WorldWire {
   // the bed (marx.ts). Every client drives the same leg (truckplan.ts).
   truck: TruckState
   members: MemberWire[]
+  // Each topiary's health, and while it is burned away when it grows back
+  // (sharedworld.ts rule 39), in topiaries.ts TOPIARIES order.
+  topiaries: TopiaryHealth[]
 }
 
 // Where an account last stood on foot, to come back to.
@@ -245,6 +249,9 @@ export type WorldReason =
   | 'dealt'
   | 'hurry'
   | 'reset'
+  | 'topiary-hit'
+  | 'topiary-burned'
+  | 'topiary-back'
 
 // --- Client → server -------------------------------------------------------
 
@@ -436,7 +443,7 @@ type StandTendMessage =
 type RecycleTendMessage =
   { type: 'research' } | { type: 'recycle'; line: ResearchLine }
 
-// The campfire by the firefly pond (sharedworld.ts rule 39): `count` of
+// The campfire by the firefly pond (sharedworld.ts rule 40): `count` of
 // the raw fish `kind` cooked. The valley checks the raider's last state
 // frame put them beside a campfire (dialed in, anywhere), takes the fish
 // out of the pack and puts what they cook into in, and answers with a
@@ -462,6 +469,14 @@ type FishMessage =
   | { type: 'reel'; landed: boolean }
   // A Citgo's slurm, or the moat's by MOAT_STATION (moatslurms.ts).
   | { type: 'jar-slurm'; station: number; slot: number; index: number }
+
+// The topiaries (sharedworld.ts rule 39): a torch out of the toolbox at
+// the foot of the corn maze's lookout, or a swing of it that landed on
+// topiary `index` (topiaries.ts TOPIARIES). The valley checks the raider's
+// last state frame put them by the toolbox, or in reach of that topiary,
+// and the pack, and answers with a PackMessage, or a world frame
+// ('topiary-hit' or 'topiary-burned') for everyone, or a nack.
+type TopiaryTendMessage = { type: 'toolbox' } | { type: 'torch'; index: number }
 
 // An expedition (sharedworld.ts rule 30): a run of `kind` sent out, or the
 // run home claimed. Dial-Up only; the valley answers with an
@@ -735,6 +750,7 @@ export type ClientMessage =
   | RecycleTendMessage
   | CookMessage
   | FishMessage
+  | TopiaryTendMessage
   | ExpeditionTendMessage
   | TradeMessage
   | DealMessage
@@ -895,7 +911,7 @@ export interface FoundMessage {
   dimes: number
 }
 
-// Fish cooked over the campfire (rule 39): `count` of `kind` gone into as
+// Fish cooked over the campfire (rule 40): `count` of `kind` gone into as
 // many of `into`, to every socket signed in to the account, a pack frame
 // following.
 export interface CookedMessage {
@@ -1033,8 +1049,10 @@ export interface WorldMessage {
   // 'charted', 'ferry', 'taken', 'bought', 'dealt', 'dropped', 'drop-taken', 'fell',
   // 'looted', 'portal-opened'.
   by?: string
-  // For 'taken'.
+  // For 'taken', and for 'topiary-hit' and 'topiary-burned' the topiary.
   index?: number
+  // For 'topiary-hit' and 'topiary-burned': what the swing took off.
+  damage?: number
   // For 'bought'.
   station?: number
   // For 'bought', 'dealt', 'dropped' and 'drop-taken': the kind.
@@ -1664,7 +1682,9 @@ export function parsePeerState(value: unknown): PeerStateWire | null {
   if (typeof riding !== 'boolean') return null
   if (typeof light !== 'boolean') return null
   if (held === undefined) return { x, y, z, yaw, pitch, pose, riding, light }
-  if (held !== 'jar' && held !== 'rod' && held !== 'none') return null
+  if (held !== 'jar' && held !== 'rod' && held !== 'torch' && held !== 'none') {
+    return null
+  }
   return { x, y, z, yaw, pitch, pose, riding, light, held }
 }
 
@@ -1872,6 +1892,9 @@ const CLIENT_PARSERS: ClientParsers = {
   research: bare('research'),
   angler: bare('angler'),
   tackle: bare('tackle'),
+  toolbox: bare('toolbox'),
+  // Which topiaries there are is the valley's to check.
+  torch: ({ index }) => (isCount(index) ? { type: 'torch', index } : null),
   dig: bare('dig'),
   cast: ({ bait }) => (isBait(bait) ? { type: 'cast', bait } : null),
   reel: ({ landed }) =>

@@ -1,4 +1,4 @@
-// The campfire by the firefly pond (sharedworld.ts rule 39): a dialog over
+// The campfire by the firefly pond (sharedworld.ts rule 40): a dialog over
 // the valley, opened with E beside the fire (and from Dial-Up's lobby), in
 // the frame the Recycling Center's and the stand's share (npcdialog.ts).
 // It shows each raw fish in the pack, what it cooks into and how much more

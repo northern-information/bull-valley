@@ -375,7 +375,25 @@
 //    or passed. A whistle (`call`) needs the whistle in the pack, and a
 //    portal (`open-portal`, rule 28) the phone (ValleyContext.holdings
 //    in, as the valley just read them).
-// 39. The campfire (cooking.ts): every firefly pond has one by its landing
+// 39. The topiaries and the torch (topiaries.ts): the hedge animals in
+//    the corn maze stand where the valley's clock has them (nothing on
+//    the wire), but the valley keeps each one's health
+//    (SharedWorld.topiaries, on the wire in TOPIARIES order). A raider on
+//    foot by the toolbox at the lookout's foot (lookout.ts toolboxOf,
+//    CONFIG.torch.toolboxReach) takes a torch out of it when the pack
+//    holds none (`toolbox`); a key item, kept through a death. A swing of
+//    it that landed (`torch`, the topiary's index) is let through for a
+//    raider on foot carrying a torch, within reach (CONFIG.torch.reach and
+//    its slack) of the spine of one of that topiary's own spots
+//    (inTorchReach: where it stood as the raider saw it is the client's),
+//    and no sooner than a swing after their last (SharedWorld.swings,
+//    never on the wire); it takes torchDamage off, on the valley's roll,
+//    and everyone hears it ('topiary-hit'). At nothing the topiary is
+//    burned away ('topiary-burned'), and grows back whole
+//    CONFIG.topiaries.regrowSeconds later ('topiary-back', settled like
+//    the truck). A torch harms nothing else, and nothing else harms a
+//    topiary. Dialed in, there is neither toolbox nor topiary.
+// 40. The campfire (cooking.ts): every firefly pond has one by its landing
 //    (campfireOf, from where the world was opened with each pond). A raider
 //    out of the bed whose last state frame put them beside one, or dialed
 //    in from anywhere, cooks a count of one raw fish (a `cook` action):
@@ -454,6 +472,7 @@ import {
   itemById,
 } from './items.ts'
 import { atLaptop } from './laptop.ts'
+import { toolboxOf } from './lookout.ts'
 import {
   arrive,
   board,
@@ -504,6 +523,14 @@ import {
 } from './stand.ts'
 import { atLocker } from './stash.ts'
 import { freshStock, onShelf, STORE_LAYOUT, takeUnit } from './store.ts'
+import {
+  freshTopiaries,
+  hitTopiary,
+  inTorchReach,
+  nextRegrowth,
+  regrow,
+  torchDamage,
+} from './topiaries.ts'
 import { levelsAt } from './wardlevels.ts'
 import { damageOf } from './wards.ts'
 import { cleanWaypoints, NO_WAYPOINTS, sameWaypoints } from './waypoints.ts'
@@ -546,6 +573,7 @@ import type {
 import type { QuestId, QuestStage, QuestStep } from './quests.ts'
 import type { Research, ResearchLine } from './recycling.ts'
 import type { StandLedger } from './stand.ts'
+import type { TopiaryHealth } from './topiaries.ts'
 import type { WardState } from './wardlevels.ts'
 import type { ShadowHit } from './wards.ts'
 import type { Waypoints } from './waypoints.ts'
@@ -617,6 +645,10 @@ interface SharedWorld {
   nextPortal: number
   // Rule 28: where each payphone stands.
   payphones: XZ[]
+  // Rule 39: each topiary's health, in TOPIARIES order, and socket id ->
+  // when (valley ms) its last swing of a torch landed (never on the wire).
+  topiaries: TopiaryHealth[]
+  swings: Record<string, number>
 }
 
 interface ValleyPortal extends Portal {
@@ -839,7 +871,7 @@ export type ValleyAction =
   // Rule 33: the next level on `line`, bought with empties at the
   // recycling machine.
   | { type: 'recycle'; id: string; line: ResearchLine; at: XZ | null }
-  // Rule 39: `count` of the raw fish `kind` cooked over a campfire.
+  // Rule 40: `count` of the raw fish `kind` cooked over a campfire.
   | { type: 'cook'; id: string; kind: string; count: number; at: XZ | null }
   // Rule 36: a rod out of the tackle box; the bank dug, with the valley's
   // roll; a line cast, with the valley's roll for what bites and the seed
@@ -847,6 +879,11 @@ export type ValleyAction =
   // the valley's rolls for the catch and the skill. at: where the raider's
   // last state frame put them, or null.
   | { type: 'tackle'; id: string; at: XZ | null }
+  // Rule 39: a torch out of the toolbox, and a swing of one that landed on
+  // topiary `index`, with the valley's roll for what it takes off. at:
+  // where the raider's last state frame put them, or null.
+  | { type: 'toolbox'; id: string; at: XZ | null }
+  | { type: 'torch'; id: string; index: number; at: XZ | null; roll: number }
   // Rule 36: slurm `index` of slot `slot`'s drop at `station`, into the
   // jar. at: where the raider's last state frame put them, or null.
   | {
@@ -982,7 +1019,7 @@ export interface Reduced {
     give: Inventory
     take: { kind: string; count: number }
   }
-  // Rule 39: what cooked, once the barter that cooks it stands.
+  // Rule 40: what cooked, once the barter that cooks it stands.
   cooked?: { account: string; kind: string; count: number; into: ItemId }
   // Rule 14: a trade that stands once the valley has taken the price out
   // of the account's pack and given it the cosmetic, together.
@@ -1170,7 +1207,20 @@ export function restoreValley(
   if (world.version !== PROTOCOL_VERSION) {
     return { ...valley, world: null, carried: carriedFrom(world) }
   }
-  return { ...valley, carried: null }
+  // Rule 39: a world stored before the topiaries had health stands them
+  // whole.
+  const kept = valley.world as SharedWorld
+  return {
+    ...valley,
+    carried: null,
+    world: {
+      ...kept,
+      topiaries: Array.isArray(world.topiaries)
+        ? world.topiaries
+        : freshTopiaries(),
+      swings: world.swings ?? {},
+    },
+  }
 }
 
 // Rule 1: what of a world stored on another protocol is worth keeping,
@@ -1401,13 +1451,22 @@ export function toWire(valley: Valley): WorldWire | null {
       id,
       name,
     })),
+    topiaries: world.topiaries,
   }
 }
 
 type Detail = Partial<
   Pick<
     WorldMessage,
-    'by' | 'index' | 'station' | 'item' | 'drop' | 'count' | 'corpse' | 'portal'
+    | 'by'
+    | 'index'
+    | 'station'
+    | 'item'
+    | 'drop'
+    | 'count'
+    | 'corpse'
+    | 'portal'
+    | 'damage'
   >
 >
 
@@ -1434,7 +1493,8 @@ function withTruck(valley: Valley, world: SharedWorld, truck: TruckState) {
 }
 
 // When the valley next needs waking: the truck's next change, a Citgo
-// portal closing, or the day's turn, whichever comes first; null with no
+// portal closing, a topiary growing back, or the day's turn, whichever
+// comes first; null with no
 // world or nobody in it.
 export function wakeAt(valley: Valley, now: number): number | null {
   const { world } = valley
@@ -1443,6 +1503,7 @@ export function wakeAt(valley: Valley, now: number): number | null {
   for (const at of [
     nextChange(world.truck, world.routes),
     nextClose(world.portals),
+    nextRegrowth(world.topiaries),
   ]) {
     if (at !== null) wake = Math.min(wake, at)
   }
@@ -1458,7 +1519,8 @@ const TRUCK_REASONS: Record<TruckChange, WorldReason> = {
 }
 
 // The world moved on to `now`: the day turned (rule 6), the truck through
-// every change due (rule 3), and the Citgo portals due closed (rule 28).
+// every change due (rule 3), the Citgo portals due closed (rule 28), and
+// the topiaries due grown back (rule 39).
 // The frames say each, oldest first.
 function settle(
   valley: Valley,
@@ -1484,6 +1546,12 @@ function settle(
   if (next.world && portals.length < next.world.portals.length) {
     next = withWorld(next, { ...next.world, portals })
     frames.push(frame(next, 'portal-closed'))
+  }
+  // Rule 39: the topiaries burned away whose time has come, grown back.
+  const grown = next.world ? regrow(next.world.topiaries, now) : null
+  if (next.world && grown) {
+    next = withWorld(next, { ...next.world, topiaries: grown })
+    frames.push(frame(next, 'topiary-back'))
   }
   const settled = settleTruck(world.truck, now, world.routes)
   // Rule 22: whoever was still in the bed when Marx got home rode with
@@ -1555,6 +1623,8 @@ const NEEDS_A_BODY: Partial<Record<ValleyAction['type'], NackRe>> = {
   loot: 'loot',
   'open-portal': 'portal',
   'jar-slurm': 'jar-slurm',
+  toolbox: 'toolbox',
+  torch: 'torch',
 }
 
 function bodiless(
@@ -1656,6 +1726,9 @@ function act(
       return onReel(valley, action, context)
     case 'jar-slurm':
       return onJarSlurm(valley, action, context)
+    case 'toolbox':
+    case 'torch':
+      return onTopiary(valley, action, context)
     case 'expedition-send':
     case 'expedition-claim':
       return onExpedition(valley, action, context)
@@ -1729,6 +1802,8 @@ function onJoin(
         portals: [],
         nextPortal: 0,
         payphones: action.payphones,
+        topiaries: freshTopiaries(),
+        swings: {},
       },
       valley.carried
     )
@@ -3104,6 +3179,66 @@ function onJarSlurm(
     broadcast: [],
     pack: { account: member.account, kind: 'slurm', delta: 1 },
     jarred: { type: 'slurm-jarred', station, slot, index, by: action.id },
+  })
+}
+
+// Rule 39: a torch out of the toolbox at the lookout's foot, or a swing of
+// one at a topiary.
+function onTopiary(
+  valley: Valley,
+  action: ActionOf<'toolbox' | 'torch'>,
+  { now, holdings }: ValleyContext
+): Reduced {
+  const member = valley.members[action.id]
+  const world = valley.world
+  const re = action.type
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, { broadcast: [], reply: nack(re, reason) })
+  if (!member || !world) return refuse('not-in-valley')
+  if (isAboard(world.truck, action.id)) return refuse('aboard')
+  if (!world.maze || !action.at) return refuse('too-far')
+  if (action.type === 'toolbox') {
+    const box = toolboxOf(world.maze)
+    const d = Math.hypot(action.at.x - box.x, action.at.z - box.z)
+    if (d > CONFIG.torch.toolboxReach + CONFIG.torch.slack) {
+      return refuse('too-far')
+    }
+    if (!holdings) return refuse('unavailable')
+    if ((holdings.pack.torch ?? 0) > 0) return refuse('has-torch')
+    return done(valley, now, {
+      broadcast: [],
+      pack: { account: member.account, kind: 'torch', delta: 1 },
+    })
+  }
+  const { index } = action
+  const { reach, slack, swingSeconds } = CONFIG.torch
+  if (!inTorchReach(world.maze, index, action.at, reach + slack)) {
+    return refuse('too-far')
+  }
+  if (!holdings) return refuse('unavailable')
+  if ((holdings.pack.torch ?? 0) < 1) return refuse('no-torch')
+  const last = world.swings[action.id]
+  // A little under a swing, for the frames' own jitter.
+  if (last !== undefined && now - last < swingSeconds * 800) {
+    return refuse('too-soon')
+  }
+  const damage = torchDamage(action.roll)
+  const hit = hitTopiary(world.topiaries, index, damage, now)
+  if (!hit) return refuse('gone')
+  // Only the swings recent enough to matter are kept.
+  const swings: Record<string, number> = { [action.id]: now }
+  for (const [id, at] of Object.entries(world.swings)) {
+    if (id !== action.id && now - at < swingSeconds * 1000) swings[id] = at
+  }
+  const next = withWorld(valley, { ...world, topiaries: hit.list, swings })
+  return done(next, now, {
+    broadcast: [
+      frame(next, hit.burned ? 'topiary-burned' : 'topiary-hit', {
+        by: action.id,
+        index,
+        damage,
+      }),
+    ],
   })
 }
 

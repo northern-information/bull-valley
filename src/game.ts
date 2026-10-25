@@ -70,6 +70,7 @@ import type { ShadowBodies } from './shadowbodies.ts'
 import type { ShadowBursts } from './shadowburst.ts'
 import type { StandLedger } from './stand.ts'
 import type { Titles } from './titles.ts'
+import type { TorchHand } from './torchhand.ts'
 import type { Trails } from './trails.ts'
 import type { TripSolids } from './tripsolidsrig.ts'
 import type { Truck } from './truck.ts'
@@ -118,7 +119,7 @@ export interface Pending {
   stand: boolean
   // Rule 33: a level bought at the Recycling Center.
   recycle: boolean
-  // Rule 39: fish cooked over the campfire.
+  // Rule 40: fish cooked over the campfire.
   cook: boolean
   // Rule 36: a rod, a dig, a cast or a reel at the firefly pond, and a
   // slurm into the jar.
@@ -291,7 +292,7 @@ export interface GameState {
   // word on a level, for the dialog.
   research: Research | null
   researchSaid: string | null
-  // Rule 39: the last word on fish cooked, for the campfire's dialog.
+  // Rule 40: the last word on fish cooked, for the campfire's dialog.
   cookSaid: string | null
   // Rule 36: the account's angler as the valley last sent it (asked for
   // as the tackle box opens); null before it has. The line in the water,
@@ -315,6 +316,11 @@ export interface GameState {
   // When the jar last scooped, on `time` (held.ts scoopPose); null once
   // the scoop is over.
   scoopAt: number | null
+  // Rule 39: when the torch last swung, on `time` (held.ts swingPose), and
+  // the topiary it will land on, sent as the blow lands (CONFIG.torch
+  // hitAt); null once the swing is over, or once sent.
+  swingAt: number | null
+  swingTarget: number | null
   // Rule 28: every Citgo the account has stood at, and the last, as the
   // valley last said (the welcome, then every citgos frame). The Citgo
   // portals, from every snapshot; the id of the one this raider opened, while it
@@ -425,6 +431,8 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     castAt: null,
     hoist: null,
     scoopAt: null,
+    swingAt: null,
+    swingTarget: null,
     citgos: NO_CITGOS,
     portals: [],
     myPortal: null,
@@ -494,6 +502,8 @@ export interface Game {
   pick: Titles
   // The phone, dialing Citgo portals (Q).
   phone: Phone
+  // The torch in hand, drawn as the phone is (rule 39).
+  torchHand: TorchHand
   shadowmen: ShadowBodies
   // The Caretaker in the corn maze.
   caretaker: CaretakerShade

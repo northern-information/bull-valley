@@ -113,6 +113,7 @@ describe('parsePeerState', () => {
   it('carries a jar or a rod in hand, and nothing else', () => {
     expect(parsePeerState({ ...state, held: 'jar' })?.held).toBe('jar')
     expect(parsePeerState({ ...state, held: 'rod' })?.held).toBe('rod')
+    expect(parsePeerState({ ...state, held: 'torch' })?.held).toBe('torch')
     expect(parsePeerState(state)).not.toHaveProperty('held')
     expect(parsePeerState({ ...state, held: 'flashlight' })).toBeNull()
     expect(parsePeerState({ ...state, held: 3 })).toBeNull()
@@ -530,6 +531,15 @@ describe('parseClientMessage', () => {
     expect(
       parse({ type: 'jar-slurm', station: -2, slot: 9, index: 1 })
     ).toBeNull()
+    // The toolbox and the torch (rule 39).
+    expect(parse({ type: 'toolbox' })).toEqual({ type: 'toolbox' })
+    expect(parse({ type: 'torch', index: 3 })).toEqual({
+      type: 'torch',
+      index: 3,
+    })
+    expect(parse({ type: 'torch', index: -1 })).toBeNull()
+    expect(parse({ type: 'torch', index: 1.5 })).toBeNull()
+    expect(parse({ type: 'torch' })).toBeNull()
     // A hello says where the stand stands, or that there is none.
     expect(parse({ ...hello, stand: null })).toEqual({ ...hello, stand: null })
     expect(parse({ ...hello, stand: { x: 'here' } })).toBeNull()

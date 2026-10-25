@@ -1,4 +1,4 @@
-// The campfire by the firefly pond, pure (sharedworld.ts rule 39): where
+// The campfire by the firefly pond, pure (sharedworld.ts rule 40): where
 // it burns beside each pond's landing, whether a raider stands at one, and
 // what a fish cooks into: a small one fried whole, a large one grilled as
 // a fillet, each giving far more back than the fish raw (items.ts
