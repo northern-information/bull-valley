@@ -316,6 +316,9 @@ lore = { text = "Sleeps behind the Golden Wok's boards with his candles and his 
 [book.tyler]
 lore = { text = "Sits cross-legged in the back of a red Jeep Wrangler beside Moab, hunched over a laptop with the hatch up, a portable radar dish on the roof cabled down to it. He helps run the Citgo portals. Whatever else he is tuning in, it is not ready yet.", by = "ai" }
 
+[book.jericho]
+lore = { text = "Sits beside the payphone on Castle Entropy's rim, twice the height of anyone who comes to him, his cloak pooled round him in tatters. Deep in his hood a small pale mask, and a candle held up to it in one bound hand. A trumpet hangs across his back, and a great horned owl keeps watch from his shoulder. The cloak was grey before its embroidery faded into it. He is kind, and he knows a way across, but not an easy one.", by = "ai" }
+
 # Erwin von Dutch, the squatter in Bull Valley Plaza (src/dealer.ts,
 # src/dealdialog.ts), and his quest (src/quests.ts).
 
@@ -1194,6 +1197,19 @@ close = { text = "Close", by = "ai" }
 says_1 = { text = "...", by = "ai" }
 says_2 = { text = "Hang on, almost got a lock on this thing.", by = "ai" }
 says_3 = { text = "Come back later, we're not ready yet.", by = "ai" }
+
+# Jericho, the Candlebearer, sat beside the payphone on Castle
+# Entropy's rim (src/npcs.ts), one line each time, in turn. After the third
+# he pins the nearest graveyard on the raider's map (src/actions.ts), and
+# the log says which.
+
+[jericho]
+name = { text = "Jericho", by = "ai" }
+title = { text = "Jericho, the Candlebearer", by = "ai" }
+says_1 = { text = "Hello. I am Jericho, the Candlebearer. I can see you have the glow.", by = "ai" }
+says_2 = { text = "If you would like passage to Castle Entropy, I may be able to help, but it won't be easy.", by = "ai" }
+says_3 = { text = "You need a mech, specifically one constructed with nephilim or seraphim bones. Let me mark your map for the closest celestial graveyard.", by = "ai" }
+marked = { text = "Jericho marks {yard} on your map.", by = "ai" }
 
 [moab]
 says = { text = "Gold bullion.", by = "ai" }

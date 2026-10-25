@@ -12,6 +12,7 @@ import { LOOKOUT, onLookout } from './lookout.ts'
 import { mazeToWorld } from './maze.ts'
 import { carve, castlePlace, moatFloor, onMoatGrounds } from './moat.ts'
 import { MOAT_STATION } from './moatslurms.ts'
+import { nearestYard } from './npcs.ts'
 import { buildCroft, buildPlaza, CROFT_TREE_CLEAR } from './plazasite.ts'
 import { buildPoles } from './poles.ts'
 import { placePond } from './pondsite.ts'
@@ -75,7 +76,9 @@ import type { DonutField } from './donuts.ts'
 import type { GronRig, MoabRig, TylerRig } from './figure.ts'
 import type { Geo, HeightAt, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
+import type { JerichoRig } from './jerichomodel.ts'
 import type { MazePlace } from './maze.ts'
+import type { Yard } from './npcs.ts'
 import type { CroftRig, PlazaRig } from './plazasite.ts'
 import type { PondRig } from './pondsite.ts'
 import type { Cue } from './sfx.ts'
@@ -202,6 +205,14 @@ export interface World {
   // for his typing. Null without a spawn station.
   tyler: XZ | null
   tylerRig: TylerRig | null
+  // Jericho, the Candlebearer, sat beside the payphone on Castle
+  // Entropy's rim: where he sits, his rig (the body for the glow), and
+  // the graveyard nearest him, which his last line pins on the raider's
+  // map (npcs.ts nearestYard). Null without the castle, or the survey
+  // without a graveyard.
+  jericho: XZ | null
+  jerichoRig: JerichoRig | null
+  celestialYard: Yard | null
   // Where E opens the lockers in each back room (store.ts lockerSpot),
   // indexed like fuelPoints.
   lockers: XZ[]
@@ -602,6 +613,17 @@ export function buildWorld(
     moabRigs,
     tyler,
     tylerRig,
+    jericho: castle ? { x: castle.jericho.x, z: castle.jericho.z } : null,
+    jerichoRig: castle ? castle.jerichoRig : null,
+    celestialYard: castle
+      ? nearestYard(
+          castle.jericho,
+          geo.graveyards.map((yard) => ({
+            ...unitToWorld(yard.c[0], yard.c[1], metres),
+            name: yard.n,
+          }))
+        )
+      : null,
     lockers: fuel.points.map(lockerSpot),
     laptops: fuel.points.map(laptopAt),
     rings: fuel.points.map((point) => {

@@ -35,6 +35,7 @@ const CHARACTERS = new Set([
   'skeleton-horse',
   'tunnel-shade',
   'tyler-jeep',
+  'jericho',
 ])
 
 // Someone doing something: walking, striking, emoting, lying struck down.

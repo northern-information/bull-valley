@@ -17,6 +17,7 @@ import {
   buildTyler,
 } from './figure.ts'
 import { itemById } from './items.ts'
+import { buildJericho } from './jerichomodel.ts'
 import { samplePose } from './poses.ts'
 import { buildShadowman } from './shadowmanmodel.ts'
 import { buildTruckMesh } from './truck.ts'
@@ -87,6 +88,7 @@ const PORTRAITS: Partial<Record<string, () => THREE.Object3D>> = {
   moab: () => buildMoab().group,
   squatter: () => standing('squatter'),
   tyler: () => buildTyler().group,
+  jericho: () => buildJericho(() => 0, false).group,
 }
 
 // The model for an entry's page, and the item it is when it is one (for

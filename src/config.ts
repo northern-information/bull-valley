@@ -900,6 +900,34 @@ export const CONFIG = {
       // The payphone: on outer side `side`, `along` its length, `out` from
       // the edge; a raider within `reach` of it stands at it.
       payphone: { side: 1, along: 0.42, out: 5.6, reach: 3 },
+      // Jericho, the Candlebearer, sat beside it: `beside` metres further
+      // along the side than the payphone, `out` from the edge, turned
+      // toward where a raider stands at the phone; he blocks like a post
+      // `radius` wide, his torn hem lies out to `spread` (the supplies keep
+      // off it), and E within `reach` of him talks to him.
+      jericho: {
+        beside: 3.4,
+        out: 6.6,
+        radius: 0.9,
+        spread: 2,
+        reach: 3,
+        // His owl's hunts (owlflight.ts), on the shared clock: time cut
+        // into rounds of `cycle` seconds, a share `share` of them with a
+        // hunt in it. A hunt takes off, circles `height` metres over the
+        // ground `radius` across round a middle `out` metres from him
+        // (within `swing` radians of straight ahead), dives, sits on its
+        // kill, and flies home, each phase this many seconds long.
+        owl: {
+          cycle: 75,
+          share: 0.7,
+          height: 9,
+          radius: 7,
+          out: { min: 14, max: 22 },
+          swing: 0.8,
+          laps: 1.4,
+          phases: { rise: 2.5, circle: 11, dive: 2, kill: 2.5, home: 7 },
+        },
+      },
     },
     // The castle's base, this far over the highest ground anywhere on the
     // island (its rock hangs under that, well clear), and how it bobs.

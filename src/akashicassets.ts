@@ -55,6 +55,7 @@ import {
 import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
 import { buildJeep, buildRadarDish } from './jeep.ts'
+import { buildJericho } from './jerichomodel.ts'
 import { buildBathLaptop } from './laptopmodel.ts'
 import { README } from './laptopreadme.ts'
 import { buildLookout } from './lookoutmodel.ts'
@@ -724,6 +725,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'payphone',
     label: "The payphone on the castle's rim",
     build: buildPayphone,
+  },
+  {
+    id: 'jericho',
+    label: 'Jericho, the Candlebearer, by the payphone',
+    build: () => buildJericho().group,
   },
   {
     id: 'strip-mall',
