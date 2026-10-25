@@ -11,7 +11,9 @@ import {
 } from './assetkit.ts'
 import { canvas } from './canvas.ts'
 import { CONFIG } from './config.ts'
+import { owlPose } from './owlflight.ts'
 import { mulberry32, range } from './rng.ts'
+import type { GroundAt, Perch } from './owlflight.ts'
 
 // Jericho, the Candlebearer, beside the payphone on Castle Entropy's rim
 // (castleyard.ts jerichoSpot), as Tyler drew him: sat low on the
@@ -25,9 +27,9 @@ import { mulberry32, range } from './rng.ts'
 // its flame throwing rays, warm on his mask and his hand and glowing so
 // he can be found across the yard. A dull brass trumpet is slung across
 // his back on a strap over one shoulder, and a great horned owl perches
-// on the other, looking about. Origin on the ground under him, facing
-// +x. Call update(t) every frame with a running time, for the flame and
-// the owl's head.
+// on the other, looking about and now and then off hunting. Origin on the ground under him, facing
+// +x. Call update(t) every frame with the shared clock's seconds, for
+// the flame and the owl.
 
 export interface JerichoRig {
   group: THREE.Group
@@ -347,6 +349,9 @@ const plumageArt = memo(() => {
   return artTexture(art)
 })
 
+// Where the owl sits on his shoulder, against the hood's fold.
+const OWL_PERCH: Perch = { x: 0.05, y: 2.3, z: -1.05, heading: 0.25 }
+
 // Where the owl's head looks, in turn, radians off straight ahead, each
 // held a few seconds and turned to fast, as an owl's does.
 const OWL_LOOKS = [0, 0.9, 0.2, -1.1, 0.5, 2.2, -0.3]
@@ -356,9 +361,17 @@ const OWL_TURN = 0.22
 // A great horned owl, at its own size: origin under its feet, facing +x.
 // The body an egg, the folded wings down its sides, the tail and the
 // talons; the head with its ear tufts, its tawny facial disc rimmed
-// dark, the white throat, the big yellow eyes and the hooked beak.
-// `look(t)` turns the head.
-function buildOwl(): { group: THREE.Group; look(t: number): void } {
+// dark, the white throat, the big yellow eyes and the hooked beak; and
+// its wings for flight, out from the shoulders. `look(t)` turns the head
+// (null holds it straight ahead, as it flies), `fly(spread, beat)` opens
+// the wings that far and beats them (owlflight.ts OwlPose).
+interface OwlRig {
+  group: THREE.Group
+  look(t: number | null): void
+  fly(spread: number, beat: number): void
+}
+
+function buildOwl(): OwlRig {
   const group = new THREE.Group()
   group.name = 'jericho-owl'
   const plumage = lambert({ map: plumageArt('jericho-owl') })
@@ -427,17 +440,52 @@ function buildOwl(): { group: THREE.Group; look(t: number): void } {
   beak.rotation.z = Math.PI + 0.35
   head.add(beak)
 
-  const look = (t: number) => {
+  // The wings for flight: broad and blunt, barred darker at the tips,
+  // each on a pivot at the shoulder that beats about the body's length.
+  const pinion = lambert({ color: '#5e4730', side: THREE.DoubleSide })
+  const tips = lambert({ color: '#3b2b1d', side: THREE.DoubleSide })
+  const pivots = ([-1, 1] as const).map((side) => {
+    const pivot = new THREE.Group()
+    pivot.position.set(0, 0.26, side * 0.08)
+    const inner = new THREE.Mesh(
+      new THREE.BoxGeometry(0.22, 0.012, 0.3),
+      pinion
+    )
+    inner.position.set(-0.02, 0, side * 0.15)
+    pivot.add(inner)
+    const outer = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.01, 0.16), tips)
+    outer.position.set(-0.05, 0, side * 0.37)
+    outer.rotation.y = side * 0.25
+    pivot.add(outer)
+    pivot.visible = false
+    group.add(pivot)
+    return { side, pivot }
+  })
+  const fly = (spread: number, beat: number) => {
+    for (const { side, pivot } of pivots) {
+      pivot.visible = spread > 0.05
+      pivot.scale.z = Math.max(0.05, spread)
+      pivot.rotation.x = -side * beat
+    }
+  }
+
+  const look = (t: number | null) => {
+    if (t === null) {
+      head.rotation.y = 0
+      return
+    }
     const k = Math.floor(t / OWL_HOLD)
     const from = OWL_LOOKS[(k + OWL_LOOKS.length - 1) % OWL_LOOKS.length]
     const to = OWL_LOOKS[k % OWL_LOOKS.length]
     const u = Math.min(1, (t - k * OWL_HOLD) / OWL_TURN)
     head.rotation.y = from + (to - from) * u * u * (3 - 2 * u)
   }
-  return { group, look }
+  return { group, look, fly }
 }
 
-export function buildJericho(): JerichoRig {
+// `groundAt` the ground under a point of his own space, in his own space
+// (flat for the Akashic), for the owl's dive.
+export function buildJericho(groundAt: GroundAt = () => 0): JerichoRig {
   const group = new THREE.Group()
   group.name = 'jericho'
   const body = new THREE.Group()
@@ -566,12 +614,12 @@ export function buildJericho(): JerichoRig {
   body.add(trumpet)
 
   // A great horned owl perched on his other shoulder, over the hood's
-  // fold, looking about.
+  // fold, looking about, and now and then away hunting (owlflight.ts).
+  // It is not him, so the ring that marks him leaves it out.
   const owl = buildOwl()
   owl.group.scale.setScalar(1.7)
-  owl.group.position.set(0.05, 2.3, -1.05)
-  owl.group.rotation.y = 0.25
-  body.add(owl.group)
+  owl.group.rotation.order = 'YZX'
+  group.add(owl.group)
 
   castShadows(group)
   mergeStatic(body)
@@ -616,7 +664,11 @@ export function buildJericho(): JerichoRig {
     rays.scale.setScalar(1.3 + flicker * 0.1)
     halo.scale.setScalar(0.5 + flicker * 0.05)
     warmth.scale.setScalar(3.4 + flicker * 0.25)
-    owl.look(t)
+    const pose = owlPose(t, OWL_PERCH, groundAt)
+    owl.group.position.set(pose.x, pose.y, pose.z)
+    owl.group.rotation.set(0, pose.heading, pose.pitch)
+    owl.fly(pose.spread, pose.beat)
+    owl.look(pose.phase === 'perched' ? t : null)
   }
   update(0)
   setMotion(group, update)

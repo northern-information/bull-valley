@@ -187,12 +187,17 @@ export function buildCastleSite(
   group.add(yard.group)
   const jericho = jerichoSpot(place)
   walls.addWall(jericho, jericho, yardCfg.jericho.radius)
-  const jerichoRig = buildJericho()
-  jerichoRig.group.position.set(
-    jericho.x,
-    ground.at(jericho.x, jericho.z),
-    jericho.z
-  )
+  // His space is turned by his yaw about where he sits: the ground under
+  // a point of it, for his owl's dive, is the world's there.
+  const jerichoY = ground.at(jericho.x, jericho.z)
+  const jerichoRig = buildJericho((x, z) => {
+    const c = Math.cos(jericho.yaw)
+    const s = Math.sin(jericho.yaw)
+    return (
+      ground.at(jericho.x + x * c - z * s, jericho.z + x * s + z * c) - jerichoY
+    )
+  })
+  jerichoRig.group.position.set(jericho.x, jerichoY, jericho.z)
   jerichoRig.group.rotation.y = -jericho.yaw
   group.add(jerichoRig.group)
 
