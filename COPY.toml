@@ -1523,7 +1523,7 @@ buffalo = { text = "buffalo", by = "ai" }
 
 [items.torch]
 label = { text = "Torch", by = "ai" }
-blurb = { text = "A pine stake with a rag soaked in kerosene wired round the head, out of the red toolbox at the foot of the lookout. Select it and click to swing it. The hedge animals in the maze fear nothing else, and nothing else fears it.", by = "ai" }
+blurb = { text = "A pine stake with a rag soaked in kerosene wired round the head, out of the red toolbox at the foot of the lookout. Select it and click to swing it. The hedge animals in the maze fear nothing else, and the shadows shrink from it up close.", by = "ai" }
 
 [items.slurm-jar]
 label = { text = "Slurm Jar", by = "ai" }

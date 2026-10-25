@@ -11,6 +11,7 @@ import {
   inBeam,
   inBounds,
   inHaven,
+  inTorchLight,
   reachesUp,
   spawnShadowman,
   stepShadowmen,
@@ -689,6 +690,56 @@ describe('the flashlight', () => {
       bursts += step(field, undefined, { raiders }).bursts.length
     }
     expect(bursts).toBe(1)
+  })
+})
+
+describe('the torch', () => {
+  const { lightRadius, burnRate } = CONFIG.torch
+  const close = (over: Partial<Shadowman> = {}) =>
+    one({ z: -(lightRadius - 1), speed: 0, ...over })
+
+  it('lights a raider all round, close in, and only while held', () => {
+    const lit = raider({ torch: true })
+    expect(inTorchLight(lit, { x: 0, z: -lightRadius })).toBe(true)
+    expect(inTorchLight(lit, { x: lightRadius, z: 0 })).toBe(true)
+    expect(inTorchLight(lit, { x: 0, z: lightRadius + 0.1 })).toBe(false)
+    expect(inTorchLight(raider(), { x: 0, z: -1 })).toBe(false)
+    // Not through a floor: one far over or under the holder.
+    const below = raider({ torch: true, y: 0 })
+    expect(inTorchLight(below, { x: 0, z: -1, y: lightRadius + 1 })).toBe(false)
+  })
+
+  it('burns a shadowman held close, slower than a beam, and names the holder', () => {
+    const field = close()
+    step(field, undefined, { raiders: [raider({ torch: true })] })
+    expect(first(field)?.burn).toBeCloseTo(DT * burnRate, 9)
+    let bursts: { by: string[] }[] = []
+    for (let i = 0; i < 200 && field.shadowmen.length; i++) {
+      bursts = step(field, undefined, {
+        raiders: [raider({ torch: true })],
+      }).bursts
+    }
+    expect(bursts[0]?.by).toEqual(['a'])
+  })
+
+  it('burns no faster with a beam on it too, and names both', () => {
+    const field = close()
+    const raiders = [raider({ torch: true }), raider({ id: 'b', beam: BEAM })]
+    step(field, undefined, { raiders })
+    expect(first(field)?.burn).toBeCloseTo(DT, 9)
+    let bursts: { by: string[] }[] = []
+    for (let i = 0; i < 100 && field.shadowmen.length; i++) {
+      bursts = step(field, undefined, { raiders }).bursts
+    }
+    expect(bursts[0]?.by.sort()).toEqual(['a', 'b'])
+  })
+
+  it('never burns one past its reach', () => {
+    const field = close({ z: -(lightRadius + 2) })
+    for (let i = 0; i < 20; i++) {
+      step(field, undefined, { raiders: [raider({ torch: true })] })
+    }
+    expect(first(field)?.burn).toBe(0)
   })
 })
 

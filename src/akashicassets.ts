@@ -115,7 +115,7 @@ import {
   treeParts,
 } from './roadsideparts.ts'
 import { buildShadowBurst, SHADOW_BURST } from './shadowburstmodel.ts'
-import { buildShadowSpider, strikeLoopAt } from './shadowspider.ts'
+import { buildShadowSpider, burnLoopAt, strikeLoopAt } from './shadowspider.ts'
 import { buildSkeletonHorse } from './skeletonhorse.ts'
 import { buildSlurm } from './slurmmodel.ts'
 import { buildForm } from './spomenikmodel.ts'
@@ -754,6 +754,44 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'Spiderling: a burst spider breaks into these',
     build: sampleStrikingSpider(5.6 * CONFIG.shadowmen.spiderling.scale),
   },
+  {
+    id: 'shadow-spider-burning',
+    label: 'Shadow spider: burning in a beam, thrashing',
+    build: () => {
+      const spider = buildShadowSpider(5.6)
+      let last = 0
+      setMotion(spider.group, (t) => {
+        const dt = Math.max(0, Math.min(0.1, t - last))
+        last = t
+        spider.update({ dt, speed: 0, burn: burnLoopAt(t), perception: false })
+      })
+      return spider.group
+    },
+  },
+  {
+    id: 'caretaker-burning',
+    label: 'The Caretaker: burning in two lights, thrashing',
+    build: () => {
+      const rig = buildCaretaker()
+      setMotion(rig.group, (t) => {
+        rig.setBurn(burnLoopAt(t))
+        rig.update(t)
+      })
+      return rig.group
+    },
+  },
+  ...(['shade', 'warden'] as const).map((kind) => ({
+    id: `${kind === 'shade' ? 'tunnel-shade' : 'warden'}-burning`,
+    label: `${kind === 'shade' ? 'A tunnel shade' : 'The Warden'}: burning in a beam, thrashing`,
+    build: () => {
+      const rig = buildTunnelShade(kind)
+      setMotion(rig.group, (t) => {
+        rig.setBurn(burnLoopAt(t))
+        rig.update(t)
+      })
+      return rig.group
+    },
+  })),
   {
     id: 'caretaker-striking',
     label: 'The Caretaker: winding up and lunging',

@@ -4,9 +4,9 @@
 // foot in the maze that it can see, or that comes very close, it hunts down
 // the paths, and its touch is a strike, as a shadowman's: in reach it stops
 // and winds up, then lunges, and the lunge lands only on a raider still
-// within reach. One flashlight does nothing to it. Two raiders' beams on
-// it at once, held, burn it, and it forms again at the heart a few minutes
-// later.
+// within reach. One light does nothing to it. Two raiders' lights on it
+// at once, held, burn it (a beam, or a torch held close, shadowmen.ts
+// inTorchLight), and it forms again at the heart a few minutes later.
 //
 // Pure, no three.js. Everything here is in the maze's own metres (maze.ts:
 // x away from the road, z along it); MazePlace carries a raider's world
@@ -26,7 +26,7 @@ import {
   SHINING_MAZE,
   worldToMaze,
 } from './maze.ts'
-import { inBeam } from './shadowmen.ts'
+import { inBeam, inTorchLight } from './shadowmen.ts'
 import type { XZ } from './interfaces.ts'
 import type { Cell, MazePlace, MazeSize, Span } from './maze.ts'
 import type { Rng } from './rng.ts'
@@ -52,7 +52,7 @@ export interface Caretaker {
   // Seconds into its windup on the raider it hunts; 0 while it is not
   // winding up. It lunges at CONFIG.caretaker.windupSeconds.
   windup: number
-  // Seconds it has been held in two beams at once, running back down
+  // Seconds it has been held in two lights at once, running back down
   // outside them.
   burn: number
   // Seconds until it forms again at the heart; 0 while it walks.
@@ -309,15 +309,16 @@ export function stepCaretaker(
   }
   const local = raiders.map((r) => ({ r, at: worldToMaze(place, r) }))
 
-  // Two raiders' beams at once, each with the corn out of the way.
+  // Two raiders' lights at once, each with the corn out of the way: a
+  // beam on it, or a torch held close (CONFIG.torch).
   const world = mazeToWorld(place, ct)
   const holders: string[] = []
   for (const { r, at } of local) {
-    if (!r.beam) continue
-    const chest = { ...world, y: r.beam.floor + cfg.chestHeight }
-    if (inBeam(r.beam, chest) && clearBetween(map, at, ct, 0)) {
-      holders.push(r.id)
-    }
+    if (!clearBetween(map, at, ct, 0)) continue
+    const beamed =
+      r.beam !== null &&
+      inBeam(r.beam, { ...world, y: r.beam.floor + cfg.chestHeight })
+    if (beamed || inTorchLight(r, world)) holders.push(r.id)
   }
   ct.burn = holders.length >= 2 ? ct.burn + dt : Math.max(0, ct.burn - dt)
   if (ct.burn >= cfg.burnSeconds) {

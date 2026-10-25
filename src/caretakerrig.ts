@@ -1,6 +1,6 @@
 // The Caretaker as seen (caretaker.ts): its body (assets.ts buildCaretaker)
 // floating over the maze's paths, turned to face the player, shaking and
-// paling as two beams burn it, drawing its lantern back as it winds up
+// paling and thrashing as two lights burn it, drawing its lantern back as it winds up
 // to strike and lurching out as it lunges, its health bar over it once
 // beams are on it (enemybars.ts). It is the valley's
 // (sharedworld.ts rule 13): it rides in the shadowmen frames, kept a few

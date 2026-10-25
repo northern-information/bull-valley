@@ -57,6 +57,17 @@ const RAIDER_HEIGHT = 1.8
 // scaled up), how much of it is holes standing still, how much more comes
 // and goes, how many times a second those shuffle, and how much more of it
 // a burn takes to bursting.
+// How far it thrashes as it burns, radians at the last of its burn: its
+// arms forward and back and out, its elbows, its kicks from the hip and
+// the knees, and the spine's writhing.
+const THRASH = {
+  arm: 1.4,
+  fling: 0.9,
+  elbow: 0.8,
+  kick: 0.8,
+  knee: 1,
+  writhe: 0.35,
+}
 const FLAKE = { cell: 0.035, holes: 0.16, boil: 0.07, hz: 9, burnt: 0.3 }
 
 // The smoke: how many puffs a body gives off, how long each climbs, how
@@ -282,6 +293,27 @@ export function buildShadowman(height = 2.8, seed = 0xd06): ShadowmanRig {
         Math.sin(t * 7.3) * Math.sin(t * 2.1) * shake
       figure.joints.elbowL.rotation.x += Math.sin(t * 11.7) * shake
       figure.joints.elbowR.rotation.x += Math.sin(t * 9.4 + 1) * shake
+      // Burning, it thrashes: arms flung about, legs kicking, the spine
+      // writhing, wilder the nearer it is to bursting.
+      const thrash = burn * burn
+      if (thrash > 0) {
+        const j = figure.joints
+        j.shoulderL.rotation.x += Math.sin(t * 13.1) * THRASH.arm * thrash
+        j.shoulderL.rotation.z += Math.sin(t * 8.7 + 2) * THRASH.fling * thrash
+        j.shoulderR.rotation.x += Math.sin(t * 12.3 + 1) * THRASH.arm * thrash
+        j.shoulderR.rotation.z -= Math.sin(t * 9.9) * THRASH.fling * thrash
+        j.elbowL.rotation.x += Math.sin(t * 17.2) * THRASH.elbow * thrash
+        j.elbowR.rotation.x += Math.sin(t * 15.8 + 2) * THRASH.elbow * thrash
+        j.hipL.rotation.x += Math.sin(t * 10.4) * THRASH.kick * thrash
+        j.hipR.rotation.x += Math.sin(t * 11.2 + 3) * THRASH.kick * thrash
+        j.kneeL.rotation.x +=
+          Math.abs(Math.sin(t * 14.1)) * THRASH.knee * thrash
+        j.kneeR.rotation.x +=
+          Math.abs(Math.sin(t * 12.6 + 1)) * THRASH.knee * thrash
+        j.spine.rotation.z += Math.sin(t * 6.1) * THRASH.writhe * thrash
+        j.spine.rotation.x +=
+          Math.sin(t * 5.3 + 1) * THRASH.writhe * 0.6 * thrash
+      }
       skin.color.lerpColors(BODY, BURNING, burn)
       flakes.time.value = time + tremor
       flakes.amount.value = FLAKE.holes + FLAKE.burnt * burn

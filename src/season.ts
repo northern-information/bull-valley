@@ -1,6 +1,6 @@
 // The season: the valley run as a live service, one challenge at a time,
 // each with a reward for the account that sees it through. Season One is
-// The Caretaker: burn him (caretaker.ts, two beams at once) SEASON.goal
+// The Caretaker: burn him (caretaker.ts, two lights at once) SEASON.goal
 // times and the wallet takes $100 and the pack a carton of Marlboro Reds.
 // Every raider whose beam was on him when he came apart is credited
 // (sharedworld.ts rule 15).

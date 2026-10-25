@@ -1562,8 +1562,13 @@ export const CONFIG = {
   // takes `swingSeconds`, lands at `hitAt` into it on a topiary whose
   // spine is within `reach` (the valley allows `slack` more, the raider's
   // last state frame being a beat behind), and takes `damage` off it, give
-  // or take `spread` on the valley's roll. It harms nothing else.
+  // or take `spread` on the valley's roll. Held lit, its fire is a light
+  // as well (sharedworld.ts rule 11): a shadowman, spider or spiderling
+  // within `lightRadius` of the holder burns at `burnRate` of a beam's
+  // pace, and to the Caretaker it is one of the two lights it takes.
   torch: {
+    lightRadius: 3.5,
+    burnRate: 0.5,
     toolboxReach: 1.8,
     swingSeconds: 0.6,
     hitAt: 0.22,
@@ -1579,9 +1584,10 @@ export const CONFIG = {
   // within senseRadius whether it can see them or not, it hunts at
   // huntSpeed (faster than a walk, slower than a sprint), and gives up
   // forgetSeconds after it last saw them. Its touch at touchRadius is a
-  // strike, as a shadowman's. Two raiders' beams on it at once for
-  // burnSeconds burn it, and it forms again at the heart respawnSeconds
-  // later; one beam alone does nothing. It floats hover metres over the
+  // strike, as a shadowman's. Two raiders' lights on it at once (a beam,
+  // or a torch held close, CONFIG.torch) for burnSeconds burn it, and it
+  // forms again at the heart respawnSeconds later; one alone does
+  // nothing. It floats hover metres over the
   // paths, and a beam is aimed at chestHeight over the holder's feet.
   caretaker: {
     patrolSpeed: 2.2,
