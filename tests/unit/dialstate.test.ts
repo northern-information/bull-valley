@@ -1102,7 +1102,7 @@ describe("the account's news on the phone", () => {
       10
     )
     expect(s.name).toBe('Ace')
-    expect(lastLog(s)).toBe(copy('gron.renamed', { name: 'Ace' }))
+    expect(lastLog(s)).toBe(copy('name.renamed', { name: 'Ace' }))
     s = applyFrame(
       s,
       {

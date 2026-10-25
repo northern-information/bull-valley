@@ -126,6 +126,7 @@ export class Hud {
   // The line to the valley; Begin waits on it.
   connection: Connection = 'connecting'
   private begun = false
+  nameBtn: HTMLButtonElement
   accountBtn: HTMLButtonElement
   signOutBtn: HTMLButtonElement
   raiderEl: HTMLElement
@@ -267,10 +268,11 @@ export class Hud {
         <section class="bv-npc-section" data-bv="intro-as" data-faces="settings">
           ${sectionHead(copy('intro.raider'), 'intro-raider')}
           <div class="bv-npc-grid">
-            <p class="bv-intro-as bv-npc-c6">
+            <p class="bv-intro-as bv-npc-c3">
               <span class="bv-npc-label">${copy('intro.raiding_as')}</span>
               <b data-bv="intro-username"></b>
             </p>
+            <button type="button" class="bv-btn bv-npc-btn bv-npc-c3" data-bv="intro-name">${copy('name.title')}</button>
             <button type="button" class="bv-btn bv-npc-btn bv-npc-c3" data-bv="intro-account">${copy('intro.account')}</button>
             <button type="button" class="bv-btn bv-npc-btn bv-npc-c3" data-bv="intro-sign-out">${copy('intro.sign_out')}</button>
             <div class="bv-npc-pair bv-intro-settings bv-npc-c12" data-bv="intro-settings"></div>
@@ -317,6 +319,7 @@ export class Hud {
     )
     this.showConnection()
     this.raiderEl = find(this.intro, '[data-bv="intro-username"]')
+    this.nameBtn = find(this.intro, '[data-bv="intro-name"]')
     this.accountBtn = find(this.intro, '[data-bv="intro-account"]')
     this.signOutBtn = find(this.intro, '[data-bv="intro-sign-out"]')
     const open = (face: OverlayFace) => () => this.showFace(face)
@@ -354,8 +357,8 @@ export class Hud {
     return this.face
   }
 
-  // Who the menu's Settings says is raiding, with Account and Sign Out beside
-  // it; hidden until the titles settle a username.
+  // Who the menu's Settings says is raiding, with Your Name, Account and
+  // Sign Out beside it; hidden until the titles settle a username.
   setRaider(username: string): void {
     this.raiderEl.textContent = username
     this.raiderSet = true

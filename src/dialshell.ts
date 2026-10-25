@@ -66,7 +66,7 @@ interface ShellOptions {
   // The valley's clock in ms, for what the stand has banked.
   now: () => number
   pack: PackActions
-  // Opens the stand's dialog over the shell; Erwin's and Gron's too.
+  // Opens the stand's dialog over the shell; Erwin's too.
   openStand: () => void
   openRecycle: () => void
   // The campfire's dialog over the shell (cookdialog.ts).
@@ -74,7 +74,6 @@ interface ShellOptions {
   // Fishing at the firefly pond, from the lobby's sheet (dialfish.ts).
   fish: FishActions
   openErwin: () => void
-  openGron: () => void
   // Opens a Citgo's shelves in the trade window, with every Citgo's name
   // once the survey has loaded (citgomap.ts citgoNames).
   citgo: CitgoActions
@@ -90,6 +89,9 @@ interface ShellOptions {
   settings: SettingsStore
   // The same page in the 3D valley.
   switchHref: string
+  // Opens Your Name (namedialog.ts) over the shell, as the 3D valley's
+  // Settings does.
+  openName: () => void
   // Opens the account panel (accountpanel.ts) over the shell.
   openAccount: () => void
   // Signs the phone out, back to the modem.
@@ -246,7 +248,7 @@ export class DialShell {
     if (said && fresh) this.toast.textContent = said.text
   }
 
-  // A new name from Gron.
+  // A new name from Your Name.
   setName(name: string): void {
     this.options = { ...this.options, name }
     if (this.state) this.render(this.state)
@@ -554,9 +556,6 @@ export class DialShell {
         copy('dialup.lobby.erwin_blurb'),
         () => this.options.openErwin()
       ),
-      card('gron', copy('outfits.gron'), copy('dialup.lobby.gron_blurb'), () =>
-        this.options.openGron()
-      ),
       card('moab', copy('outfits.moab'), copy('dialup.lobby.moab_blurb'), () =>
         this.options.openMoab()
       ),
@@ -567,6 +566,10 @@ export class DialShell {
     const foot = el('div', 'bv-dial-foot')
     const away = text('a', copy('dialup.switch_valley'), 'bv-dial-switch')
     away.href = this.options.switchHref
+    const rename = text('button', copy('name.title'), 'bv-dial-btn')
+    rename.type = 'button'
+    rename.dataset.bv = 'dial-name'
+    rename.addEventListener('click', () => this.options.openName())
     const account = text('button', copy('menu.account'), 'bv-dial-btn')
     account.type = 'button'
     account.dataset.bv = 'dial-account'
@@ -579,7 +582,7 @@ export class DialShell {
       this.options.signOut()
     })
     // The buttons side by side, the way to the 3D valley under them.
-    foot.append(account, out, away)
+    foot.append(rename, account, out, away)
     grid.append(foot)
     return grid
   }

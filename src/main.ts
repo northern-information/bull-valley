@@ -398,6 +398,7 @@ async function boot() {
   const engagePointer = wirePointer(game)
   const actions = createActions(game, engagePointer)
   wireValley(game, actions)
+  hud.nameBtn.addEventListener('click', () => actions.changeName())
   // Not awaited: Begin waits on it (valleysync.ts).
   void net.connect({
     outfit: pick.outfit,

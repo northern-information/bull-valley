@@ -45,7 +45,6 @@ import {
 import { finishById } from './finishes.ts'
 import { openFishDialog } from './fishdialog.ts'
 import { inPond } from './fishing.ts'
-import { openGronDialog } from './grondialog.ts'
 import { baitFor, inHand, useOf } from './held.ts'
 import {
   assign,
@@ -66,6 +65,7 @@ import { README } from './laptopreadme.ts'
 import { mountLookPanel } from './lookpanel.ts'
 import { call, refused } from './marx.ts'
 import { openMoabDialog } from './moabdialog.ts'
+import { openNameDialog } from './namedialog.ts'
 import { marksMap, npcLine, npcName, pinnedAt } from './npcs.ts'
 import { outfitById } from './outfits.ts'
 import {
@@ -134,6 +134,8 @@ export interface Actions {
   // A line from an NPC into this player's chat log alone (Carlsten's
   // curse after the slurms, slurms.ts).
   npcSays(npc: NpcId, text: string): void
+  // Your Name, from the pause overlay's Settings.
+  changeName(): void
   // Redraw the open pack after anything that changes what you carry. The
   // hotbar follows on its own, every frame.
   refreshBag(): void
@@ -190,7 +192,7 @@ export interface Actions {
   // The account's wards as the valley keeps them.
   setWards(levels: WardLevels): void
   // Our own name and body as the valley shows them: a change made on the
-  // account's other app (Dial-Up's Gron or Moab) is taken on and said.
+  // account's other app (Dial-Up's Your Name or Moab) is taken on and said.
   becomeShown(peer: PeerWire): void
   // The account's geometrie, left and whole, as the valley says it (a
   // forecourt, a use, a new level).
@@ -289,7 +291,7 @@ const GRACE_MS = CONFIG.portal.graceSeconds * 1000
 // A hallucination bursting sounds as a shadowman does, pitched up.
 const HALLUCINATION_BURST_RATE = 1.8
 
-// engagePointer takes the pointer back once Gron's dialog closes.
+// engagePointer takes the pointer back once a dialog closes.
 export function createActions(game: Game, engagePointer: () => void): Actions {
   const { state: s, hud, net, peers, player, truck, world, graph } = game
 
@@ -310,14 +312,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   hud.pack.onTab = showBagTab
 
   // A panel over the valley (the pack, the book) with the pointer free for
-  // it, as Gron's dialog has it; the player freezes, the valley does not.
+  // it, as a dialog has it; the player freezes, the valley does not.
   const withPanel = (open: () => void) => {
     player.keys.clear()
     open()
     if (document.pointerLockElement) document.exitPointerLock()
   }
 
-  // A dialog over the valley (Gron's, the stand's): the game stands aside
+  // A dialog over the valley (the stand's, the laptop): the game stands aside
   // (talking) with the pointer free until it closes, then takes it back.
   // The valley does not stop for it.
   const withDialog = (open: () => Promise<void>) => {
@@ -657,7 +659,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   // E at the laptop in the Citgo bathroom: it fills the view with the
-  // pointer free, as Gron's dialog does, and opens on the editor and the
+  // pointer free, as the stand's dialog does, and opens on the editor and the
   // readme. The files are the valley's (rule 31): the screen asks, and the
   // answers land in it (valleysync.ts). Played alone only the readme is
   // there to read.
@@ -706,7 +708,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   // E at the Cabbage Stand: its dialog, the pointer free for it as for
-  // Gron's. The stand is the account's (rule 23): every change is the
+  // the laptop. The stand is the account's (rule 23): every change is the
   // valley's to make; the dialog asks, and the stand and pack frames that
   // answer show in it as they land.
   const tendStand = () => {
@@ -1343,7 +1345,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (peer.name !== pick.username) {
       pick.username = peer.name
       hud.setRaider(peer.name)
-      hud.tell(copy('gron.renamed', { name: peer.name }))
+      hud.tell(copy('name.renamed', { name: peer.name }))
     }
     if (peer.outfit !== pick.outfit) {
       game.playerBody.restyle(peer.outfit, finishById(pick.finish).color)
@@ -1445,21 +1447,19 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     net.send({ type: 'take', index })
   }
 
-  // Gron's dialog: the game stands aside for it (talking). He changes the
-  // name the valley knows.
-  const talkToGron = () => {
-    if (s.talking) return
+  // Your Name, from the pause overlay's Settings: over the overlay, which
+  // already has the pointer free and the game's keys aside. A new name is
+  // the one the valley knows.
+  const changeName = () => {
     const { pick } = game
-    withDialog(() =>
-      openGronDialog({
-        username: pick.username,
-        onRenamed: (name) => {
-          pick.username = name
-          hud.setRaider(name)
-          net.send({ type: 'rename' })
-        },
-      })
-    )
+    void openNameDialog({
+      username: pick.username,
+      onRenamed: (name) => {
+        pick.username = name
+        hud.setRaider(name)
+        net.send({ type: 'rename' })
+      },
+    })
   }
 
   const interact = () => {
@@ -1484,7 +1484,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'talk':
         discover(['gron'])
-        talkToGron()
+        speakTo('gron')
         return
       case 'speak':
         discover([interaction.npc])
@@ -1948,6 +1948,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   return {
     npcSays,
+    changeName,
     refreshBag,
     openInventory,
     closeInventory,

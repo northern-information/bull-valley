@@ -216,7 +216,7 @@ export function dropAway(
   return { state: next, dropped }
 }
 
-// A member's new name (Gron), wherever the parties name them.
+// A member's new name (Your Name), wherever the parties name them.
 export function renamed(
   state: Parties,
   account: string,

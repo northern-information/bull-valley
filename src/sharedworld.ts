@@ -45,8 +45,8 @@
 //    (1 to CONFIG.maze.bushes.count). The valley remembers only the
 //    accounts that have had today's berry off each. Two sockets signed in
 //    to one account share one berry a bush.
-// 9. Gron changes a raider's name, and Moab Coldë their character, at any
-//    time. The change touches only how they are shown.
+// 9. Your Name (in Settings) changes a raider's name, and Moab Coldë their
+//    character, at any time. The change touches only how they are shown.
 // 10. Every item a raider carries is their account's (the pack), kept by
 //    the valley and never by the client: a berry, a pickup (a cabbage
 //    included), a unit bought off a shelf (a pack or a bottle goes in

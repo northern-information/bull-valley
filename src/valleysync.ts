@@ -134,8 +134,9 @@ export function wireValley(game: Game, actions: Actions): void {
         hud.tell(joinedLine(msg.peer))
         return
       case 'peer-updated': {
-        // Our own comes back too: from Gron or Moab here, said already, or
-        // from the account's Gron or Moab on the phone, which we take on.
+        // Our own comes back too: from Your Name or Moab here, said already,
+        // or from the account's Your Name or Moab on the phone, which we take
+        // on.
         if (msg.peer.id === net.id) {
           actions.becomeShown(msg.peer)
           return
