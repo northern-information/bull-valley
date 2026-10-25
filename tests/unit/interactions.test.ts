@@ -602,6 +602,27 @@ describe('resolveInteraction: bodies and lockers', () => {
     ).toBeNull()
   })
 
+  it('takes a moat slurm on the floor under a pipe, by its own height', () => {
+    // Down in the moat, looking at the floor by the wall: a pipe's deck
+    // runs 6 m up over the slurm, so the ground there is the deck.
+    const inMoat: View<PickupSpot> = {
+      eye: [250, 1.6, 250],
+      dir: [0, -0.6, -0.8],
+      feet: 0,
+      groundAt: (_x, z) => (z < 249 ? 6 : 0),
+      heightOf: () => 0.1,
+    }
+    const under = { x: 250, y: 0, z: 248, station: -1, slot: 3, index: 0 }
+    expect(
+      resolveInteraction(input({ slurms: [under], view: inMoat }))
+    ).toMatchObject({ kind: 'jar-slurm', index: 0 })
+    // Without its height it stands on the deck, a floor away.
+    const { y: _y, ...lost } = under
+    expect(
+      resolveInteraction(input({ slurms: [lost], view: inMoat }))
+    ).toBeNull()
+  })
+
   it('opens the tackle box on the firefly pond, within its reach', () => {
     expect(resolveInteraction(input({ tackle: { x: 252, z: 250 } }))).toEqual({
       kind: 'fish',

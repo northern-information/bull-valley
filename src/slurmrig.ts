@@ -92,12 +92,14 @@ export interface Slurms {
   hold(on: boolean): void
 }
 
-// A slurm crawling on a lot, as a jar sees it.
+// A slurm crawling on a lot, as a jar sees it: where it lies, its
+// height too.
 export interface CrawlingSlurm {
   station: number
   slot: number
   index: number
   x: number
+  y: number
   z: number
   object: THREE.Object3D
 }
@@ -241,6 +243,7 @@ export function createSlurms(clerk: Figure, ground: Ground): Slurms {
             slot: event.slot,
             index: i,
             x: wx,
+            y: y + origin.y,
             z: wz,
             object: rig.group,
           })

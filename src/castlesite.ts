@@ -300,6 +300,7 @@ export function buildCastleSite(
           slot: slurm.slot,
           index: slurm.index,
           x: slurm.x,
+          y: slurm.y,
           z: slurm.z,
           object: rig.group,
         })

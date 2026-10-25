@@ -236,11 +236,15 @@ export interface LockerSpot extends XZ {
   station: number
 }
 
-// A slurm a jar could catch (slurmrig.ts): which, and where it crawls.
+// A slurm a jar could catch (slurmrig.ts): which, where it crawls, and
+// how high it lies there: in the moat, under the pipes along the walls,
+// that is the floor, not the deck over it (ground.at). Left out, the
+// ground under it.
 export interface SlurmSpot extends XZ {
   station: number
   slot: number
   index: number
+  y?: number
 }
 
 export interface InteractionInput<P extends PickupSpot> {
@@ -335,9 +339,9 @@ export function resolveInteraction<P extends PickupSpot>(
   if (input.riding) return { kind: 'hopOut' }
   // Whatever stands at `spot` as `sight` is to the eye: in view, about the
   // raider's own level, with no wall between.
-  const sees = (spot: XZ, sight: Sight) =>
+  const sees = (spot: XZ, sight: Sight, base?: number) =>
     (!view ||
-      sightAngle(view, spot, view.groundAt(spot.x, spot.z), sight) <=
+      sightAngle(view, spot, base ?? view.groundAt(spot.x, spot.z), sight) <=
         CONFIG.player.pickupCone) &&
     !walled?.(player, spot)
   const seen = nearestHallucination(
@@ -362,7 +366,7 @@ export function resolveInteraction<P extends PickupSpot>(
   let slurmD: number = CONFIG.fishing.jar.reach
   for (const spot of input.slurms ?? []) {
     const d = Math.hypot(spot.x - player.x, spot.z - player.z)
-    if (d < slurmD && sees(spot, SIGHTS.slurm)) {
+    if (d < slurmD && sees(spot, SIGHTS.slurm, spot.y)) {
       slurm = spot
       slurmD = d
     }
