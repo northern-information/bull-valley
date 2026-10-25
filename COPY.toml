@@ -977,7 +977,7 @@ label = { text = "Flaming Halo", by = "ai" }
 
 [cosmetics.coleman-1]
 label = { text = "David Coleman: #1", by = "ai" }
-offer = { text = "Gold bullion. Ten troy ounces, and he is yours. He will answer to his name.", by = "ai" }
+offer = { text = "Gold bullion. Ten troy ounces, and his skin is your mask, now.", by = "ai" }
 traded = { text = "Number one. Wear him well.", by = "ai" }
 worn = { text = "David Coleman: #1 is yours to raid as. Gron or the select will dress you.", by = "ai" }
 
