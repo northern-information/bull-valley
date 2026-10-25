@@ -12,6 +12,7 @@ import {
 import { berryMaterial } from './berrybush.ts'
 import { paintTwenty } from './billart.ts'
 import { canvas } from './canvas.ts'
+import { buildShovel } from './celestialmodel.ts'
 import { buildDrink } from './drinkmodels.ts'
 import {
   buildCookedFish,
@@ -34,6 +35,8 @@ import {
   buildFlashlightItem,
   buildMarxWhistle,
 } from './kitmodels.ts'
+import { buildMech } from './mechmodel.ts'
+import { isMech } from './mechs.ts'
 import { buildMedicine } from './medicinemodels.ts'
 import { paintPack } from './packart.ts'
 import { mulberry32, range } from './rng.ts'
@@ -1144,6 +1147,8 @@ export function buildPickup(
   if (isFood(kind)) return buildCookedFish(kind, { glow })
   if (kind === 'torch') return buildTorch({ glow })
   if (kind === 'slurm-jar') return buildSlurmJar({ glow })
+  if (kind === 'shovel') return buildShovel({ glow })
+  if (isMech(kind)) return buildMech(kind, { glow })
   if (kind === 'slurm') return buildSlurmCatch()
   if (kind === 'fishing-rod' || isRod(kind)) {
     return buildFishingRod(kind, { glow })

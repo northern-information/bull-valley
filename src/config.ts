@@ -1644,6 +1644,36 @@ export const CONFIG = {
     damage: 20,
     spread: 0.15,
   },
+  // The celestial graveyard (celestialyard.ts, sharedworld.ts rule 41): the
+  // precinct of the nephilim and the seraphim in the survey's graveyard
+  // nearest Jericho, everything at four times a raider's scale. A gothic
+  // iron fence `radius` round its middle, the gate `gate` wide on the side
+  // toward him, an avenue `avenue` wide from the gate to the weeping angel
+  // (`angelAt` along it from the middle, facing the gate) and her grave at
+  // her feet (`grave`: its middle along the avenue, how long and wide).
+  // The shovel stands in a heap of earth `shovel` in from the gate, off
+  // the avenue's side, and E takes one within `shovelReach`; E digs
+  // within `graveReach` of the grave's middle. The valley allows `slack`
+  // more, the raider's last state frame being a beat behind. `stones`
+  // giant monuments are strewn from `seed`, none nearer one another than
+  // `spacing`, none on the avenue or within `plaza` of the angel; iron
+  // candelabra stand in pairs every `candleEvery` metres down the avenue.
+  celestial: {
+    radius: 52,
+    gate: 11,
+    avenue: 9,
+    angelAt: -8,
+    grave: { at: 1.5, length: 9, width: 4 },
+    shovel: { in: 7, out: 6.5 },
+    shovelReach: 1.8,
+    graveReach: 6.5,
+    slack: 2,
+    stones: 44,
+    spacing: 8,
+    plaza: 15,
+    candleEvery: 9,
+    seed: 0x5e7a9,
+  },
   // The Caretaker: one floating shade that walks the corn maze's paths
   // (caretaker.ts, sharedworld.ts rule 13). It patrols out to a random
   // corner of the maze and back to the heart, by turns, at patrolSpeed.

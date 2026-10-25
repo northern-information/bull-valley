@@ -126,6 +126,11 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The toolbox at the lookout's foot, the pack holding no torch: E takes
   // one out (sharedworld.ts rule 39).
   | { kind: 'toolbox' }
+  // The heap of earth inside the celestial graveyard's gate, the pack
+  // holding no shovel: E takes one; the weeping angel's grave, a shovel in
+  // the pack: E digs it (sharedworld.ts rule 41).
+  | { kind: 'shovel' }
+  | { kind: 'exhume' }
   // Another raider in reach and in front (buffs.ts passTarget): E opens
   // their card (inspect.ts).
   | { kind: 'inspect'; name: string }
@@ -201,6 +206,10 @@ export const SIGHTS = {
   portal: { low: 0, high: 2.6, r: 1.2 },
   // The toolbox, the torches standing up out of it.
   toolbox: { low: 0, high: 0.7, r: 0.45 },
+  // The heap and the shovel standing up out of it.
+  heap: { low: 0, high: 1.8, r: 0.9 },
+  // The angel's grave, kerb to kerb, at four times a raider's size.
+  grave: { low: -0.2, high: 0.6, r: 3 },
 } as const satisfies Record<string, Sight>
 
 // How far off the look `sight` at (x, z), its column standing on `base`,
@@ -321,6 +330,10 @@ export interface InteractionInput<P extends PickupSpot> {
   // The toolbox at the lookout's foot, while the pack holds no torch; or
   // null.
   toolbox?: XZ | null
+  // The celestial graveyard's heap, while the pack holds no shovel, and
+  // the angel's grave, while it holds one; or null.
+  heap?: XZ | null
+  grave?: XZ | null
   // What a trip shows this raider that is not there, each answering E
   // from as far as the real one would (CONFIG.hallucinations.reach).
   hallucinations?: readonly HallucinationSpot[]
@@ -508,6 +521,26 @@ export function resolveInteraction<P extends PickupSpot>(
     sees(toolbox, SIGHTS.toolbox)
   ) {
     return { kind: 'toolbox' }
+  }
+
+  // The celestial graveyard: the heap by the gate, and the angel's grave.
+  const heap = input.heap
+  if (
+    heap &&
+    Math.hypot(heap.x - player.x, heap.z - player.z) <
+      CONFIG.celestial.shovelReach &&
+    sees(heap, SIGHTS.heap)
+  ) {
+    return { kind: 'shovel' }
+  }
+  const grave = input.grave
+  if (
+    grave &&
+    Math.hypot(grave.x - player.x, grave.z - player.z) <
+      CONFIG.celestial.graveReach &&
+    sees(grave, SIGHTS.grave)
+  ) {
+    return { kind: 'exhume' }
   }
 
   // Up on the deck only the way down is offered, and below only the way
@@ -791,6 +824,10 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.leave_tower')
     case 'toolbox':
       return copy('prompts.toolbox')
+    case 'shovel':
+      return copy('prompts.shovel')
+    case 'exhume':
+      return copy('prompts.exhume')
     case 'inspect':
       return copy('prompts.inspect', { name: interaction.name })
   }

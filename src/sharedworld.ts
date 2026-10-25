@@ -409,10 +409,24 @@
 //    they cook into in together, or neither, as a barter with Erwin is
 //    written (ValleyContext.holdings in, Reduced.barter and Reduced.cooked
 //    out). Every socket on the account hears what cooked, then the pack.
+// 41. The celestial graveyard (celestialyard.ts, mechs.ts): Jericho's
+//    quest goes on in the survey's graveyard nearest him, where the world
+//    was opened with it (SharedWorld.celestial). A raider on foot by the
+//    heap of earth inside its gate (celestialyard.ts atShovel) takes a
+//    shovel out of it when the pack holds none (`shovel`); a key item,
+//    kept through a death. A raider on foot at the weeping angel's grave
+//    (atGrave) with a shovel in the pack digs it (`exhume`), once a
+//    Central day an account (Valley.dailies, beside the berries, rule 8;
+//    `dug-today` after), and the valley's roll draws the mech that comes
+//    up (mechs.ts mechOf, weighted by rarity): a key item into the pack
+//    (ValleyContext.holdings in, Reduced.pack and Reduced.unearthed out).
+//    Every socket on the account hears what came up, then the pack.
+//    Dialed in there is no graveyard (`dialup`).
 
 import { bountyOf, GIFTS } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
 import { heartPoint, theMaze } from './caretaker.ts'
+import { atGrave, atShovel } from './celestialyard.ts'
 import { citgoAt, findPhone, NO_CITGOS, visit } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { atCampfire, cookedOf } from './cooking.ts'
@@ -497,6 +511,7 @@ import {
   settleTruck,
 } from './marx.ts'
 import { mazeToWorld } from './maze.ts'
+import { mechOf } from './mechs.ts'
 import { inChannel } from './moat.ts'
 import { mayJarMoat, MOAT_STATION } from './moatslurms.ts'
 import {
@@ -657,6 +672,8 @@ interface SharedWorld {
   // when (valley ms) its last swing of a torch landed (never on the wire).
   topiaries: TopiaryHealth[]
   swings: Record<string, number>
+  // Rule 41: the celestial graveyard's frame, or null.
+  celestial: MazePlace | null
 }
 
 interface ValleyPortal extends Portal {
@@ -740,6 +757,12 @@ function bushKey(account: string, bush: number): string {
   return bush === 0 ? account : `${account}/${bush}`
 }
 
+// Rule 41: the key the valley remembers the day one account last dug the
+// weeping angel's grave under, among the bushes' (never a bush's).
+export function graveKey(account: string): string {
+  return `${account}/grave`
+}
+
 // Rule 27: where a raider's last state frame put them, as a pass reads it.
 export interface Spot {
   x: number
@@ -769,6 +792,7 @@ export type ValleyAction =
       moat: MazePlace | null
       rings: XZ[]
       payphones: XZ[]
+      celestial: MazePlace | null
       // Rule 24: the account's level, read from D1 (1 when absent).
       level?: number
     }
@@ -893,6 +917,10 @@ export type ValleyAction =
   // topiary `index`, with the valley's roll for what it takes off. at:
   // where the raider's last state frame put them, or null.
   | { type: 'toolbox'; id: string; at: XZ | null }
+  // Rule 41: a shovel out of the heap by the graveyard's gate, and the
+  // weeping angel's grave dug, `roll` (0 to 1) drawing the mech.
+  | { type: 'shovel'; id: string; at: XZ | null }
+  | { type: 'exhume'; id: string; at: XZ | null; roll: number }
   | { type: 'torch'; id: string; index: number; at: XZ | null; roll: number }
   // Rule 36: slurm `index` of slot `slot`'s drop at `station`, into the
   // jar. at: where the raider's last state frame put them, or null.
@@ -1031,6 +1059,8 @@ export interface Reduced {
   }
   // Rule 40: what cooked, once the barter that cooks it stands.
   cooked?: { account: string; kind: string; count: number; into: ItemId }
+  // Rule 41: the mech dug up, once the pack change that holds it stands.
+  unearthed?: { account: string; mech: ItemId }
   // Rule 14: a trade that stands once the valley has taken the price out
   // of the account's pack and given it the cosmetic, together.
   trade?: {
@@ -1229,6 +1259,7 @@ export function restoreValley(
         ? world.topiaries
         : freshTopiaries(),
       swings: world.swings ?? {},
+      celestial: world.celestial ?? null,
     },
   }
 }
@@ -1635,6 +1666,8 @@ const NEEDS_A_BODY: Partial<Record<ValleyAction['type'], NackRe>> = {
   'jar-slurm': 'jar-slurm',
   toolbox: 'toolbox',
   torch: 'torch',
+  shovel: 'shovel',
+  exhume: 'exhume',
 }
 
 function bodiless(
@@ -1743,6 +1776,9 @@ function act(
     case 'toolbox':
     case 'torch':
       return onTopiary(valley, action, context)
+    case 'shovel':
+    case 'exhume':
+      return onGraveyard(valley, action, context)
     case 'expedition-send':
     case 'expedition-claim':
       return onExpedition(valley, action, context)
@@ -1818,6 +1854,7 @@ function onJoin(
         payphones: action.payphones,
         topiaries: freshTopiaries(),
         swings: {},
+        celestial: action.celestial,
       },
       valley.carried
     )
@@ -3210,6 +3247,51 @@ function onJarSlurm(
     broadcast: [],
     pack: { account: member.account, kind: 'slurm', delta: 1 },
     jarred: { type: 'slurm-jarred', station, slot, index, by: action.id },
+  })
+}
+
+// Rule 41: a shovel out of the heap by the celestial graveyard's gate, or
+// the weeping angel's grave dug for a mech.
+function onGraveyard(
+  valley: Valley,
+  action: ActionOf<'shovel' | 'exhume'>,
+  { now, holdings }: ValleyContext
+): Reduced {
+  const member = valley.members[action.id]
+  const world = valley.world
+  const re = action.type
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, { broadcast: [], reply: nack(re, reason) })
+  if (!member || !world) return refuse('not-in-valley')
+  if (isAboard(world.truck, action.id)) return refuse('aboard')
+  const place = world.celestial
+  const { slack } = CONFIG.celestial
+  if (action.type === 'shovel') {
+    if (!place || !atShovel(place, action.at, slack)) return refuse('too-far')
+    if (!holdings) return refuse('unavailable')
+    if ((holdings.pack.shovel ?? 0) > 0) return refuse('has-shovel')
+    return done(valley, now, {
+      broadcast: [],
+      pack: { account: member.account, kind: 'shovel', delta: 1 },
+    })
+  }
+  if (!place || !atGrave(place, action.at, slack)) return refuse('too-far')
+  if (!holdings) return refuse('unavailable')
+  if ((holdings.pack.shovel ?? 0) < 1) return refuse('no-shovel')
+  const today = dayKey(now)
+  const key = graveKey(member.account)
+  if (valley.dailies[key] === today) return refuse('dug-today')
+  // The day's digs and picks alone are kept, as a berry's pick keeps them.
+  const dailies: Record<string, string> = {}
+  for (const [k, day] of Object.entries(valley.dailies)) {
+    if (day === today) dailies[k] = day
+  }
+  dailies[key] = today
+  const mech = mechOf(action.roll)
+  return done({ ...valley, dailies }, now, {
+    broadcast: [],
+    pack: { account: member.account, kind: mech, delta: 1 },
+    unearthed: { account: member.account, mech },
   })
 }
 

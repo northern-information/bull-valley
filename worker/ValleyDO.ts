@@ -456,6 +456,18 @@ export class ValleyDO extends DurableObject<Env> {
       case 'toolbox':
         await this.withPack(ws, account, { type: 'toolbox', id, at })
         return
+      // Rule 41.
+      case 'shovel':
+        await this.withPack(ws, account, { type: 'shovel', id, at })
+        return
+      case 'exhume':
+        await this.withPack(ws, account, {
+          type: 'exhume',
+          id,
+          at,
+          roll: this.roll(),
+        })
+        return
       case 'torch':
         await this.withPack(ws, account, {
           type: 'torch',
@@ -1611,6 +1623,7 @@ export class ValleyDO extends DurableObject<Env> {
               moat: hello.moat,
               rings: hello.rings,
               payphones: hello.payphones,
+              celestial: hello.celestial,
               level: levelOf(xp),
             },
         { now: Date.now(), present: this.presentIds(ws) }
@@ -2232,7 +2245,8 @@ export class ValleyDO extends DurableObject<Env> {
   // Rule 36: a rod out of the tackle box or a cast, with the pack read
   // first, so the valley knows the rod and the bait are in it; rule 38: a
   // whistle or a portal, the whistle or the phone; rule 39: a torch out of
-  // the toolbox, or a swing of one. A pack that cannot be
+  // the toolbox, or a swing of one; rule 41: a shovel out of the heap, or
+  // the angel's grave dug, the shovel. A pack that cannot be
   // read is refused.
   private withPack(
     ws: WebSocket,
@@ -2248,6 +2262,8 @@ export class ValleyDO extends DurableObject<Env> {
           | 'open-portal'
           | 'toolbox'
           | 'torch'
+          | 'shovel'
+          | 'exhume'
       }
     >
   ): Promise<boolean> {
@@ -2380,6 +2396,14 @@ export class ValleyDO extends DurableObject<Env> {
       this.toAccount(reduced.angler.account, reduced.angler.message)
     }
     if (reduced.fished) send(ws, reduced.fished)
+    // Rule 41: what came up out of the grave, to every socket on the
+    // account; the pack follows.
+    if (reduced.unearthed) {
+      this.toAccount(reduced.unearthed.account, {
+        type: 'unearthed',
+        mech: reduced.unearthed.mech,
+      })
+    }
     if (reduced.jarred) this.broadcast(reduced.jarred, null)
     for (const msg of reduced.broadcast) this.broadcast(msg, null)
     if (account) await this.repack(ws, null, account)
@@ -3472,6 +3496,8 @@ function unwrittenNack(action: ValleyAction): NackMessage | null {
     case 'reel':
     case 'jar-slurm':
     case 'toolbox':
+    case 'shovel':
+    case 'exhume':
       return { type: 'nack', re: action.type, reason }
     default:
       return null

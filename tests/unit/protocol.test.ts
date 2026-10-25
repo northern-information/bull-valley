@@ -58,6 +58,7 @@ const hello = {
   moat: { x: 400, z: 30, yaw: 0.35 },
   rings: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100 + 2, z: i + 14 })),
   payphones: [{ x: 230, z: -60 }],
+  celestial: { x: -900, z: 600, yaw: 0.4 },
 }
 
 const parse = (value: unknown) => parseClientMessage(JSON.stringify(value))
@@ -293,6 +294,7 @@ describe('parseClientMessage', () => {
       moat: _moat,
       rings: _rings,
       payphones: _payphones,
+      celestial: _celestial,
       ...older
     } = hello
     expect(parse({ ...older, v: PROTOCOL_VERSION - 1 })).toEqual({
@@ -312,6 +314,7 @@ describe('parseClientMessage', () => {
       moat: null,
       rings: [],
       payphones: [],
+      celestial: null,
     })
     // Any bad one reads as none in an older build, a good map beside them
     // too: the places come all together or not at all.
@@ -347,10 +350,15 @@ describe('parseClientMessage', () => {
       moat: null,
       rings: [],
       payphones: [],
+      celestial: null,
     })
     // The current version still requires them all.
     expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()
     expect(parse({ ...hello, dealer: 'wick' })).toBeNull()
+    expect(parse({ ...hello, celestial: 'consecrated' })).toBeNull()
+    expect(parse({ ...hello, celestial: null })).toMatchObject({
+      celestial: null,
+    })
     expect(
       parse({ ...hello, moat: { place: hello.maze, floor: 'deep' } })
     ).toBeNull()
@@ -533,6 +541,9 @@ describe('parseClientMessage', () => {
     ).toBeNull()
     // The toolbox and the torch (rule 39).
     expect(parse({ type: 'toolbox' })).toEqual({ type: 'toolbox' })
+    // The celestial graveyard (rule 41).
+    expect(parse({ type: 'shovel' })).toEqual({ type: 'shovel' })
+    expect(parse({ type: 'exhume' })).toEqual({ type: 'exhume' })
     expect(parse({ type: 'torch', index: 3 })).toEqual({
       type: 'torch',
       index: 3,

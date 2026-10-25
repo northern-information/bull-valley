@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
+import { graveOf, shovelOf } from '../../src/celestialyard.ts'
 import { CONFIG } from '../../src/config.ts'
 import { campfireOf } from '../../src/cooking.ts'
 import { dayKey, nextMidnight } from '../../src/daily.ts'
@@ -122,6 +123,8 @@ const HAVENS = [
 // The middle of each station's Citgo portal ring (rule 28).
 const RINGS = HAVENS.map(({ x, z }) => ({ x: x + 2, z: z + 14 }))
 const PAYPHONES = [{ x: 700, z: -300 }]
+// Rule 41: the celestial graveyard's frame.
+const CELESTIAL = { x: -900, z: 600, yaw: 0.4 }
 const METRES = { width: 15059, height: 15038 }
 // Where a build with a corn maze puts it (rule 13). The default join's
 // build has none, so the shadowmen's tests step only shadowmen.
@@ -240,6 +243,7 @@ const join = (id: string): ValleyAction => ({
   moat: null,
   rings: RINGS,
   payphones: PAYPHONES,
+  celestial: CELESTIAL,
 })
 
 // A join as its own action shape, so a test can sign it in elsewhere.
@@ -4761,6 +4765,76 @@ describe('rule 36: slurms into the jar', () => {
       expect(reason(moatJar(v, { slot: moatSlot + 100 }))).toBe('gone')
       expect(reason(moatJar(v, { index: 99 }))).toBe('gone')
     })
+  })
+})
+
+describe('rule 41: the celestial graveyard', () => {
+  const heap = shovelOf(CELESTIAL)
+  const grave = graveOf(CELESTIAL)
+  const reason = (r: Reduced) => r.reply?.reason
+  const dig = (roll = 0.5, at: XZ | null = grave): ValleyAction => ({
+    type: 'exhume',
+    id: 'a',
+    at,
+    roll,
+  })
+
+  it('hands a shovel out of the heap to a raider by it with none', () => {
+    const v = valleyWith(join('a'))
+    v.setPack({})
+    const r = v.step({ type: 'shovel', id: 'a', at: heap })
+    expect(r.pack).toEqual({ account: 'acct-a', kind: 'shovel', delta: 1 })
+    v.setPack({ shovel: 1 })
+    expect(reason(v.step({ type: 'shovel', id: 'a', at: heap }))).toBe(
+      'has-shovel'
+    )
+    expect(reason(v.step({ type: 'shovel', id: 'a', at: grave }))).toBe(
+      'too-far'
+    )
+    expect(reason(v.step({ type: 'shovel', id: 'a', at: null }))).toBe(
+      'too-far'
+    )
+  })
+
+  it('digs a mech out of the grave on the roll, once a day', () => {
+    const v = valleyWith(join('a'))
+    v.setPack({ shovel: 1 })
+    const r = v.step(dig(0.999))
+    expect(r.pack).toEqual({
+      account: 'acct-a',
+      kind: 'mech-ophanim',
+      delta: 1,
+    })
+    expect(r.unearthed).toEqual({ account: 'acct-a', mech: 'mech-ophanim' })
+    expect(reason(v.step(dig()))).toBe('dug-today')
+    // The berries keep their own day beside it.
+    expect(dailyFor(v.valley, 'acct-a', v.now).collected).toEqual([])
+    v.tick(24 * 60 * 60 * 1000)
+    expect(v.step(dig(0)).unearthed?.mech).toBe('mech-grigori')
+  })
+
+  it('needs a shovel, the grave in reach, and a body', () => {
+    const v = valleyWith(join('a'))
+    v.setPack({})
+    expect(reason(v.step(dig()))).toBe('no-shovel')
+    v.setPack({ shovel: 1 })
+    expect(reason(v.step(dig(0.5, heap)))).toBe('too-far')
+    const d = valleyWith({
+      type: 'dial',
+      id: 'a',
+      account: 'acct-a',
+      name: 'A',
+      outfit: 'coleman',
+      level: 1,
+    })
+    expect(reason(d.step(dig()))).toBe('dialup')
+    expect(reason(d.step({ type: 'shovel', id: 'a', at: heap }))).toBe('dialup')
+  })
+
+  it('has no graveyard in a world opened without one', () => {
+    const v = valleyWith({ ...join('a'), celestial: null } as ValleyAction)
+    v.setPack({ shovel: 1 })
+    expect(reason(v.step(dig()))).toBe('too-far')
   })
 })
 

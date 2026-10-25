@@ -46,7 +46,7 @@ import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 55
+export const PROTOCOL_VERSION = 56
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -311,6 +311,10 @@ export interface HelloMessage {
   // Where each payphone stands (castleyard.ts payphoneSpot), none or more:
   // a raider who stands at one finds it for fast travel (rule 28).
   payphones: XZ[]
+  // The celestial graveyard's frame (celestialyard.ts celestialPlaceOf),
+  // or null: where the shovel stands and the weeping angel's grave lies
+  // (rule 41).
+  celestial: MazePlace | null
   // On a reconnect, the id this client had before the line dropped. The
   // valley may not have heard that socket close yet; it retires it if it is
   // the same account's, so the raider is not welcomed back beside their own
@@ -477,6 +481,13 @@ type FishMessage =
 // and the pack, and answers with a PackMessage, or a world frame
 // ('topiary-hit' or 'topiary-burned') for everyone, or a nack.
 type TopiaryTendMessage = { type: 'toolbox' } | { type: 'torch'; index: number }
+
+// The celestial graveyard (sharedworld.ts rule 41): a shovel out of the
+// heap by the gate, or the weeping angel's grave dug. The valley checks
+// the raider's last state frame put them by the heap or the grave, and
+// the pack (and the day), and answers with an UnearthedMessage and a
+// PackMessage, a PackMessage alone, or a nack.
+type GraveyardTendMessage = { type: 'shovel' } | { type: 'exhume' }
 
 // An expedition (sharedworld.ts rule 30): a run of `kind` sent out, or the
 // run home claimed. Dial-Up only; the valley answers with an
@@ -751,6 +762,7 @@ export type ClientMessage =
   | CookMessage
   | FishMessage
   | TopiaryTendMessage
+  | GraveyardTendMessage
   | ExpeditionTendMessage
   | TradeMessage
   | DealMessage
@@ -919,6 +931,13 @@ export interface CookedMessage {
   kind: string
   count: number
   into: string
+}
+
+// A mech dug up out of the weeping angel's grave (rule 41), to every
+// socket signed in to the account, a pack frame following.
+export interface UnearthedMessage {
+  type: 'unearthed'
+  mech: string
 }
 
 // The account's angler (rule 36), to every socket signed in to it: in
@@ -1277,6 +1296,7 @@ export type ServerMessage =
   | ResearchMessage
   | FoundMessage
   | CookedMessage
+  | UnearthedMessage
   | AnglerMessage
   | LineMessage
   | CatchMessage
@@ -1719,6 +1739,7 @@ type HelloPlaces = Pick<
   | 'moat'
   | 'rings'
   | 'payphones'
+  | 'celestial'
 >
 
 // An older build's places: none. The server refuses its version before it
@@ -1738,6 +1759,7 @@ const NO_PLACES: HelloPlaces = {
   moat: null,
   rings: [],
   payphones: [],
+  celestial: null,
 }
 
 // A place a hello may leave null (no maze, no stand): undefined when it is
@@ -1772,8 +1794,11 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   if (!payphones) return null
   if (dealer === undefined || undercroft === undefined) return null
   if (moat === undefined) return null
+  const celestial = nullable(value.celestial, parseMazePlace)
+  if (celestial === undefined) return null
   const places = { havens, metres, lairs, maze, truck, stand, bushes, dealer }
-  return { ...places, recyclers, ponds, undercroft, moat, rings, payphones }
+  const more = { recyclers, ponds, undercroft, moat, rings, payphones }
+  return { ...places, ...more, celestial }
 }
 
 // A hello. The outfit is checked by the server (characters.ts
@@ -1894,6 +1919,8 @@ const CLIENT_PARSERS: ClientParsers = {
   angler: bare('angler'),
   tackle: bare('tackle'),
   toolbox: bare('toolbox'),
+  shovel: bare('shovel'),
+  exhume: bare('exhume'),
   // Which topiaries there are is the valley's to check.
   torch: ({ index }) => (isCount(index) ? { type: 'torch', index } : null),
   dig: bare('dig'),

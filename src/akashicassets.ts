@@ -14,6 +14,8 @@ import { buildCaretaker } from './caretakermodel.ts'
 import { castleOf, FORM_KINDS } from './castle.ts'
 import { buildCastle } from './castlemodel.ts'
 import { CLUTTER_KINDS } from './castleyard.ts'
+import { buildGiantStone, buildWeepingAngel } from './celestialmodel.ts'
+import { STONE_KINDS } from './celestialyard.ts'
 import {
   adSignPart,
   buildLockerDoors,
@@ -60,6 +62,7 @@ import { buildBathLaptop } from './laptopmodel.ts'
 import { README } from './laptopreadme.ts'
 import { buildLookout } from './lookoutmodel.ts'
 import { mazeSpans, SHINING_MAZE } from './maze.ts'
+import { MECHS } from './mechs.ts'
 import { buildMedicine } from './medicinemodels.ts'
 import {
   fireEscapes,
@@ -505,6 +508,12 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildPickup('fishing-rod'),
   },
   { id: 'torch', label: 'Torch', build: () => buildPickup('torch') },
+  { id: 'shovel', label: 'Shovel', build: () => buildPickup('shovel') },
+  ...MECHS.map(({ id }) => ({
+    id,
+    label: `Mech: ${itemLabel(id)}`,
+    build: () => buildPickup(id),
+  })),
   {
     id: 'slurm-jar',
     label: 'Slurm jar',
@@ -731,6 +740,18 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'Jericho, the Candlebearer, by the payphone',
     build: () => buildJericho().group,
   },
+  {
+    id: 'weeping-angel',
+    label: 'The weeping angel over her grave, in the celestial graveyard',
+    build: buildWeepingAngel,
+  },
+  ...STONE_KINDS.filter((kind, i) => STONE_KINDS.indexOf(kind) === i).map(
+    (kind) => ({
+      id: `giant-${kind}`,
+      label: `A giant's monument (${kind}), in the celestial graveyard`,
+      build: () => buildGiantStone(kind),
+    })
+  ),
   {
     id: 'strip-mall',
     label: 'Bull Valley Plaza, the dead strip mall',

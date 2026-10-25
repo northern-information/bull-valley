@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { BOOK } from '../../src/book.ts'
 import { heartPoint, theMaze } from '../../src/caretaker.ts'
+import { graveOf, shovelOf } from '../../src/celestialyard.ts'
 import { CONFIG } from '../../src/config.ts'
 import { campfireOf } from '../../src/cooking.ts'
 import { dayKey } from '../../src/daily.ts'
@@ -14,6 +15,7 @@ import { BASE_GEOMETRIE } from '../../src/health.ts'
 import { STARTING_INVENTORY } from '../../src/inventory.ts'
 import { getItem, healsOf, isKeyItem } from '../../src/items.ts'
 import { mazeToWorld } from '../../src/maze.ts'
+import { isMech } from '../../src/mechs.ts'
 import { XP, xpToReach } from '../../src/progression.ts'
 import { CLOSE, PROTOCOL_VERSION } from '../../src/protocol.ts'
 import { SEASON } from '../../src/season.ts'
@@ -45,6 +47,7 @@ import type {
   ShadowmenMessage,
   StandMessage,
   TaskMessage,
+  UnearthedMessage,
   WelcomeMessage,
   WorldMessage,
   XpMessage,
@@ -235,6 +238,8 @@ const POND = { x: -5000, z: 5000, radius: 80, landing: { x: -5060, z: 5000 } }
 const DEALER = { x: -20, z: -55 }
 // Where the Undercroft lies, far from everything else.
 const CROFT = { x: -7000, z: -7000, yaw: 0 }
+// Rule 41: the celestial graveyard's frame.
+const CELESTIAL = { x: -3000, z: 3000, yaw: 0 }
 
 // What a build placed: two joints first, then `n - 1` cabbages.
 // What a build placed: two joints first, then `n - 1` cabbages, all at
@@ -280,6 +285,7 @@ const hello = (
       z: 14,
     })),
     payphones: [PAYPHONE],
+    celestial: CELESTIAL,
   })
 
 // The last pack frame a socket was sent.
@@ -3121,6 +3127,23 @@ describe('ValleyDO: fishing at the firefly pond', () => {
     expect(last(a, 'pack')?.pack.slurm).toBe(1)
     await send(v, a, catchOne)
     expect(last(a, 'nack')).toMatchObject({ re: 'jar-slurm', reason: 'gone' })
+  })
+
+  it('hands out a shovel and digs a mech up for every socket on the account', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A', { dev: true })
+    const heap = shovelOf(CELESTIAL)
+    const grave = graveOf(CELESTIAL)
+    await v.webSocketMessage(ws(a), state(heap.x, heap.z))
+    await send(v, a, { type: 'shovel' })
+    expect(last(a, 'pack')?.pack.shovel).toBe(1)
+    await v.webSocketMessage(ws(a), state(grave.x, grave.z))
+    await send(v, a, { type: 'exhume' })
+    const mech = (last(a, 'unearthed') as UnearthedMessage).mech
+    expect(isMech(mech)).toBe(true)
+    expect(last(a, 'pack')?.pack[mech]).toBe(1)
+    await send(v, a, { type: 'exhume' })
+    expect(last(a, 'nack')).toMatchObject({ re: 'exhume', reason: 'dug-today' })
   })
 
   it('refuses a cast when the pack cannot be read, or the bait is gone', async () => {
