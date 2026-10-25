@@ -885,13 +885,12 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       lockers: targets.lockerSpots(inStore),
       laptops: targets.laptopSpots(inStore),
       stand: world.stand?.at ?? null,
-      wreck: world.wreck
-        ? { x: world.wreck.group.position.x, z: world.wreck.group.position.z }
-        : null,
+      recyclers: world.recyclers.map(({ at }, station) => ({ ...at, station })),
       // The jar in hand with room in the pack: E or the click scoops
       // (actions.ts jarSlurm).
       slurms:
         s.held === 'jar' && jarRoom(s.inventory) ? crawlingSlurms(world) : [],
+      campfires: world.ponds.map((pond) => pond.campfire.at),
       tackle: nearestLanding(
         world.ponds.map((pond) => pond.place),
         player.pos

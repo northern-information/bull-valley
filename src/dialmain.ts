@@ -15,6 +15,7 @@ import { FANFARE } from './catchfanfare.ts'
 import { pickOf } from './characters.ts'
 import { citgoNames } from './citgomap.ts'
 import { CONFIG } from './config.ts'
+import { openCookDialog } from './cookdialog.ts'
 import { copy } from './copy.ts'
 import { openDealDialog } from './dealdialog.ts'
 import { ramble } from './dealer.ts'
@@ -437,7 +438,7 @@ async function boot(): Promise<void> {
         say(said)
       },
     },
-    // Rule 29: dialed in, the wreck is wherever the phone is.
+    // Rule 29: dialed in, the recycling machine is wherever the phone is.
     openRecycle: () => {
       send({ type: 'research' }, {})
       void openRecycleDialog({
@@ -446,6 +447,16 @@ async function boot(): Promise<void> {
         pending: () => state.pending.recycle,
         said: () => state.said?.text ?? null,
         onRecycle: (line) => send({ type: 'recycle', line }, { recycle: true }),
+      }).then(() => shell?.render(state))
+    },
+    // Rule 29: dialed in, the campfire is wherever the phone is.
+    openCook: () => {
+      void openCookDialog({
+        pack: () => state.pack,
+        pending: () => state.pending.cook,
+        said: () => state.said?.text ?? null,
+        onCook: (kind, count) =>
+          send({ type: 'cook', kind, count }, { cook: true }),
       }).then(() => shell?.render(state))
     },
   })

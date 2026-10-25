@@ -136,6 +136,17 @@ describe('consume', () => {
     })
   })
 
+  it('eats a fish, raw or cooked, with no trip', () => {
+    for (const kind of ['bluegill', 'fried-panfish', 'grilled-fillet']) {
+      const result = consume({ ...pack, [kind]: 2 }, kind, NO_EFFECTS, 5)
+      expect(result, kind).toEqual({
+        used: true,
+        inv: { ...pack, [kind]: 1 },
+        effects: NO_EFFECTS,
+      })
+    }
+  })
+
   it('says why nothing happened', () => {
     expect(consume({ ...pack, joints: 0 }, 'joints', NO_EFFECTS, 0)).toEqual({
       used: false,

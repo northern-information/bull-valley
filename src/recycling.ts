@@ -1,15 +1,16 @@
-// The Recycling Center at the wreck (#127), pure: what using an item leaves
-// behind in the pack, and the research every account buys with it. A drink
-// leaves its can or its bottle; the last cigarette out of a pack leaves the
-// pack (sharedworld.ts rule 32). Fed in at the wreck, the empties buy
-// levels on research lines (rule 33), each the account's own: nothing here
-// touches the shared world, the shadows or the flashlight. The first line
-// is loose change: a chance that a burst shadow's dimes come with as many
+// The Recycling Center (#127), pure: what using an item leaves behind in
+// the pack, and the research every account buys with it. A drink leaves
+// its can, its glass bottle or its plastic one; the last cigarette out of
+// a pack leaves the pack, and the last pill out of a pill bottle the
+// bottle (sharedworld.ts rule 32). Fed into the recycling machine on any
+// Citgo's lot, the empties buy levels on research lines (rule 33), each
+// the account's own: nothing here touches the shared world, the shadows
+// or the flashlight. The first line is loose change: a chance that a burst shadow's dimes come with as many
 // again, into the taker's wallet alone. Levels live in D1 beside the
 // wallet. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
-import { isCan } from './drinks.ts'
+import { isCan, isPlastic } from './drinks.ts'
 import { contentsOf, itemById } from './items.ts'
 import type { Inventory, XZ } from './interfaces.ts'
 import type { ItemId } from './items.ts'
@@ -21,9 +22,14 @@ export function emptyOf(kind: string, left: number): ItemId | null {
   if (!item) return null
   switch (item.category) {
     case 'drink':
-      return isCan(item.container) ? 'empty-can' : 'empty-bottle'
+      if (isCan(item.container)) return 'empty-can'
+      return isPlastic(item.container) ? 'empty-plastic' : 'empty-bottle'
     case 'cigarette':
       return left >= 0 && left % contentsOf(kind) === 0 ? 'empty-pack' : null
+    case 'medicine':
+      return item.form === 'pills' && left >= 0 && left % contentsOf(kind) === 0
+        ? 'empty-pill-bottle'
+        : null
     default:
       return null
   }
@@ -115,13 +121,15 @@ export function extraDimes(
   return taken > 0 && roll < dimesChance(research, cfg) ? taken : 0
 }
 
-// Whether a raider whose last state frame put them `at` is beside the
-// wreck, for the valley to take their empties.
-export function atWreck(
+// Whether a raider whose last state frame put them `at` is beside one of
+// the Citgos' recycling machines, for the valley to take their empties.
+export function atRecycler(
   at: XZ | null,
-  wreck: XZ | null,
+  recyclers: readonly XZ[],
   cfg = CONFIG
 ): boolean {
-  if (!at || !wreck) return false
-  return Math.hypot(at.x - wreck.x, at.z - wreck.z) <= cfg.recycling.tendReach
+  if (!at) return false
+  return recyclers.some(
+    (r) => Math.hypot(at.x - r.x, at.z - r.z) <= cfg.recycling.tendReach
+  )
 }

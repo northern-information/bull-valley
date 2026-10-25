@@ -678,6 +678,99 @@ export function buildFish(
   return group
 }
 
+// --- Cooked fish ---------------------------------------------------------
+
+// What the campfire makes of a fish (cooking.ts), each on a paper plate:
+// a small one fried whole, golden brown, and a fillet off a large one
+// with the grill's marks across it.
+const PLATE = { radius: 0.12, height: 0.008 }
+
+// The fillet's top: pale flesh gone golden at the edges, the grill's dark
+// bars across it.
+const filletArt = memo(() => {
+  const art = canvas([128, 64], '#e6c99a')
+  const { ctx, w, h } = art
+  const edge = ctx.createRadialGradient(w / 2, h / 2, 8, w / 2, h / 2, w / 2)
+  edge.addColorStop(0, 'rgba(0, 0, 0, 0)')
+  edge.addColorStop(1, 'rgba(150, 90, 30, 0.7)')
+  ctx.fillStyle = edge
+  ctx.fillRect(0, 0, w, h)
+  ctx.strokeStyle = '#3a2210'
+  ctx.lineWidth = 5
+  for (let x = -h; x < w; x += 22) {
+    ctx.beginPath()
+    ctx.moveTo(x, h)
+    ctx.lineTo(x + h, 0)
+    ctx.stroke()
+  }
+  return art
+})
+
+function buildPlate(): THREE.Mesh {
+  const plate = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      PLATE.radius,
+      PLATE.radius * 0.8,
+      PLATE.height,
+      12
+    ),
+    packFlat('#e8e4d8')
+  )
+  plate.position.y = PLATE.height / 2
+  return plate
+}
+
+export function buildCookedFish(
+  kind: string,
+  { glow = true }: PickupOptions = {}
+): THREE.Group {
+  const group = new THREE.Group()
+  group.name = `food-${kind}`
+  const plate = buildPlate()
+  group.add(plate)
+  const pulse = [plate.material as THREE.MeshLambertMaterial]
+  if (kind === 'fried-panfish') {
+    const spec = FISH.bluegill
+    const L = spec.length
+    const body = new THREE.Group()
+    body.rotation.x = -Math.PI / 2
+    body.position.y = PLATE.height + (spec.thickness * L) / 2
+    group.add(body)
+    const crust = packFlat('#a8641e')
+    crust.emissiveIntensity = 0.3
+    const fin = packFlat('#5a3010')
+    fin.side = THREE.DoubleSide
+    body.add(new THREE.Mesh(fishBody(spec), crust))
+    for (const geometry of fins(spec)) body.add(new THREE.Mesh(geometry, fin))
+    pulse.push(crust, fin)
+  } else if (kind === 'grilled-fillet') {
+    const top = packFace(artTexture(filletArt('grilled-fillet')))
+    top.emissiveIntensity = 0.3
+    const side = packFlat('#c89a62')
+    const fillet = new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.022, 0.08), [
+      side,
+      side,
+      top,
+      side,
+      side,
+      side,
+    ])
+    fillet.position.y = PLATE.height + 0.011
+    fillet.rotation.y = 0.35
+    group.add(fillet)
+    pulse.push(top, side)
+  } else {
+    throw new Error(`Unknown food "${kind}"`)
+  }
+  if (glow) {
+    const halo = makeGlowSprite(makeGlowTexture('rgba(240, 180, 90, 0.4)'), 0.6)
+    halo.position.y = 0.04
+    group.add(halo)
+  }
+  setPulseMaterials(group, pulse)
+  return group
+}
+
 // --- Fishing rod ---------------------------------------------------------
 
 // A 6' spinning rod lying on its side in the grass: a dark tapered blank,

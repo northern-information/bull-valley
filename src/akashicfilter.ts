@@ -86,7 +86,9 @@ const ITEMS = new Set([
   'gold-bullion',
   'empty-can',
   'empty-bottle',
+  'empty-plastic',
   'empty-pack',
+  'empty-pill-bottle',
   'twenty',
   'flaming-halo',
   'bat',
@@ -95,7 +97,7 @@ const ITEMS = new Set([
   'guitar',
   'book',
 ])
-const ITEM_PREFIXES = ['pack-', 'drink-', 'med-', 'fish-']
+const ITEM_PREFIXES = ['pack-', 'drink-', 'med-', 'fish-', 'food-']
 
 // A whole station or building, walked through rather than looked at.
 const PLACES = new Set([

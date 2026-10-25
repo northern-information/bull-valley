@@ -1,9 +1,10 @@
-// The Recycling Center at the wreck (sharedworld.ts rule 33): a dialog over
-// the valley, opened with E beside the wreck (and from Dial-Up's lobby), in
-// the frame Erwin's and the stand's share (npcdialog.ts). It shows the
-// empties in the pack, then each research line: its level, what it does
-// now and at the next level, what that costs against what you have, and
-// the button that buys it, saying what falls short. The caller sends the
+// The Recycling Center (sharedworld.ts rule 33): a dialog over the valley,
+// opened with E beside the recycling machine on any Citgo's lot (and
+// from Dial-Up's lobby), in the frame Erwin's and the stand's share
+// (npcdialog.ts). It shows the empties in the pack, then each research
+// line: its level, what it does now and at the next level, what that
+// costs against what you have, and the button that buys it, saying what
+// falls short. The caller sends the
 // frames; the dialog reads the game's state again every tick, so the
 // valley's answers show as they land.
 

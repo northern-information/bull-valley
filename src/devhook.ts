@@ -121,15 +121,18 @@ interface BvHook {
   readonly stand: StandLedger | null
   readonly standAt: XZ | null
   // Rule 33: the account's research as the valley last said (null before
-  // the Recycling Center first opens), and where the wreck lies.
+  // the Recycling Center first opens), and where each station's recycling
+  // machine stands, indexed like the stations.
   readonly research: Research | null
-  readonly wreckAt: XZ | null
+  readonly recyclers: XZ[]
   // Rule 36: the account's angler as the valley last said (null before the
   // tackle box first opens), the line in the water, and the firefly ponds:
   // each one's middle, its haven's reach and its tackle box's landing.
   readonly angler: AnglerWire | null
   readonly line: LineOut | null
   readonly ponds: PondPlace[]
+  // Rule 40: each pond's campfire, in pond order.
+  readonly campfires: XZ[]
   // The slurms crawling on the parked Citgo's lot, in the world (what a
   // jar can catch).
   readonly slurms: SlurmSpot[]
@@ -336,11 +339,8 @@ export function installDevHook(game: Game, actions: Actions): void {
     get research() {
       return s.research
     },
-    get wreckAt() {
-      const wreck = game.world.wreck
-      return wreck
-        ? { x: wreck.group.position.x, z: wreck.group.position.z }
-        : null
+    get recyclers() {
+      return game.world.recyclers.map(({ at }) => at)
     },
     get angler() {
       return s.angler
@@ -358,6 +358,9 @@ export function installDevHook(game: Game, actions: Actions): void {
           z,
         })
       )
+    },
+    get campfires() {
+      return game.world.ponds.map(({ campfire }) => campfire.at)
     },
     get ponds() {
       return game.world.ponds.map(({ place }) => ({

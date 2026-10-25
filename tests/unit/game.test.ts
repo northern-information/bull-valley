@@ -38,6 +38,7 @@ describe('freshPending', () => {
       whisperTo: null,
       stand: false,
       recycle: false,
+      cook: false,
       fish: false,
       jar: false,
     })

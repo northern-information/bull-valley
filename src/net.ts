@@ -76,8 +76,9 @@ interface NetIdentity {
   truck: TruckRoutes
   // Where the Cabbage Stand stands (rule 23), or null.
   stand: XZ | null
-  // Where the wreck lies (rule 33: the Recycling Center), or null.
-  wreck: XZ | null
+  // Where each station's recycling machine stands (rule 33: the Recycling
+  // Center), indexed like the stations.
+  recyclers: XZ[]
   // The firefly ponds (rule 36), none or more.
   ponds: PondPlace[]
   // Where the squatter deals (rule 25), or null.
@@ -287,7 +288,7 @@ export class NetClient {
           maze: identity.maze,
           truck: identity.truck,
           stand: identity.stand,
-          wreck: identity.wreck,
+          recyclers: identity.recyclers,
           ponds: identity.ponds,
           bushes: identity.bushes,
           dealer: identity.dealer,

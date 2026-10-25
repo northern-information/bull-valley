@@ -25,6 +25,10 @@ export const CONTAINERS: Record<ContainerKey, Container> = {
 // would shrink a 16 oz can to half a Grey Goose bottle.
 const CANS: readonly ContainerKey[] = ['tall', 'slim', 'can12']
 
+// The plastic bottles (an empty plastic bottle when drunk, recycling.ts);
+// every other bottle is glass.
+const PLASTICS: readonly ContainerKey[] = ['nos', 'water']
+
 // The spirits' bottles: liquor stands at room temperature, on the open
 // shelf beside the coolers (store.ts), never behind their glass.
 const SPIRITS: readonly ContainerKey[] = ['bourbon', 'square', 'goose']
@@ -45,6 +49,12 @@ function familyOf(container: ContainerKey): Family {
 // drunk, recycling.ts) rather than a bottle.
 export function isCan(container: ContainerKey): boolean {
   return CANS.includes(container)
+}
+
+// Whether a drink in `container` comes in a plastic bottle rather than a
+// glass one.
+export function isPlastic(container: ContainerKey): boolean {
+  return PLASTICS.includes(container)
 }
 
 // The height a view fits this drink's family to; a bottle's for anything

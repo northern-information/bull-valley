@@ -10,6 +10,7 @@ import {
   INVENTORY_KINDS,
   isCigarette,
   isDrink,
+  isEdible,
   isMedicine,
   isUsable,
   itemById,
@@ -55,7 +56,8 @@ const FIELDS_OF: Record<
   forage: { required: [], optional: [] },
   valuable: { required: [], optional: [] },
   material: { required: [], optional: [] },
-  fish: { required: ['worth'], optional: [] },
+  fish: { required: ['worth', 'healsPct'], optional: [] },
+  food: { required: ['healsPct'], optional: [] },
   rod: { required: ['price'], optional: [] },
 }
 
@@ -206,7 +208,8 @@ describe('items', () => {
     for (const item of ITEMS) {
       const usable = isUsable(item.id)
       expect(healsOf(item.id, 1000) > 0, item.id).toBe(usable)
-      if (!usable) continue
+      // Food heals and moves no ward.
+      if (!usable || isEdible(item.id)) continue
       const wards: object = 'wards' in item ? item.wards : {}
       expect(Object.keys(wards).length, item.id).toBeGreaterThan(0)
     }
@@ -222,6 +225,13 @@ describe('items', () => {
     expect(healsOf('grey-goose', 2960)).toBe(888)
     expect(healsOf('cabbage', 1000)).toBe(0)
     expect(healsOf('nope', 1000)).toBe(0)
+    // A fish raw a little; cooked, small and large, a good deal more.
+    expect(healsOf('bluegill', 1000)).toBe(50)
+    expect(healsOf('ghost-catfish', 1000)).toBe(50)
+    expect(healsOf('fried-panfish', 1000)).toBe(200)
+    expect(healsOf('grilled-fillet', 1000)).toBe(400)
+    expect(doseOf('bluegill')).toBeUndefined()
+    expect(doseOf('grilled-fillet')).toBeUndefined()
   })
 
   it('counts every item in the inventory', () => {
@@ -246,6 +256,7 @@ describe('items', () => {
         item.category !== 'valuable' &&
         item.category !== 'material' &&
         item.category !== 'fish' &&
+        item.category !== 'food' &&
         item.category !== 'key-item' &&
         item.category !== 'psychedelic' &&
         item.category !== 'stimulant'

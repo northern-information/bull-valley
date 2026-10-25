@@ -32,8 +32,8 @@ describe('what the Recycling Center says', () => {
     )
   })
 
-  it('says why the wreck would not take the empties', () => {
-    expect(recycleRefusal('no-wreck')).toBe(copy('log.recycle_far'))
+  it('says why the recycling machine would not take the empties', () => {
+    expect(recycleRefusal('no-recycler')).toBe(copy('log.recycle_far'))
     expect(recycleRefusal('aboard')).toBe(copy('log.recycle_far'))
     expect(recycleRefusal('short')).toBe(copy('log.recycle_short'))
     expect(recycleRefusal('not-in-valley')).toBe(copy('log.recycle_offline'))

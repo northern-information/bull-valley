@@ -9,7 +9,7 @@
 // collected, off the bush.
 
 import { copy } from './copy.ts'
-import { isItemId, isUsable, itemById, ITEMS } from './items.ts'
+import { isEdible, isItemId, isUsable, itemById, ITEMS } from './items.ts'
 import type { ItemId } from './items.ts'
 
 type ItemLine = 'used' | 'bought' | 'collected' | 'empty'
@@ -24,8 +24,10 @@ export const ITEM_LINES: readonly ItemLine[] = [
 export function hasItemLine(id: ItemId, line: ItemLine): boolean {
   switch (line) {
     case 'used':
-    case 'empty':
       return isUsable(id)
+    // A pack, a bottle or a box runs empty; a fish is just eaten.
+    case 'empty':
+      return isUsable(id) && !isEdible(id)
     case 'bought':
       return itemById(id)?.price !== undefined
     case 'collected':
