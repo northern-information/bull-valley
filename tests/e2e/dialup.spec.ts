@@ -369,6 +369,15 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
   await expect(moab.locator('.bv-banner')).toContainText(
     copy('moab.fanfare') + copy('cosmetics.flaming-halo.label')
   )
+  // Your Character beside the trade: the 3D valley's turntable, loaded
+  // with the phone's 3D, on the character worn.
+  await moab
+    .getByRole('tab', { name: copy('moab.your_character'), exact: true })
+    .click()
+  await expect(moab.locator('[data-bv="look-status"]')).toHaveText(
+    copy('moab.character_now')
+  )
+  await expect(moab.locator('.bv-look-preview')).toBeVisible()
   await moab.locator('[data-bv="trade-close"]').click()
 
   // A line said on the phone reaches the valley.

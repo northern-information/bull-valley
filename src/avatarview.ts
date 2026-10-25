@@ -1,7 +1,7 @@
 // The raider as the pack shows them: their own character and guitar finish
 // standing on a small PS1 turntable beside the grid, wearing what the
-// account wears over it (cosmetics.ts, the Flaming Halo). Like Gron's
-// preview it draws with a renderer of its own, which leaves the game's PS1
+// account wears over it (cosmetics.ts, the Flaming Halo). Like Moab's
+// Your Character it draws with a renderer of its own, which leaves the game's PS1
 // snap resolution alone; made the first time the pack opens and kept, it
 // draws only while the pack is open. Bull Valley Dial-Up's lobby shows the
 // raider on one too, where a drag turns them by hand (`drag`).

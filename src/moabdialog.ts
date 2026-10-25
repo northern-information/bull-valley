@@ -4,7 +4,9 @@
 // moabWorth), so the window prints ounces; his goods are his cosmetics
 // (MOAB_OFFERS), each yours for good once had. The valley takes the price
 // and writes the cosmetic, and the trade is made a big deal of
-// (tradefanfare.ts) as a fish landed is.
+// (tradefanfare.ts) as a fish landed is. He changes your appearance too:
+// Your Character, on its own tab beside the trade (lookpanel.ts), puts you
+// in any character on the account's roster.
 
 import { copy } from './copy.ts'
 import {
@@ -17,7 +19,7 @@ import {
 import { openTradeWindow } from './tradewindow.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Inventory } from './interfaces.ts'
-import type { TradeCheer, Turntable } from './tradewindow.ts'
+import type { TradeCheer, TradePanel, Turntable } from './tradewindow.ts'
 
 interface MoabDialogOptions {
   // Read again every tick: whether the valley is there to trade with, the
@@ -33,6 +35,9 @@ interface MoabDialogOptions {
   // The last trade made a big deal of, and its cheer (tradewindow.ts).
   fanfare: TradeCheer
   turntable: Turntable
+  // Fills Your Character's tab (lookpanel.ts mountLookPanel; on Dial-Up,
+  // loaded with the rest of its 3D, dial3d.ts).
+  mountLook: TradePanel['mount']
 }
 
 // What he says as the window opens: his offer for what the pack holds,
@@ -89,6 +94,7 @@ export function openMoabDialog(options: MoabDialogOptions): Promise<void> {
     icon: options.icon,
     fanfare: options.fanfare,
     turntable: options.turntable,
+    panel: { tab: copy('moab.your_character'), mount: options.mountLook },
     onTrade: (id) => {
       const cosmetic = cosmeticById(id)
       if (cosmetic) options.onTrade(cosmetic.id as CosmeticId)

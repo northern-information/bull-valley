@@ -32,6 +32,7 @@ import {
 } from './dialstate.ts'
 import { text } from './dom.ts'
 import { fontsReady } from './fonts.ts'
+import { openGronDialog } from './grondialog.ts'
 import { befriended, partied } from './inspect.ts'
 import { itemLine } from './itemcopy.ts'
 import { openMoabDialog } from './moabdialog.ts'
@@ -249,7 +250,8 @@ async function boot(): Promise<void> {
     state = { ...state, said: { text, at: performance.now() } }
     shell?.render(state)
   }
-  // Who the raider is, as Gron leaves them, here or in the 3D valley.
+  // Who the raider is, as Gron and Moab leave them, here or in the 3D
+  // valley.
   let username = account.username
   let look = pickOf(account.look)
   state = { ...state, name: username, outfit: look.outfit }
@@ -321,31 +323,15 @@ async function boot(): Promise<void> {
       }).then(() => shell?.render(state))
     },
     openGron: () => {
-      void import('./dial3d.ts').then(({ openGronDialog }) =>
-        openGronDialog({
-          username,
-          outfit: look.outfit,
-          finish: look.finish,
-          cosmetics: state.cosmetics,
-          onRenamed: (name) => {
-            username = name
-            state = { ...state, name }
-            shell?.setName(name)
-            net.send({ type: 'rename' })
-          },
-          onBecome: (outfit, finish) => {
-            look = { outfit, finish }
-            state = { ...state, outfit }
-            void saveLook(look).then((saved) => {
-              if (!saved.ok) say(saved.error)
-            })
-            shell?.setLook(outfit, finish)
-            // A redial says hello in the new body too.
-            net.setOutfit(outfit)
-            net.send({ type: 'appearance', outfit })
-          },
-        })
-      )
+      void openGronDialog({
+        username,
+        onRenamed: (name) => {
+          username = name
+          state = { ...state, name }
+          shell?.setName(name)
+          net.send({ type: 'rename' })
+        },
+      })
     },
     citgo: {
       open: (station, name) => {
@@ -380,6 +366,27 @@ async function boot(): Promise<void> {
           send({ type: 'trade', offer }, { trade: true, tradeOffer: offer }),
         fanfare: tradeCheer,
         turntable,
+        // Your Character, with its turntable, loads with the rest of the
+        // phone's 3D.
+        mountLook: (box) =>
+          import('./dial3d.ts').then(({ mountLookPanel }) =>
+            mountLookPanel(box, {
+              outfit: look.outfit,
+              finish: look.finish,
+              cosmetics: () => state.cosmetics,
+              onBecome: (outfit, finish) => {
+                look = { outfit, finish }
+                state = { ...state, outfit }
+                void saveLook(look).then((saved) => {
+                  if (!saved.ok) say(saved.error)
+                })
+                shell?.setLook(outfit, finish)
+                // A redial says hello in the new body too.
+                net.setOutfit(outfit)
+                net.send({ type: 'appearance', outfit })
+              },
+            })
+          ),
       }).then(() => shell?.render(state))
     },
     expeditions: {

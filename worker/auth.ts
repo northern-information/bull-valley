@@ -817,7 +817,7 @@ class AuthHandler {
     })
   }
 
-  // The character and guitar finish chosen at the select or at Gron.
+  // The character and guitar finish chosen at the select or at Moab.
   private setLook(): Promise<Response> {
     return this.signedIn(async (claims) => {
       const body = await this.body()

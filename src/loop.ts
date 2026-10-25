@@ -994,8 +994,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       scene.updateMatrixWorld()
       camera.updateMatrixWorld()
     }
-    // While Gron talks, his dialog covers the view and draws its own
-    // turntable; the valley runs on behind it undrawn, holding its last
+    // While Gron or a trader talks, his dialog covers the view, and Moab's
+    // Your Character draws its own turntable; the valley runs on behind it undrawn, holding its last
     // frame, so the page is not drawing two scenes at once.
   }
 

@@ -2734,25 +2734,18 @@ canvas {
 }
 
 /* Gron's dialog (grondialog.ts): the account step's look over the valley,
-   your name and your character side by side, stacked on a narrow screen. */
+   your name under his line. */
 .bv-gron {
   background: rgb(0 0 0 / 96%);
 }
 
 .bv-gron-ui {
   display: grid;
-  grid-template-columns: minmax(0, 18rem) minmax(0, 26rem);
-  align-items: start;
-  gap: 20px 36px;
+  grid-template-columns: minmax(0, 20rem);
+  justify-items: center;
+  gap: 20px;
   max-width: none;
   margin: auto;
-}
-
-.bv-gron-ui > h2,
-.bv-gron-ui > .bv-gron-says,
-.bv-gron-ui > [data-bv='gron-close'] {
-  grid-column: 1 / -1;
-  justify-self: center;
 }
 
 .bv-gron-ui > .bv-gron-says {
@@ -2775,18 +2768,21 @@ canvas {
   opacity: 0.7;
 }
 
+/* Your Character on Moab's tab (lookpanel.ts): the turntable over the
+   name, the finish and the select's buttons. */
+.bv-look {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
 /* The turntable, drawn small and scaled up crisp. */
-.bv-gron-preview {
+.bv-look-preview {
   width: 160px;
   height: 160px;
   image-rendering: pixelated;
   border: 1px solid var(--fi-paper-light);
-}
-
-@media (width <= 700px) {
-  .bv-gron-ui {
-    grid-template-columns: minmax(0, 20rem);
-  }
 }
 
 .bv-select-actions {
@@ -3563,9 +3559,10 @@ canvas {
   line-height: 2rem;
 }
 
-/* The trade and a trader's quest as two tabs (the pack's, .bv-bag-tabs)
-   across the card; the quest, when shown, takes the card's width, and the
-   dot marks a step to take with him. */
+/* The trade, a trader's quest and his own tab (Moab's Your Character) as
+   tabs (the pack's, .bv-bag-tabs) across the card; the quest or his own,
+   when shown, takes the card's width, and the dot marks a step to take
+   with him. */
 .bv-npc-ui--wide > .bv-trade-tabs {
   flex-shrink: 0;
   grid-column: 1 / -1;
@@ -3575,7 +3572,8 @@ canvas {
   grid-row: 3;
 }
 
-.bv-npc-ui--wide > .bv-trade-quest {
+.bv-npc-ui--wide > .bv-trade-quest,
+.bv-npc-ui--wide > .bv-trade-panel {
   grid-column: 1 / -1;
 }
 

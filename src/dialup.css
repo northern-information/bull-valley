@@ -881,7 +881,7 @@ button.bv-dial-card {
   box-shadow: var(--dial-shadow);
 }
 
-/* The 3D valley's dialogs (the stand, Erwin, Gron) cover the shell
+/* The 3D valley's dialogs (the stand, Erwin, Moab, Gron) cover the shell
    whole on a phone: there is no valley behind them to show through. */
 .bv-dialup .bv-account {
   background: var(--dial-bg);

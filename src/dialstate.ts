@@ -136,8 +136,8 @@ export interface CrewState {
 export interface DialState {
   // Our id in the valley, from the welcome; null before it.
   id: string | null
-  // The account's name and body, as Gron leaves them here or in the 3D
-  // valley (the valley shows our own peer back to us).
+  // The account's name and body, as Gron and Moab leave them here or in
+  // the 3D valley (the valley shows our own peer back to us).
   name: string
   outfit: OutfitId | null
   pack: Inventory
@@ -366,7 +366,7 @@ function shownAs(
   if (peer.outfit !== s.outfit) {
     next = news(
       { ...next, outfit: peer.outfit },
-      copy('gron.became', { name: outfitById(peer.outfit).label }),
+      copy('moab.became', { name: outfitById(peer.outfit).label }),
       now,
       wall
     )
@@ -675,8 +675,9 @@ export function applyFrame(
         ...s,
         peers: s.peers.map((p) => (p.id === msg.peer.id ? msg.peer : p)),
       }
-      // Our own comes back too: from Gron here, said already, or from the
-      // account's Gron in the 3D valley, which we take on and say.
+      // Our own comes back too: from Gron or Moab here, said already, or
+      // from the account's Gron or Moab in the 3D valley, which we take on
+      // and say.
       if (msg.peer.id === s.id) return shownAs(next, msg.peer, now, wall)
       // The account in the 3D valley (a username is one account's): its
       // news is ours, and said already.
