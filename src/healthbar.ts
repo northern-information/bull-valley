@@ -14,6 +14,9 @@ const BAR_W = 64
 const BAR_H = 4
 const RISE_SECONDS = 0.6
 
+// Every bar's sprite is named so, for the dev hook and the specs to find.
+export const HEALTH_BAR = 'health-bar'
+
 export interface HealthBar {
   sprite: THREE.Sprite
   texture: THREE.CanvasTexture
@@ -39,6 +42,7 @@ export function buildHealthBar(width = 0.6): HealthBar {
     fog: true,
   })
   const sprite = new THREE.Sprite(material)
+  sprite.name = HEALTH_BAR
   sprite.scale.set(width, width * (BAR_H / BAR_W), 1)
   return { sprite, texture, ctx: art.ctx, shown: 1, target: 1, drawn: -1 }
 }

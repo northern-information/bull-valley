@@ -10,11 +10,13 @@
 // height, walking the way it goes; a spiderling is the same body, small
 // (CONFIG.shadowmen.spiderling.scale). In reach of its raider each winds
 // up (a shadowman rears back with its arms raised high, a spider rears with its front
-// legs raised), then lunges, for everyone to see.
+// legs raised), then lunges, for everyone to see. Once a beam is on one,
+// its health bar shows over it (enemybars.ts).
 
 import * as THREE from 'three'
 import { buildShadowSpider, disposeTree } from './assets.ts'
 import { CONFIG } from './config.ts'
+import { bodyHeight, EnemyBars } from './enemybars.ts'
 import { mulberry32, range } from './rng.ts'
 import { shadeCues, windupsBegun } from './sfx.ts'
 import { buildShadowman } from './shadowmanmodel.ts'
@@ -23,6 +25,7 @@ import {
   createShadowTable,
   drawnAt,
   sampleShadowmen,
+  shadeHealth,
 } from './shadowsync.ts'
 import type { ShadowSpider } from './assets.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
@@ -73,6 +76,8 @@ interface Spider {
   speed: number
   crawl: 1 | -1
   turned: THREE.Quaternion
+  // How tall it stands, for its bar.
+  tall: number
 }
 
 // How fast a spider turns onto a wall's face or back off it, a share of
@@ -113,6 +118,8 @@ interface Man {
   speed: number
   flickerTimer: number
   hidden: number
+  // How tall it stands, for its bar.
+  tall: number
 }
 
 export class ShadowBodies {
@@ -134,6 +141,8 @@ export class ShadowBodies {
   private windups = new Map<number, number>()
   private frame = new Map<number, ShadeHeard>()
   private known = new Map<number, ShadeHeard>()
+  // Their health bars, over the hurt ones.
+  private bars: EnemyBars
 
   constructor({ scene, groundAt, standAt }: ShadowBodiesOptions) {
     this.groundAt = groundAt
@@ -143,6 +152,7 @@ export class ShadowBodies {
     this.group.name = 'shadowmen'
     scene.add(this.group)
     this.table = createShadowTable()
+    this.bars = new EnemyBars(this.group)
   }
 
   // A frame from the valley, landed at `at` (local ms).
@@ -215,10 +225,24 @@ export class ShadowBodies {
       const lunge = age === undefined ? 0 : age / LUNGE_SECONDS
       if (s.kind === 'spider' || s.kind === 'spiderling') {
         this.drawSpider(s, perception, dt, lunge, sightOf(s, player))
-        continue
+      } else {
+        this.drawMan(s, player, perception, dt, lunge)
       }
-      this.drawMan(s, player, perception, dt, lunge)
+      const tall = (this.men.get(s.id) ?? this.spiders.get(s.id))?.tall ?? 1
+      this.bars.show(
+        s.id,
+        {
+          x: s.x,
+          y: drawnAt(s, this.groundAt, this.standAt),
+          z: s.z,
+          tall,
+          share: shadeHealth(s.burn),
+        },
+        player,
+        dt
+      )
     }
+    this.bars.sweep()
     // A spider gone takes its body with it; its glow is shared and stays.
     for (const [id, spider] of this.spiders) {
       if (seen.has(id)) continue
@@ -263,6 +287,7 @@ export class ShadowBodies {
         speed: 0,
         crawl: 1,
         turned: new THREE.Quaternion().setFromAxisAngle(UP, heading),
+        tall: bodyHeight(rig.group),
       }
       this.spiders.set(s.id, spider)
     }
@@ -332,9 +357,11 @@ export class ShadowBodies {
       // Its height and its crook come from its id, so it looks the same
       // to all.
       const look = mulberry32(s.id)
-      const rig = buildShadowman(range(look, 2.4, 3.2), s.id)
+      const tall = range(look, 2.4, 3.2)
+      const rig = buildShadowman(tall, s.id)
       this.group.add(rig.group)
       man = {
+        tall,
         rig,
         x: s.x,
         z: s.z,

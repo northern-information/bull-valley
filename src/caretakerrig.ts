@@ -1,7 +1,8 @@
 // The Caretaker as seen (caretaker.ts): its body (assets.ts buildCaretaker)
 // floating over the maze's paths, turned to face the player, shaking and
 // paling as two beams burn it, drawing its lantern back as it winds up
-// to strike and lurching out as it lunges. It is the valley's
+// to strike and lurching out as it lunges, its health bar over it once
+// beams are on it (enemybars.ts). It is the valley's
 // (sharedworld.ts rule 13): it rides in the shadowmen frames, kept a few
 // seconds (framebuffer.ts), and is drawn a beat behind the present, between
 // the two either side of that moment.
@@ -9,9 +10,11 @@
 import * as THREE from 'three'
 import { buildCaretaker } from './assets.ts'
 import { CONFIG } from './config.ts'
+import { bodyHeight, EnemyBars } from './enemybars.ts'
 import { between, keepFrame, lerp } from './framebuffer.ts'
 import { mulberry32, range } from './rng.ts'
 import { keeperCues } from './sfx.ts'
+import { shadeHealth } from './shadowsync.ts'
 import type { CaretakerRig } from './assets.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
@@ -68,6 +71,9 @@ export class CaretakerShade {
   private begun = false
   private lunged = false
   private windup = 0
+  // Its health bar, and how tall it stands, for where the bar floats.
+  private bars: EnemyBars
+  private tall: number
 
   constructor({ scene, groundAt, place }: CaretakerShadeOptions) {
     this.maze = place
@@ -75,6 +81,8 @@ export class CaretakerShade {
     this.rig = buildCaretaker()
     this.rig.group.visible = false
     scene.add(this.rig.group)
+    this.tall = bodyHeight(this.rig.group)
+    this.bars = new EnemyBars(scene)
   }
 
   // A frame from the valley, landed at `at` (local ms).
@@ -107,6 +115,21 @@ export class CaretakerShade {
       if (this.lunging >= LUNGE_SECONDS) this.lunging = null
     }
     this.draw(shown, player, time)
+    if (shown) {
+      this.bars.show(
+        'caretaker',
+        {
+          x: shown.x,
+          y: this.groundAt(shown.x, shown.z),
+          z: shown.z,
+          tall: this.tall,
+          share: shadeHealth(shown.burn),
+        },
+        player,
+        dt
+      )
+    }
+    this.bars.sweep()
     const burned = this.pending
     this.pending = []
     const heard = keeperCues(
