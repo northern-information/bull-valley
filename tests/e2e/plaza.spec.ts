@@ -40,6 +40,14 @@ async function toErwin(page: Page): Promise<void> {
   })
   await faceSpot(page, at.x, at.z, 0.8)
   await heardWhere(page)
+  // He glows once a frame has run there; E before that finds no one.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.__bv?.glow === window.__bv?.world.plaza?.dealer.group
+      )
+    )
+    .toBe(true)
 }
 
 test('Erwin barters, the rose earns the key, the key opens the office', async ({

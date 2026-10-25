@@ -28,6 +28,14 @@ async function standAtGron(page: Page): Promise<void> {
   })
   await faceSpot(page, gron.x, gron.z, 1.2)
   await heardWhere(page)
+  // He glows once a frame has run there; E before that finds no one.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.__bv?.glow === window.__bv?.world.gronRig?.figure.group
+      )
+    )
+    .toBe(true)
 }
 
 // In front of Erwin in the Golden Wok, heard there.
@@ -47,6 +55,14 @@ async function standAtErwin(page: Page): Promise<void> {
   })
   await faceSpot(page, at.x, at.z, 0.8)
   await heardWhere(page)
+  // He glows once a frame has run there; E before that finds no one.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => window.__bv?.glow === window.__bv?.world.plaza?.dealer.group
+      )
+    )
+    .toBe(true)
 }
 
 const stage = (page: Page, quest: string) =>
