@@ -1152,7 +1152,7 @@ export const CONFIG = {
     // The lone pine among the dishes behind the spawn Citgo, station-local
     // like the dishes: between the second and third rows, a little off the
     // middle. No other tree grows inside the array. Its shape is a scatter
-    // tree's (world.ts buildTrees).
+    // pine's, sized as buildTrees (scatter.ts) sizes one.
     at: { x: -44.65, z: -12.47 },
     trunkH: 3.9,
     canopyH: 7.5,

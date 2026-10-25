@@ -91,7 +91,7 @@ export function lonePineOf(station: StoreOrigin): {
   const toStation = Math.hypot(station.x - x, station.z - z)
   return {
     at: { x, z },
-    tree: { x, z, trunkH, canopyH, canopyR, yaw: 0, tint },
+    tree: { x, z, species: 'pine', trunkH, canopyH, canopyR, yaw: 0, tint },
     grave: {
       x: x + ((station.x - x) / toStation) * grave.offset,
       z: z + ((station.z - z) / toStation) * grave.offset,

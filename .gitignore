@@ -6,6 +6,7 @@ dist/
 .claude/*
 !.claude/settings.json
 !.claude/hooks/
+!.claude/skills/
 test-results/
 playwright-report/
 coverage/
