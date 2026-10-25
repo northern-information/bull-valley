@@ -12,9 +12,14 @@
 // is even. A trader with a quest has it on a tab beside the trade, marked
 // while it has a step to take with him. The caller sends the frames; the
 // window reads the game's state again every tick, so the valley's answers
-// show as they land.
+// show as they land. The item picked, or the row under the pointer,
+// turns in the table as the pack's card turns the hovered one
+// (itemthumbs.ts). Every trade is a big deal (tradefanfare.ts): its
+// banner swept across the window and fireflies burst over it, as a fish
+// landed has (catchfanfare.ts, catchburst.ts).
 
 import { evenUp, offerWorth, payable, spareIn } from './barter.ts'
+import { burst } from './catchburst.ts'
 import { copy } from './copy.ts'
 import { el, finder } from './dom.ts'
 import { itemLabel } from './itemcopy.ts'
@@ -26,6 +31,7 @@ import {
   setPips,
 } from './npcdialog.ts'
 import type { WorthOf } from './barter.ts'
+import type { Fanfare } from './catchfanfare.ts'
 import type { Inventory } from './interfaces.ts'
 
 // One of the trader's goods.
@@ -94,7 +100,29 @@ export interface TradeWindowOptions {
   icon: (kind: string) => Promise<string>
   onTrade: (good: string, offer: Inventory) => void
   quest?: TradeQuest
+  // The last trade made a big deal of: a new one sweeps its banner
+  // across the window, bursts fireflies over it and is cheered. One
+  // already there as the window opens is old news.
+  fanfare: TradeCheer
+  // The renderer that turns an item on a canvas, the pack card's
+  // (itemthumbs.ts spin and stop).
+  turntable: Turntable
 }
+
+export interface Turntable {
+  spin: (canvas: HTMLCanvasElement, kind: string) => void
+  stop: () => void
+}
+
+// Read every tick: the last trade made a big deal of (tradefanfare.ts),
+// or null; and its cheer (the fanfare, a phone's buzz).
+export interface TradeCheer {
+  now: () => Fanfare | null
+  cheer: (fanfare: Fanfare) => void
+}
+
+// The turntable's size, CSS px: the pack card's (packhud.ts).
+const VIEW_PX = 112
 
 // How often the readout is redrawn.
 const TICK_MS = 250
@@ -195,6 +223,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
         ${sectionHead(copy('trade.his_side'), 'trade-his-meta')}
         <div class="bv-trade-list" role="radiogroup" aria-label="${copy('trade.his_side')}" data-bv="trade-goods"></div>
         <div class="bv-trade-table" data-bv="trade-table">
+          <canvas class="bv-trade-view" data-bv="trade-view" aria-hidden="true"></canvas>
           <div class="bv-trade-sums">
             <span class="bv-trade-sum">
               <span class="bv-npc-label">${copy('trade.you_give')}</span>
@@ -217,6 +246,11 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
       ${questSection}
       ${npcFooter('trade-said', 'trade-close', copy('trade.close'))}
     </div>`
+  // The banner a big deal sweeps across the window (fanfare).
+  const banner = el('div', 'bv-banner')
+  banner.setAttribute('role', 'status')
+  banner.hidden = true
+  root.append(banner)
   document.body.appendChild(root)
 
   const find = finder(root)
@@ -240,6 +274,9 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
   const evenBtn = find<HTMLButtonElement>('[data-bv="trade-even"]')
   const goBtn = find<HTMLButtonElement>('[data-bv="trade-go"]')
   const said = find<HTMLParagraphElement>('[data-bv="trade-said"]')
+  // Drawn at the screen's own density; the stylesheet sets its CSS size.
+  const view = find<HTMLCanvasElement>('[data-bv="trade-view"]')
+  view.width = view.height = Math.round(VIEW_PX * window.devicePixelRatio)
   const closeBtn = find<HTMLButtonElement>('[data-bv="trade-close"]')
   const tradeTab = find<HTMLButtonElement>('[data-bv="trade-tab-trade"]')
   const mine = find<HTMLElement>('[data-bv="trade-mine"]')
@@ -271,6 +308,20 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
     })
   }
 
+  // The item under the pointer turns in place of the one picked.
+  let hovered: string | null = null
+  const turnsOnHover = (row: HTMLElement, kind: string | undefined) => {
+    if (!kind) return
+    row.addEventListener('pointerenter', () => {
+      hovered = kind
+      refresh()
+    })
+    row.addEventListener('pointerleave', () => {
+      if (hovered === kind) hovered = null
+      refresh()
+    })
+  }
+
   // His side: a row per good, picked as a radio.
   const goodRows = options.goods.map((good) => {
     const row = el('button', 'bv-trade-row bv-trade-row--good')
@@ -289,6 +340,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
       want = good.id
       refresh()
     })
+    turnsOnHover(row, good.kind)
     goodsList.append(row)
     return { good, row, pips, note }
   })
@@ -337,6 +389,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
         el('span', 'bv-trade-each', format(worthOf(kind))),
         steps
       )
+      turnsOnHover(row, kind)
       return { kind, row, held, count, less, more }
     })
     offerList.replaceChildren(...offerRows.map((r) => r.row))
@@ -348,8 +401,45 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
   let want: string = options.pick ?? firstOpen()
   let offer: Inventory = {}
   let shown: string | null = null
+  let cheered = options.fanfare.now() ?? null
+
+  // A trade made a big deal of, as dialfish.ts makes a fish landed.
+  const celebrate = (fanfare: Fanfare) => {
+    banner.replaceChildren(
+      el('p', 'bv-banner-kicker', fanfare.kicker),
+      el('p', 'bv-banner-headline', fanfare.headline)
+    )
+    if (fanfare.detail) {
+      banner.append(el('p', 'bv-banner-detail', fanfare.detail))
+    }
+    banner.classList.toggle('bv-banner--gold', fanfare.gold)
+    banner.hidden = false
+    // Restart the sweep, for a second trade before the first's is done.
+    banner.classList.remove('bv-banner--on')
+    void banner.offsetWidth
+    banner.classList.add('bv-banner--on')
+    burst(root, fanfare)
+    options.fanfare.cheer(fanfare)
+  }
+
+  // What the turntable shows (undefined until the first refresh), started
+  // again only when it changes; a good that is no item (a cosmetic)
+  // leaves it empty.
+  let turning: string | null | undefined
+  const turn = (kind: string | null) => {
+    if (kind === turning) return
+    turning = kind
+    view.hidden = kind === null
+    if (kind) options.turntable.spin(view, kind)
+    else options.turntable.stop()
+  }
 
   const refresh = () => {
+    const fanfare = options.fanfare.now() ?? null
+    if (fanfare && fanfare !== cheered) {
+      cheered = fanfare
+      celebrate(fanfare)
+    }
     const open = options.open()
     const pending = options.pending()
     const busy = pending || !open
@@ -388,8 +478,9 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
       row.row.disabled = out !== null
     }
 
-    // The table.
+    // The table, the item in it turning.
     const good = options.goods.find((g) => g.id === want) ?? null
+    turn(hovered ?? good?.kind ?? null)
     const out = good?.out() ?? null
     const need = good?.worth ?? 0
     const worth = cash ? Math.min(held, need) : offerWorth(offer, worthOf)
@@ -470,6 +561,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
 
     function close(): void {
       clearInterval(timer)
+      options.turntable.stop()
       document.removeEventListener('keydown', onKey)
       root.remove()
       resolve()

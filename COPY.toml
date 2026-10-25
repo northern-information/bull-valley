@@ -320,6 +320,7 @@ lore = { text = "Sits cross-legged in the back of a red Jeep Wrangler beside Moa
 # src/dealdialog.ts), and his quest (src/quests.ts).
 
 [dealer]
+fanfare = { text = "Erwin shakes on it!", by = "ai" }
 ramble_1 = { text = "\"Put that wallet away. A Federal Reserve note is an IOU from an empire that owes everybody. I deal in things. Real things.\"", by = "ai" }
 ramble_2 = { text = "\"Fiat money is a story the empire tells itself so it can sleep. Cigarettes are a story too, but at least you can smoke them.\"", by = "ai" }
 ramble_3 = { text = "\"The dollar's been dead since '71. Nixon killed it on television and nobody came to the funeral. Show me what's in your pack.\"", by = "ai" }
@@ -367,6 +368,7 @@ wallet = { text = "Wallet", by = "ai" }
 # A Citgo's shelves in the trade window (src/shopdialog.ts, both apps).
 
 [shop]
+fanfare = { text = "Rung up at the Citgo!", by = "ai" }
 eyebrow = { text = "Shop", by = "ai" }
 where = { text = "· {citgo}", by = "ai" }
 cash_only = { text = "Cash Only", by = "ai" }
@@ -990,8 +992,8 @@ berry_offline = { text = "No Signal", by = "ai" }
 label = { text = "Flaming Halo", by = "ai" }
 
 [cosmetics.coleman-1]
-label = { text = "Mask of David Coleman: #1", by = "ai" }
-offer = { text = "Gold bullion. Ten troy ounces, and the mask is yours. He will answer to it.", by = "ai" }
+label = { text = "David Coleman: #1", by = "ai" }
+offer = { text = "His skin is your mask, now.", by = "ai" }
 traded = { text = "Number one. Wear him well.", by = "ai" }
 worn = { text = "David Coleman: #1 is yours to raid as. Gron or the select will dress you.", by = "ai" }
 
@@ -1195,6 +1197,7 @@ says_3 = { text = "Come back later, we're not ready yet.", by = "ai" }
 
 [moab]
 says = { text = "Gold bullion.", by = "ai" }
+fanfare = { text = "Moab's word is gold!", by = "ai" }
 offer = { text = "Gold bullion. One troy ounce, and the halo is yours to burn under.", by = "ai" }
 traded = { text = "It will never go out. Neither will you.", by = "ai" }
 eyebrow = { text = "Trade", by = "ai" }

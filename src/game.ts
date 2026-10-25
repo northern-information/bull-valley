@@ -14,6 +14,7 @@ import { freshStock } from './store.ts'
 import { SOBER } from './wardlevels.ts'
 import { NO_WAYPOINTS } from './waypoints.ts'
 import type { CaretakerShade } from './caretakerrig.ts'
+import type { Fanfare } from './catchfanfare.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { Constellations } from './constellationrig.ts'
 import type { CorpseMeshes } from './corpsemeshes.ts'
@@ -345,6 +346,9 @@ export interface GameState {
   pendingDeal: boolean
   dealSaid: string | null
   rambled: number
+  // The last trade with any trader, made a big deal of (tradefanfare.ts);
+  // his window cheers it.
+  tradeCheer: Fanfare | null
   // Rule 7: the last word on a buy, for the Citgo's trade window.
   shopSaid: string | null
   // Rule 26: where the account stands on each quest (null before the
@@ -444,6 +448,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingDeal: false,
     dealSaid: null,
     rambled: 0,
+    tradeCheer: null,
     shopSaid: null,
     quests: null,
     pendingQuest: false,

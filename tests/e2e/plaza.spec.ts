@@ -59,6 +59,7 @@ test('Erwin barters, the rose earns the key, the key opens the office', async ({
   const dialog = page.locator('.bv-deal')
   await expect(dialog).toBeVisible()
   await expect(dialog).toContainText(copy('dealer.ramble_1'))
+  await expect(dialog.locator('[data-bv="trade-view"]')).toBeVisible()
   // Smokes put down one at a time, then evened up for the rest.
   await dialog.locator('[data-good="lsd"]').click()
   const more = dialog.locator('[data-kind="marlboro"] [data-bv="trade-more"]')
@@ -71,6 +72,10 @@ test('Erwin barters, the rose earns the key, the key opens the office', async ({
   await dialog.locator('[data-bv="trade-even"]').click()
   await dialog.locator('[data-bv="trade-go"]').click()
   await expect.poll(() => held(page, 'lsd')).toBe(1)
+  // A deal is a big deal, as a fish landed: his banner across the window.
+  await expect(dialog.locator('.bv-banner')).toContainText(
+    copy('dealer.fanfare') + copy('items.lsd.label')
+  )
   expect(await held(page, 'marlboro')).toBeLessThan(smokes)
   expect(await cash(page)).toBe(before)
 

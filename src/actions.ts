@@ -87,6 +87,7 @@ import { openShopDialog } from './shopdialog.ts'
 import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
+import { tradeFanfare } from './tradefanfare.ts'
 import { planLeg } from './truckplan.ts'
 import { dose, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
@@ -912,6 +913,13 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     shelveKind(kind)
   }
 
+  // Every trader's window cheers the last trade made a big deal of
+  // (tradefanfare.ts) with the fish's fanfare.
+  const tradeCheer = {
+    now: () => s.tradeCheer,
+    cheer: () => game.sfx?.play('fish-fanfare'),
+  }
+
   // E beside Erwin von Dutch, the squatter in the plaza: what he deals
   // and what he wants for it, and his quest, in a dialog with the pointer
   // free, as at the stand (rules 25 and 26).
@@ -938,6 +946,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
             }
           : null,
       icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
+      fanfare: tradeCheer,
+      turntable: game.thumbs,
       onDeal: (kind, offer) => {
         s.pendingDeal = true
         s.dealSaid = null
@@ -1076,6 +1086,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       pending: () => s.pending.buys.size > 0,
       said: () => s.shopSaid,
       icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
+      fanfare: tradeCheer,
+      turntable: game.thumbs,
       onBuy: (item, unit) => buy({ station, item, unit }),
     }).then(() => {
       s.talking = false
@@ -1145,6 +1157,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       npcSays('moab', cosmetic.traded)
       hud.tell(cosmetic.worn)
       moabSaid = cosmetic.worn
+      s.tradeCheer = tradeFanfare('moab', id, cosmetic.label)
     }
   }
 
@@ -1184,6 +1197,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       said: () => moabSaid,
       icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
       onTrade: trade,
+      fanfare: tradeCheer,
+      turntable: game.thumbs,
     }).then(() => {
       s.talking = false
       engagePointer()
