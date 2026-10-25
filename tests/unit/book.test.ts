@@ -58,6 +58,7 @@ describe('BOOK', () => {
       'moab',
       'squatter',
       'tyler',
+      'jericho',
     ])
   })
 

@@ -160,6 +160,8 @@ export const SIGHTS = {
   person: { low: 0, high: 1.8, r: 0.35 },
   // Erwin, sat on the floor by his candles.
   seated: { low: 0, high: 1.2, r: 0.4 },
+  // Jericho, twice a raider's height, sat on his block.
+  giant: { low: 0, high: 3, r: 0.9 },
   // A body sprawled on its back.
   body: { low: 0, high: 0.4, r: 0.9 },
   bush: { low: 0, high: 1.3, r: 0.6 },
@@ -364,7 +366,8 @@ export function resolveInteraction<P extends PickupSpot>(
     let near: NpcSpot | null = null
     for (const spot of input.npcs) {
       const d = Math.hypot(spot.x - player.x, spot.z - player.z)
-      if (d < npcReach(spot.id) && d < best && sees(spot, SIGHTS.person)) {
+      const sight = spot.id === 'jericho' ? SIGHTS.giant : SIGHTS.person
+      if (d < npcReach(spot.id) && d < best && sees(spot, sight)) {
         best = d
         near = spot
       }

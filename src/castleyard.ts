@@ -8,7 +8,8 @@
 // on the shared clock so every raider sees the same span go at the same
 // moment and nothing goes on the wire (`floatAt`, `crumbAt`); the building
 // supplies left lying (`yardClutter`), a light tower to a side
-// (`yardLamps`), and the payphone (`payphoneSpot`). The tops of the fire
+// (`yardLamps`), the payphone (`payphoneSpot`) and Jericho beside it
+// (`jerichoSpot`). The tops of the fire
 // escapes and the cranes' footings are kept clear. Everything is in the
 // world. Tune it in CONFIG.castle.yard. No three.js, no DOM.
 
@@ -346,6 +347,26 @@ export function payphoneSpot(
   }
 }
 
+// Jericho, the Candlebearer: on his block a little along the side from
+// the payphone, a step further out, turned toward the phone's front,
+// where a raider stands at it.
+export function jerichoSpot(
+  place: MazePlace,
+  cfg: CastleConfig = CONFIG.castle
+): YardSpot {
+  const all = sides()
+  const P = cfg.yard.payphone
+  const J = cfg.yard.jericho
+  const s = all[P.side % all.length]
+  const at = onSide(place, s, s.len * P.along + J.beside, J.out)
+  const phone = payphoneSpot(place, cfg)
+  const before = {
+    x: phone.x + Math.cos(phone.yaw) * 1.2,
+    z: phone.z + Math.sin(phone.yaw) * 1.2,
+  }
+  return { ...at, yaw: headingOf({ x: before.x - at.x, z: before.z - at.z }) }
+}
+
 // How far short of the rim's lip a light tower's pool ends, so the
 // ground it is draped on is the rim's, never the floor's.
 const POOL_LIP = 0.15
@@ -436,6 +457,7 @@ export function yardClutter(
   const crowded = crowding(place, cfg)
   const kept = [
     { ...payphoneSpot(place, cfg), pad: 3.5 },
+    { ...jerichoSpot(place, cfg), pad: cfg.yard.jericho.radius + 1 },
     ...yardLamps(place, cfg).map((l) => ({ ...l, pad: 2.5 })),
   ]
   const piles: Clutter[] = []

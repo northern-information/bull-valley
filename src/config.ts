@@ -900,6 +900,11 @@ export const CONFIG = {
       // The payphone: on outer side `side`, `along` its length, `out` from
       // the edge; a raider within `reach` of it stands at it.
       payphone: { side: 1, along: 0.42, out: 5.6, reach: 3 },
+      // Jericho, the Candlebearer, on his block beside it: `beside` metres
+      // further along the side than the payphone, `out` from the edge,
+      // turned toward where a raider stands at the phone; he blocks like a
+      // post `radius` wide, and E within `reach` of him talks to him.
+      jericho: { beside: 3.4, out: 6.6, radius: 0.9, reach: 3 },
     },
     // The castle's base, this far over the highest ground anywhere on the
     // island (its rock hangs under that, well clear), and how it bobs.

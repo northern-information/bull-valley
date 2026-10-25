@@ -138,3 +138,67 @@ test('Carlsten glows when you come near and opens his shelves, a line each time'
       .toBe(true)
   }
 })
+
+test('Jericho greets you by the payphone and marks the nearest graveyard on your map', async ({
+  page,
+}) => {
+  await beginRaid(page)
+  // A stride in front of him on Castle Entropy's rim, looking him in the
+  // face.
+  const at = await page.evaluate(() => {
+    const { world, player } = window.__bv!
+    const spot = world.castle?.jericho
+    if (!spot) throw new Error('No Jericho in the valley')
+    player.relocate(
+      spot.x + Math.cos(spot.yaw) * 2,
+      spot.z + Math.sin(spot.yaw) * 2
+    )
+    return { x: spot.x, z: spot.z }
+  })
+  await faceSpot(page, at.x, at.z, 2.2)
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const bv = window.__bv!
+        return bv.glow === bv.world.jerichoRig?.body
+      })
+    )
+    .toBe(true)
+  await expect(page.locator('.bv-prompt')).toBeHidden()
+
+  const name = copy('jericho.name')
+  const yard = await page.evaluate(() => window.__bv!.world.celestialYard)
+  if (!yard) throw new Error('No graveyard in the survey')
+  const pinned = () =>
+    page.evaluate(
+      (yard) =>
+        window.__bv!.waypoints.filter(
+          (p) => Math.hypot(p.x - yard.x, p.z - yard.z) < 1
+        ).length,
+      yard
+    )
+  for (const key of ['says_1', 'says_2']) {
+    await page.keyboard.press('KeyE')
+    await expect
+      .poll(() => lastLine(page))
+      .toBe(`${name}: ${copy(`jericho.${key}`)}`)
+  }
+  expect(await pinned()).toBe(0)
+  // His last line pins the graveyard nearest him, and the log names it.
+  await page.keyboard.press('KeyE')
+  await expect
+    .poll(() => lastLine(page))
+    .toBe(`${name}: ${copy('jericho.says_3')}`)
+  await expect.poll(pinned).toBe(1)
+  await expect(page.locator('.bv-chat')).toContainText(
+    copy('jericho.marked', { yard: yard.name })
+  )
+  // Round again, he marks it once.
+  const count = await page.evaluate(() => window.__bv!.waypoints.length)
+  for (let i = 0; i < 3; i++) await page.keyboard.press('KeyE')
+  await expect
+    .poll(() => lastLine(page))
+    .toBe(`${name}: ${copy('jericho.says_3')}`)
+  expect(await page.evaluate(() => window.__bv!.waypoints.length)).toBe(count)
+  expect(await pinned()).toBe(1)
+})

@@ -5,6 +5,7 @@ import {
   apronOf,
   apronOutlines,
   clutterWall,
+  jerichoSpot,
   payphoneSpot,
   yardClutter,
   yardLamps,
@@ -14,6 +15,7 @@ import { buildYard } from './castleyardmodel.ts'
 import { CONFIG } from './config.ts'
 import { pointInPolygon } from './coords.ts'
 import { dayKey } from './daily.ts'
+import { buildJericho } from './jerichomodel.ts'
 import { mazeToWorld } from './maze.ts'
 import {
   catchPipe,
@@ -35,6 +37,7 @@ import type { CastleRig, CraneRig, MoatRig } from './assets.ts'
 import type { YardSpot } from './castleyard.ts'
 import type { Ground } from './ground.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
+import type { JerichoRig } from './jerichomodel.ts'
 import type { MazePlace } from './maze.ts'
 import type { FireEscape, MoatPipe } from './moat.ts'
 import type { MoatSlurm, MoatSource } from './moatslurms.ts'
@@ -49,7 +52,8 @@ import type { Walls } from './walls.ts'
 // ledge, the island's edge and the pipes on the Walls (the pipes' tops on
 // the Ground too), the moat drawn, the concrete poured round the rim (on
 // the Ground) and the works on it (castleyard.ts: the bent poles, the
-// supplies, the light towers and the payphone, each on the Walls), the
+// supplies, the light towers, the payphone and Jericho, the Candlebearer
+// beside it, each on the Walls), the
 // cranes on the rim, the slurms dropping off the edges and the cranes' hooks into
 // the channel (moatslurms.ts), and today's castle floating over the
 // island, made anew when the day turns.
@@ -77,6 +81,10 @@ export interface CastleSite {
   ) => (XZ & { y: number }) | null
   // The payphone on the rim (castleyard.ts payphoneSpot).
   payphone: YardSpot
+  // Jericho, the Candlebearer, on his block beside it (castleyard.ts
+  // jerichoSpot): where he sits, and his rig, the body for the glow.
+  jericho: YardSpot
+  jerichoRig: JerichoRig
   // `t` the shared clock in seconds, `day` its Central day: the castle
   // bobs and its beams turn wherever the raider is; the moat, the cranes
   // and the slurms move only `near` it, squashed under any of `feet`
@@ -177,6 +185,16 @@ export function buildCastleSite(
     place,
   })
   group.add(yard.group)
+  const jericho = jerichoSpot(place)
+  walls.addWall(jericho, jericho, yardCfg.jericho.radius)
+  const jerichoRig = buildJericho()
+  jerichoRig.group.position.set(
+    jericho.x,
+    ground.at(jericho.x, jericho.z),
+    jericho.z
+  )
+  jerichoRig.group.rotation.y = -jericho.yaw
+  group.add(jerichoRig.group)
 
   const cranes: CraneRig[] = craneSpots(place).map((spot) => {
     const crane = buildCrane(spot.seed, spot.reach)
@@ -347,6 +365,7 @@ export function buildCastleSite(
     }
     moat.update(t)
     yard.update(t)
+    jerichoRig.update(t)
     for (const crane of cranes) crane.update(t)
     return stepSlurms(t, feet)
   }
@@ -365,6 +384,8 @@ export function buildCastleSite(
         ? catchPipe(decks, { x, z }, from, to, start)
         : null,
     payphone,
+    jericho,
+    jerichoRig,
     update,
     day: () => today,
     slurms: () => drawn,

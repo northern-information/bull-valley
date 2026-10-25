@@ -6,6 +6,7 @@ import {
   clutterWall,
   crumbAt,
   floatAt,
+  jerichoSpot,
   payphoneSpot,
   poleAt,
   poolReach,
@@ -33,6 +34,7 @@ const poles = yardPoles(place)
 const clutter = yardClutter(place)
 const lamps = yardLamps(place)
 const phone = payphoneSpot(place)
+const jericho = jerichoSpot(place)
 const cranes = craneSpots(place)
 const middle = { x: place.x, z: place.z }
 const dist = (a: XZ, b: XZ) => Math.hypot(a.x - b.x, a.z - b.z)
@@ -255,6 +257,52 @@ describe('the supplies, the lamps and the payphone', () => {
       z: phone.z + Math.sin(phone.yaw) * 2,
     }
     expect(dist(ahead, middle)).toBeGreaterThan(dist(phone, middle))
+  })
+})
+
+describe('Jericho, the Candlebearer', () => {
+  const J = Y.jericho
+
+  it('sits on the concrete beside the payphone, a step along from it', () => {
+    expect(inChannel(place, jericho.x, jericho.z)).toBe(false)
+    expect(onMoatGrounds(place, jericho.x, jericho.z)).toBe(true)
+    const d = dist(jericho, phone)
+    expect(d).toBeGreaterThan(Y.payphone.reach)
+    expect(d).toBeLessThan(5)
+  })
+
+  it('turns toward where a raider stands at the phone', () => {
+    const before = {
+      x: phone.x + Math.cos(phone.yaw),
+      z: phone.z + Math.sin(phone.yaw),
+    }
+    const ahead = {
+      x: jericho.x + Math.cos(jericho.yaw) * 2,
+      z: jericho.z + Math.sin(jericho.yaw) * 2,
+    }
+    expect(dist(ahead, before)).toBeLessThan(dist(jericho, before))
+  })
+
+  it('keeps clear of the fence, the supplies, the lamps and the stairs', () => {
+    for (const pole of poles) {
+      expect(dist(pole, jericho)).toBeGreaterThan(J.radius)
+    }
+    for (const pile of clutter) {
+      const wall = clutterWall(pile)
+      const reach = CLUTTER_SIZE[pile.kind].length / 2
+      expect(dist(pile, jericho)).toBeGreaterThan(J.radius + 1 + reach - 1e-9)
+      expect(dist(wall.a, jericho)).toBeGreaterThan(J.radius)
+      expect(dist(wall.b, jericho)).toBeGreaterThan(J.radius)
+    }
+    for (const lamp of lamps) {
+      expect(dist(lamp, jericho)).toBeGreaterThan(J.radius + 1.2)
+    }
+    for (const top of stairTops) {
+      expect(dist(jericho, top)).toBeGreaterThan(Y.clear)
+    }
+    for (const crane of cranes) {
+      expect(dist(jericho, crane)).toBeGreaterThan(Y.clear)
+    }
   })
 })
 

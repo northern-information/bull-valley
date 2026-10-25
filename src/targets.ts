@@ -31,7 +31,7 @@ export interface Targets {
   // The shelf unit in view inside store `station`, for the resolver.
   shelfInView(station: number): ShelfSpot | null
   // Marx while his truck stands still, Carlsten in store `station`, every
-  // Moab and Tyler, for the resolver to weigh by distance.
+  // Moab, Tyler and Jericho, for the resolver to weigh by distance.
   npcSpots(station: number): NpcSpot[]
   // What the eye sees, for the resolver: where it is, where it looks, the
   // feet's height, the ground under any point, and each pickup's middle.
@@ -43,7 +43,7 @@ export interface Targets {
   laptopSpots(station: number): LockerSpot[]
   // What the glow rings for an interaction: the pickup, the shelf unit a
   // buy would take, a bush while today's berry is on it, Gron, or Marx,
-  // Carlsten, Moab or Tyler when E would talk to him, your body, the lockers,
+  // Carlsten, Moab, Tyler or Jericho when E would talk to him, your body, the lockers,
   // the laptop, the Cabbage Stand. Nothing for the truck.
   glowTarget(action: Interaction<Pickup> | null): THREE.Object3D | null
   // What an item's label floats over: the pickup, the shelf unit a buy
@@ -119,6 +119,8 @@ export function createTargets(game: Game): Targets {
               : (world.moabRigs[action.station]?.figure.group ?? null)
           case 'tyler':
             return world.tylerRig?.figure.group ?? null
+          case 'jericho':
+            return world.jerichoRig?.body ?? null
         }
         break
       default:
@@ -186,6 +188,8 @@ export function createTargets(game: Game): Targets {
       })
       // Tyler, in the back of his Jeep by the spawn Citgo's Moab.
       if (world.tyler) spots.push({ id: 'tyler', ...world.tyler })
+      // Jericho, on his block by the payphone on Castle Entropy's rim.
+      if (world.jericho) spots.push({ id: 'jericho', ...world.jericho })
       return spots
     },
 

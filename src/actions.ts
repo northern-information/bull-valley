@@ -64,7 +64,7 @@ import { openLaptopDialog } from './laptopdialog.ts'
 import { README } from './laptopreadme.ts'
 import { call, refused } from './marx.ts'
 import { openMoabDialog } from './moabdialog.ts'
-import { npcLine } from './npcs.ts'
+import { marksMap, npcLine, npcName, pinnedAt } from './npcs.ts'
 import { outfitById } from './outfits.ts'
 import {
   bagTabs,
@@ -89,6 +89,7 @@ import { formatCash } from './store.ts'
 import { planLeg } from './truckplan.ts'
 import { dose, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
+import { placeWaypoint } from './waypoints.ts'
 import { charterable } from './worldsync.ts'
 import type { ChatCommand, CrewFrame } from './chat.ts'
 import type { CitgoLog, Stop } from './citgos.ts'
@@ -1068,14 +1069,23 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // hears it.
   const npcSays = (npc: NpcId, text: string) => {
     hud.chatLine(
-      { kind: 'npc', name: outfitById(npc).label, text, at: Date.now() },
+      { kind: 'npc', name: npcName(npc), text, at: Date.now() },
       performance.now()
     )
   }
 
-  // Marx, Carlsten, Moab and Tyler each say their next line.
+  // Marx, Carlsten, Moab, Tyler and Jericho each say their next line.
+  // Jericho's last pins the graveyard nearest him on the raider's map
+  // (rule 37, as a pin placed on the map is), unless it is pinned already.
   const speakTo = (npc: NpcId) => {
-    npcSays(npc, npcLine(npc, s.npcSaid[npc]++))
+    const said = s.npcSaid[npc]++
+    npcSays(npc, npcLine(npc, said))
+    const yard = world.celestialYard
+    if (!marksMap(npc, said) || !yard) return
+    if (!pinnedAt(s.waypoints, yard)) {
+      markWaypoints(placeWaypoint(s.waypoints, yard))
+    }
+    hud.tell(copy('jericho.marked', { yard: yard.name }))
   }
 
   // Rule 14: Moab's offer, taken. The valley trades and the pack frame
