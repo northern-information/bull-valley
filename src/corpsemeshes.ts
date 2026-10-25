@@ -1,10 +1,10 @@
 // The bodies as they lie in the valley (sharedworld.ts rule 18): one
 // figure.ts body per corpse, in the outfit its raider wore, laid on its
-// back in the sprawl pose on ground.at, kept in step with the valley's
-// corpse list. The figure's parts are shared with
-// every other figure in the game, so a body taken back is only removed,
-// but for its name tag (peers.ts nameLabel), which floats over it as over
-// a raider standing.
+// back in the sprawl pose on the deck they fell on (ground.ts lieAt),
+// kept in step with the valley's corpse list. The figure's parts are
+// shared with every other figure in the game, so a body taken back is
+// only removed, but for its name tag (peers.ts nameLabel), which floats
+// over it as over a raider standing.
 
 import * as THREE from 'three'
 import { applyPose, buildFigure } from './figure.ts'
@@ -12,6 +12,7 @@ import { nameLabel } from './peers.ts'
 import { samplePose } from './poses.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { Figure } from './figure.ts'
+import type { LieAt } from './interfaces.ts'
 
 // How far the figure's spine lies over the ground, laid on its back, so
 // the shoulders and the seat rest on it rather than in it.
@@ -26,9 +27,7 @@ export interface CorpseMeshes {
   sync(corpses: readonly CorpseWire[]): void
 }
 
-export function createCorpseMeshes(
-  groundAt: (x: number, z: number) => number
-): CorpseMeshes {
+export function createCorpseMeshes(lieAt: LieAt): CorpseMeshes {
   const group = new THREE.Group()
   group.name = 'corpses'
   const byId = new Map<number, THREE.Group>()
@@ -49,7 +48,7 @@ export function createCorpseMeshes(
     sprite.position.y = LABEL_HEIGHT
     body.add(sprite)
     body.userData.label = sprite
-    body.position.set(corpse.x, groundAt(corpse.x, corpse.z), corpse.z)
+    body.position.set(corpse.x, lieAt(corpse.x, corpse.z, corpse.y), corpse.z)
     // Fallen the way they faced (a yaw of 0 faces -Z, as peers.ts turns
     // a figure).
     body.rotation.y = corpse.yaw + Math.PI

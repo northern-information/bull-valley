@@ -500,6 +500,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       time,
       tripping: levelsAt(s.wards, time).tripping,
       player: player.pos,
+      feet: player.groundY,
       yaw: player.yaw,
       blocked: world.walls.between,
     })

@@ -1227,6 +1227,42 @@ describe('ValleyDO', () => {
     expect(b.last<WelcomeMessage>().place).toBeNull()
   })
 
+  it('keeps where a raider walks before their socket closes', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.UTC(2026, 6, 1, 17) })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const kept = () =>
+      (s.storage.map.get('valley') as { places: Record<string, unknown> })
+        .places['acct-A']
+    await v.webSocketMessage(ws(a), state(10, 20))
+    await settle()
+    expect(kept()).toEqual({ x: 10, z: 20, yaw: 0.5 })
+    // Not every frame: only once the interval has passed.
+    await v.webSocketMessage(ws(a), state(50, 20))
+    await settle()
+    expect(kept()).toEqual({ x: 10, z: 20, yaw: 0.5 })
+    vi.setSystemTime(Date.now() + CONFIG.net.placeEveryMs)
+    await v.webSocketMessage(ws(a), state(60, 20))
+    await settle()
+    expect(kept()).toEqual({ x: 60, z: 20, yaw: 0.5 })
+  })
+
+  it('brings a reload back where the old tab stood, though it has not closed yet', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    await v.webSocketMessage(ws(a), state(10, 20))
+    await v.webSocketMessage(ws(a), state(400, -45))
+    const again = await join(v, s, 'A')
+    expect(again.last<WelcomeMessage>().place).toEqual({
+      x: 400,
+      z: -45,
+      yaw: 0.5,
+    })
+  })
+
   it('wakes with the world from storage and the roster from attachments', async () => {
     const shared = new MockState()
     const first = (await valley(shared)).valley
@@ -2206,10 +2242,16 @@ describe('ValleyDO: corpse runs', () => {
     const fell = worldFrames(b).at(-1)
     expect(fell).toMatchObject({ reason: 'fell', by: idOf(a), corpse: 0 })
     expect(fell?.world?.corpses).toEqual([
-      { id: 0, x: 500, z: 500, yaw: 0.5, name: 'A', outfit: 'coleman' },
+      { id: 0, x: 500, y: 0, z: 500, yaw: 0.5, name: 'A', outfit: 'coleman' },
     ])
     expect(fell?.world?.drops).toContainEqual(
-      expect.objectContaining({ kind: 'dimes', count: dimes, x: 500, z: 500 })
+      expect.objectContaining({
+        kind: 'dimes',
+        count: dimes,
+        x: 500,
+        y: 0,
+        z: 500,
+      })
     )
     // B's pack never names A's body.
     expect(lastFrame(b)?.corpses ?? []).toEqual([])

@@ -161,11 +161,11 @@ async function boot() {
   if (world.castle) {
     cutTerrainHole(terrainMesh, world.castle.island, world.castle.outer)
   }
-  const drops = createDropMeshes(world.ground.at)
+  const drops = createDropMeshes(world.ground.lieAt)
   scene.add(drops.group)
   const graves = createGravestones(world.ground.at)
   scene.add(graves.group)
-  const corpses = createCorpseMeshes(world.ground.at)
+  const corpses = createCorpseMeshes(world.ground.lieAt)
   scene.add(corpses.group)
   const portals = createPortalMeshes(world.ground.at)
   scene.add(portals.group)
@@ -363,7 +363,7 @@ async function boot() {
     // raider and whoever else is in the valley.
     hallucinations: new Hallucinations({
       scene,
-      groundAt: world.ground.at,
+      groundAt: world.ground.lieAt,
       people: () => [
         { name: pick.username, level: levelOf(game.state.xp) },
         ...game.peers.list().map(({ name, level }) => ({ name, level })),
