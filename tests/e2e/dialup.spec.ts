@@ -307,8 +307,13 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
   await page.locator('.bv-dial-citgo').first().click()
   const shop = page.locator('.bv-citgo')
   await expect(shop).toBeVisible()
+  // What is picked turns in the table, on the shell's renderer.
+  await expect(shop.locator('[data-bv="trade-view"]')).toBeVisible()
   await shop.locator('[data-bv="trade-go"]').click()
   await expect(cash).not.toHaveText(before ?? '')
+  await expect(shop.locator('.bv-banner-kicker')).toHaveText(
+    copy('shop.fanfare')
+  )
   await shop.locator('[data-bv="trade-close"]').click()
   await page.getByRole('button', { name: copy('dialup.back') }).click()
 
@@ -322,6 +327,9 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
   await expect(deal.locator('[data-bv="trade-said"]')).toHaveText(
     copy('dealer.bought', { item: copy('items.lsd.label') })
   )
+  await expect(deal.locator('.bv-banner')).toContainText(
+    copy('dealer.fanfare') + copy('items.lsd.label')
+  )
   await deal.locator('[data-bv="trade-tab-quest"]').click()
   await deal.locator('[data-bv="trade-quest-go"]').click()
   await expect(deal.locator('[data-bv="trade-said"]')).toHaveText(
@@ -334,12 +342,17 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
   await page.locator('.bv-dial-card[data-card="moab"]').click()
   const moab = page.locator('.bv-moab')
   await expect(moab).toContainText(copy('moab.offer'))
+  // His goods are no items: nothing turns.
+  await expect(moab.locator('[data-bv="trade-view"]')).toBeHidden()
   await moab.locator('[data-bv="trade-even"]').click()
   await moab.locator('[data-bv="trade-go"]').click()
   await expect(moab.locator('[data-bv="trade-said"]')).toHaveText(
     copy('log.cosmetic_worn', {
       cosmetic: copy('cosmetics.flaming-halo.label'),
     })
+  )
+  await expect(moab.locator('.bv-banner')).toContainText(
+    copy('moab.fanfare') + copy('cosmetics.flaming-halo.label')
   )
   await moab.locator('[data-bv="trade-close"]').click()
 

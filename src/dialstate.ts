@@ -89,6 +89,7 @@ import {
 import { buyRefusal, shelfRows } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
+import { tradeFanfare } from './tradefanfare.ts'
 import { AXES, dose, levelsAt } from './wardlevels.ts'
 import type { Fanfare } from './catchfanfare.ts'
 import type { ChatLine } from './chat.ts'
@@ -154,6 +155,9 @@ export interface DialState {
   // The fish last landed, made a big deal of (catchfanfare.ts), and when
   // it came in (performance.now()); null before one has.
   landed: (Fanfare & { at: number }) | null
+  // The last trade with any trader, made a big deal of
+  // (tradefanfare.ts); his window cheers it.
+  tradeCheer: Fanfare | null
   health: number
   healthMax: number
   // The wards as the valley last said them, at local `wardsAt` ms; they
@@ -261,6 +265,7 @@ export const DIALED: DialState = {
   angler: null,
   line: null,
   landed: null,
+  tradeCheer: null,
   health: BASE_GEOMETRIE,
   healthMax: BASE_GEOMETRIE,
   wards: NO_WARDS,
@@ -455,9 +460,12 @@ export function applyFrame(
           use: false,
         },
       }
-      // Rule 14: a cosmetic Moab traded, worn now.
+      // Rule 14: a cosmetic Moab traded, worn now, and a big deal.
       return gainedOf(s.cosmetics, cosmetics).reduce(
-        (after, id) => news(after, cosmeticById(id)?.worn ?? id, now, wall),
+        (after, id) => ({
+          ...news(after, cosmeticById(id)?.worn ?? id, now, wall),
+          tradeCheer: tradeFanfare('moab', id, cosmeticById(id)?.label ?? id),
+        }),
         next
       )
     }
@@ -777,7 +785,11 @@ function worldNews(
   if (s.id === null || msg.by !== s.id || !msg.item) return s
   if (msg.reason === 'bought') {
     return news(
-      { ...s, pending: { ...s.pending, buy: null } },
+      {
+        ...s,
+        pending: { ...s.pending, buy: null },
+        tradeCheer: tradeFanfare('shop', msg.item, itemLabel(msg.item)),
+      },
       itemLine(msg.item, 'bought') ??
         copy('dialup.citgo.bought', { item: itemLabel(msg.item) }),
       now,
@@ -786,7 +798,11 @@ function worldNews(
   }
   if (msg.reason === 'dealt') {
     return news(
-      { ...s, pending: { ...s.pending, deal: false } },
+      {
+        ...s,
+        pending: { ...s.pending, deal: false },
+        tradeCheer: tradeFanfare('dealer', msg.item, itemLabel(msg.item)),
+      },
       boughtLine(msg.item),
       now,
       wall

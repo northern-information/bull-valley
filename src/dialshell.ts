@@ -131,6 +131,8 @@ export class DialShell {
   private thumbs: ItemThumbs | null = null
   // The item turning on the thumbs' renderer, when one is.
   private spinning: HTMLCanvasElement | null = null
+  // The canvas a dialog over the shell has borrowed the renderer for.
+  private lent: HTMLCanvasElement | null = null
   private models: ReturnType<ShellOptions['models']> | null = null
 
   private options: ShellOptions
@@ -310,6 +312,25 @@ export class DialShell {
     })
   }
 
+  // A dialog over the shell (a trader's) turning an item on its own
+  // canvas: lent the renderer until stopSpin, and the open row waits.
+  spin(canvas: HTMLCanvasElement, kind: string): void {
+    this.lent = canvas
+    void this.load().then((models) => {
+      if (this.lent !== canvas) return
+      this.thumbs ??= models.createItemThumbs()
+      this.spinning = null
+      this.thumbs.spin(canvas, kind)
+    })
+  }
+
+  stopSpin(): void {
+    if (!this.lent) return
+    this.lent = null
+    this.thumbs?.stop()
+    this.showItems()
+  }
+
   // The 3D, loaded the first time it is wanted.
   private load(): ReturnType<ShellOptions['models']> {
     this.models ??= this.options.models()
@@ -354,7 +375,7 @@ export class DialShell {
       for (const img of this.root.querySelectorAll<HTMLImageElement>(blank)) {
         img.src = thumbs.icon(img.dataset.kind ?? '')
       }
-      if (this.sheetOpen === 'page') return
+      if (this.sheetOpen === 'page' || this.lent) return
       const canvas = this.openSpin()
       if (canvas === this.spinning) return
       this.spinning = canvas

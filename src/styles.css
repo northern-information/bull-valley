@@ -3592,14 +3592,38 @@ canvas {
    toward even, Citgo red while short, eggshell once even, gold with a unit
    to spare. */
 .bv-trade-table {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px 16px;
+  align-content: start;
   padding: 12px 16px;
   border: 1px solid var(--bv-npc-line);
 }
 
+/* The item picked, or the row under the pointer, turning as the pack
+   card's does (tradewindow.ts), beside the sums, the meter and the
+   state; the buttons run under both. */
+.bv-trade-view {
+  display: block;
+  grid-row: span 3;
+  align-self: center;
+  width: 112px;
+  height: 112px;
+}
+
+.bv-trade-view[hidden] {
+  display: none;
+}
+
+/* A good that is no item (a cosmetic): nothing turns, and the sums take
+   the width. */
+.bv-trade-table:has(> .bv-trade-view[hidden]) {
+  grid-template-columns: 0 minmax(0, 1fr);
+  column-gap: 0;
+}
+
 .bv-trade-sums {
+  grid-column: 2;
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -3616,6 +3640,7 @@ canvas {
 }
 
 .bv-trade-meter {
+  grid-column: 2;
   height: 8px;
   border: 1px solid var(--bv-npc-edge);
 }
@@ -3635,12 +3660,14 @@ canvas {
 }
 
 .bv-trade-state {
+  grid-column: 2;
   min-height: 1.375rem;
   font-size: 0.8125rem;
   color: var(--bv-npc-soft);
 }
 
 .bv-trade-acts {
+  grid-column: 1 / -1;
   display: grid;
   grid-template-columns: 1fr 1fr 2fr;
   gap: 12px;
@@ -3815,6 +3842,24 @@ canvas {
 
   .bv-trade-each {
     min-width: 0;
+  }
+
+  /* On a phone the item turns over the sums, which keep the width. */
+  .bv-trade-table,
+  .bv-trade-table:has(> .bv-trade-view[hidden]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bv-trade-view,
+  .bv-trade-sums,
+  .bv-trade-meter,
+  .bv-trade-state {
+    grid-row: auto;
+    grid-column: 1;
+  }
+
+  .bv-trade-view {
+    justify-self: center;
   }
 
   .bv-trade-acts {
