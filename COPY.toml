@@ -1683,7 +1683,7 @@ recycling = { text = "Recycling Center", by = "ai" }
 recycling_blurb = { text = "Feed your empties to the machine by the Citgo door for research.", by = "ai" }
 recycling_level = { text = "Loose change, level {level}.", by = "ai" }
 campfire = { text = "Campfire", by = "ai" }
-campfire_blurb = { text = "Cook your catch. A fish cooked gives far more back than one eaten raw.", by = "ai" }
+campfire_blurb = { text = "Cook your catch. A cooked fish heals far more than a raw one.", by = "ai" }
 fishing = { text = "Firefly Pond", by = "ai" }
 fishing_blurb = { text = "The tackle box on the landing. Cast from here.", by = "ai" }
 fishing_skill = { text = "Skill {skill}. {caught} of {limit} today.", by = "ai" }
