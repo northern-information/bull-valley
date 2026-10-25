@@ -4,8 +4,8 @@ import {
   fenceMaterial,
   gravestonePart,
   reedPart,
-  TREE_CANOPY_HIGH,
-  TREE_CANOPY_LOW,
+  TREE_FORMS,
+  TREE_SPECIES,
   treeParts,
 } from './assets.ts'
 import {
@@ -26,6 +26,7 @@ import {
 import { CIGARETTE_IDS, contentsOf } from './items.ts'
 import { CABBAGE_PATCH, landmarkWorldPositions } from './landmarks.ts'
 import { mulberry32, range } from './rng.ts'
+import type { TreeSpecies } from './assets.ts'
 import type { Geo, HeightAt, Metres, UnitPoint, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { Rng } from './rng.ts'
@@ -115,10 +116,6 @@ export function buildMask(
 // Two-octave value noise so the woods gather into stands instead of a uniform
 // sprinkle; Bull Valley is oak groves between open fields.
 function woodsNoise(u: number, v: number): number {
-  const hash = (ix: number, iy: number) => {
-    const s = Math.sin(ix * 127.1 + iy * 311.7) * 43758.5453
-    return s - Math.floor(s)
-  }
   const value = (x: number, y: number) => {
     const ix = Math.floor(x)
     const iy = Math.floor(y)
@@ -127,18 +124,60 @@ function woodsNoise(u: number, v: number): number {
     const sx = fx * fx * (3 - 2 * fx)
     const sy = fy * fy * (3 - 2 * fy)
     return (
-      hash(ix, iy) * (1 - sx) * (1 - sy) +
-      hash(ix + 1, iy) * sx * (1 - sy) +
-      hash(ix, iy + 1) * (1 - sx) * sy +
-      hash(ix + 1, iy + 1) * sx * sy
+      cellHash(ix, iy) * (1 - sx) * (1 - sy) +
+      cellHash(ix + 1, iy) * sx * (1 - sy) +
+      cellHash(ix, iy + 1) * (1 - sx) * sy +
+      cellHash(ix + 1, iy + 1) * sx * sy
     )
   }
   return value(u * 13, v * 13) * 0.65 + value(u * 31 + 7, v * 31 + 3) * 0.35
 }
 
+function cellHash(ix: number, iy: number): number {
+  const s = Math.sin(ix * 127.1 + iy * 311.7) * 43758.5453
+  return s - Math.floor(s)
+}
+
+// How common each kind of tree is: white oak above all, then hickory,
+// the old oak-hickory woods of McHenry County, with ash, elm, pine and a
+// few spruce among them.
+const SPECIES_WEIGHTS: Record<TreeSpecies, number> = {
+  whiteOak: 0.34,
+  hickory: 0.18,
+  ash: 0.13,
+  elm: 0.12,
+  pine: 0.15,
+  spruce: 0.08,
+}
+// Stands are cells this many to the unit square's side (~250 m in the
+// 15 km frame); most trees in a cell are its kind, the rest any kind.
+const SPECIES_CELLS = 60
+const STAND_SHARE = 0.7
+
+function speciesAt(roll: number): TreeSpecies {
+  let left = roll
+  for (const species of TREE_SPECIES) {
+    left -= SPECIES_WEIGHTS[species]
+    if (left < 0) return species
+  }
+  return 'whiteOak'
+}
+
+// A scatter tree's kind, from where it stands alone: it draws nothing from
+// the rng, so the reeds, graves and pickups after the woods stay put.
+export function treeSpeciesAt(u: number, v: number): TreeSpecies {
+  const ix = Math.floor(u * SPECIES_CELLS)
+  const iy = Math.floor(v * SPECIES_CELLS)
+  const own = cellHash(u * 7919.3 + 0.5, v * 6271.7 + 0.25)
+  return own < STAND_SHARE
+    ? speciesAt(cellHash(ix + 101, iy + 37))
+    : speciesAt(cellHash(u * 4253.1, v * 9133.9))
+}
+
 // A tree placed by hand rather than scattered: where it stands and its
 // shape, as buildTrees draws a scatter tree.
 export interface PlantedTree extends XZ {
+  species: TreeSpecies
   trunkH: number
   canopyH: number
   canopyR: number
@@ -183,9 +222,10 @@ export function buildTrees(
   // reeds, graves and pickups after it in the same state either way.
   const trees = candidates.flatMap(([u, v]) => {
     const { x, z } = unitToWorld(u, v, metres)
-    const tree = {
+    const tree: PlantedTree = {
       x,
       z,
+      species: treeSpeciesAt(u, v),
       trunkH: range(rng, 2.2, 4.2),
       canopyH: range(rng, 4, 8),
       canopyR: range(rng, 1.5, 3),
@@ -196,42 +236,49 @@ export function buildTrees(
   })
   // The trees placed by hand (the lone pine) draw nothing from the rng.
   trees.push(...planted)
-  const count = trees.length
-  const parts = treeParts()
-  const trunks = new THREE.InstancedMesh(
-    parts.trunk.geometry,
-    parts.trunk.material,
-    count
-  )
-  const canopies = new THREE.InstancedMesh(
-    parts.canopy.geometry,
-    parts.canopy.material,
-    count
-  )
-  const dummy = new THREE.Object3D()
-  const canopyLow = new THREE.Color(TREE_CANOPY_LOW)
-  const canopyHigh = new THREE.Color(TREE_CANOPY_HIGH)
-  const tint = new THREE.Color()
-  trees.forEach(({ x, z, trunkH, canopyH, canopyR, yaw, tint: t }, i) => {
-    const y = heightAt(x, z)
-    dummy.position.set(x, y, z)
-    dummy.rotation.set(0, yaw, 0)
-    dummy.scale.set(1, trunkH, 1)
-    dummy.updateMatrix()
-    trunks.setMatrixAt(i, dummy.matrix)
-    dummy.position.set(x, y + trunkH * 0.8, z)
-    dummy.scale.set(canopyR, canopyH, canopyR)
-    dummy.updateMatrix()
-    canopies.setMatrixAt(i, dummy.matrix)
-    canopies.setColorAt(i, tint.copy(canopyLow).lerp(canopyHigh, t))
-  })
-  trunks.instanceMatrix.needsUpdate = true
-  canopies.instanceMatrix.needsUpdate = true
-  if (canopies.instanceColor) canopies.instanceColor.needsUpdate = true
-
+  // One trunk and one canopy mesh a kind, each sized to its own trees.
   const group = new THREE.Group()
-  group.add(trunks)
-  group.add(canopies)
+  const dummy = new THREE.Object3D()
+  const tint = new THREE.Color()
+  for (const species of TREE_SPECIES) {
+    const kind = trees.filter((tree) => tree.species === species)
+    if (kind.length === 0) continue
+    const form = TREE_FORMS[species]
+    const parts = treeParts(species)
+    const trunks = new THREE.InstancedMesh(
+      parts.trunk.geometry,
+      parts.trunk.material,
+      kind.length
+    )
+    const canopies = new THREE.InstancedMesh(
+      parts.canopy.geometry,
+      parts.canopy.material,
+      kind.length
+    )
+    const canopyLow = new THREE.Color(form.low)
+    const canopyHigh = new THREE.Color(form.high)
+    kind.forEach(({ x, z, trunkH, canopyH, canopyR, yaw, tint: t }, i) => {
+      const y = heightAt(x, z)
+      const h = trunkH * form.trunk
+      const r = canopyR * form.radius
+      dummy.position.set(x, y, z)
+      dummy.rotation.set(0, yaw, 0)
+      dummy.scale.set(1, h, 1)
+      dummy.updateMatrix()
+      trunks.setMatrixAt(i, dummy.matrix)
+      dummy.position.set(x, y + h * form.seat, z)
+      dummy.scale.set(r, canopyH * form.height, r)
+      dummy.updateMatrix()
+      canopies.setMatrixAt(i, dummy.matrix)
+      canopies.setColorAt(i, tint.copy(canopyLow).lerp(canopyHigh, t))
+    })
+    trunks.instanceMatrix.needsUpdate = true
+    canopies.instanceMatrix.needsUpdate = true
+    if (canopies.instanceColor) canopies.instanceColor.needsUpdate = true
+    trunks.name = `${species}-trunks`
+    canopies.name = `${species}-canopies`
+    group.add(trunks, canopies)
+  }
   group.name = 'trees'
   return group
 }

@@ -111,13 +111,13 @@ import {
   SODIUM_HALO,
   STREETLIGHT,
   streetlightParts,
-  TREE_CANOPY_HIGH,
-  TREE_CANOPY_LOW,
+  TREE_FORMS,
   TREE_SAMPLE,
+  TREE_SPECIES,
   treeParts,
 } from './roadsideparts.ts'
 import { buildShadowBurst, SHADOW_BURST } from './shadowburstmodel.ts'
-import { buildShadowSpider, strikeLoopAt } from './shadowspider.ts'
+import { buildShadowSpider, burnLoopAt, strikeLoopAt } from './shadowspider.ts'
 import { buildSkeletonHorse } from './skeletonhorse.ts'
 import { buildSlurm } from './slurmmodel.ts'
 import { buildForm } from './spomenikmodel.ts'
@@ -133,26 +133,38 @@ import { buildClutter, buildLightTower } from './yardprops.ts'
 import type { AkashicAsset, Part } from './assetkit.ts'
 import type { FormKind } from './castle.ts'
 import type { Span } from './maze.ts'
+import type { TreeSpecies } from './roadsideparts.ts'
 
 // The Akashic page's registry of the world's assets (akashic.ts adds the
 // truck, the figures and the shadowmen, which need figure or game code),
 // and the samples that show an instanced part or a whole station as one
 // object. Nothing in the game imports this; it pulls in every builder.
 
-function sampleTree(): THREE.Group {
-  const { trunk, canopy } = treeParts()
+// One of each kind of tree, as buildTrees (scatter.ts) sizes it.
+function sampleTree(species: TreeSpecies): THREE.Group {
+  const { trunk, canopy } = treeParts(species)
+  const form = TREE_FORMS[species]
   const { trunkH, canopyH, canopyR, tint } = TREE_SAMPLE
-  canopy.material.color
-    .set(TREE_CANOPY_LOW)
-    .lerp(new THREE.Color(TREE_CANOPY_HIGH), tint)
+  const h = trunkH * form.trunk
+  const r = canopyR * form.radius
+  canopy.material.color.set(form.low).lerp(new THREE.Color(form.high), tint)
   return assembleParts([
-    { ...trunk, scale: [1, trunkH, 1] },
+    { ...trunk, scale: [1, h, 1] },
     {
       ...canopy,
-      position: [0, trunkH * 0.8, 0],
-      scale: [canopyR, canopyH, canopyR],
+      position: [0, h * form.seat, 0],
+      scale: [r, canopyH * form.height, r],
     },
   ])
+}
+
+const TREE_LABELS: Record<TreeSpecies, string> = {
+  whiteOak: 'White oak',
+  hickory: 'Hickory',
+  ash: 'Ash',
+  elm: 'Elm',
+  spruce: 'Spruce',
+  pine: 'Pine',
 }
 
 function samplePole(): THREE.Group {
@@ -375,7 +387,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'Trash can',
     build: () => assembleParts(trashCanParts()),
   },
-  { id: 'tree', label: 'Tree', build: sampleTree },
+  ...TREE_SPECIES.map((species) => ({
+    id: `tree-${species}`,
+    label: `Tree: ${TREE_LABELS[species]}`,
+    build: () => sampleTree(species),
+  })),
   { id: 'corn-wall', label: 'Corn maze: wall corner', build: sampleCornWall },
   { id: 'corn-maze', label: 'Corn maze: whole layout', build: sampleCornMaze },
   {
@@ -786,6 +802,44 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'Spiderling: a burst spider breaks into these',
     build: sampleStrikingSpider(5.6 * CONFIG.shadowmen.spiderling.scale),
   },
+  {
+    id: 'shadow-spider-burning',
+    label: 'Shadow spider: burning in a beam, thrashing',
+    build: () => {
+      const spider = buildShadowSpider(5.6)
+      let last = 0
+      setMotion(spider.group, (t) => {
+        const dt = Math.max(0, Math.min(0.1, t - last))
+        last = t
+        spider.update({ dt, speed: 0, burn: burnLoopAt(t), perception: false })
+      })
+      return spider.group
+    },
+  },
+  {
+    id: 'caretaker-burning',
+    label: 'The Caretaker: burning in two lights, thrashing',
+    build: () => {
+      const rig = buildCaretaker()
+      setMotion(rig.group, (t) => {
+        rig.setBurn(burnLoopAt(t))
+        rig.update(t)
+      })
+      return rig.group
+    },
+  },
+  ...(['shade', 'warden'] as const).map((kind) => ({
+    id: `${kind === 'shade' ? 'tunnel-shade' : 'warden'}-burning`,
+    label: `${kind === 'shade' ? 'A tunnel shade' : 'The Warden'}: burning in a beam, thrashing`,
+    build: () => {
+      const rig = buildTunnelShade(kind)
+      setMotion(rig.group, (t) => {
+        rig.setBurn(burnLoopAt(t))
+        rig.update(t)
+      })
+      return rig.group
+    },
+  })),
   {
     id: 'caretaker-striking',
     label: 'The Caretaker: winding up and lunging',

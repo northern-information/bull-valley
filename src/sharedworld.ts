@@ -95,8 +95,9 @@
 //    valley, stepped with the shadowmen and, like them, in memory only.
 //    It walks the maze's paths, hunts a raider in the maze it sees who
 //    could be rushed by a shadowman, and its touch strikes them the same
-//    way. One beam does nothing to it; two raiders' beams on it at once,
-//    held, burn it, and it forms again at the heart minutes later.
+//    way. One light does nothing to it; two raiders' lights on it at once
+//    (a beam, or a torch held close, rule 39), held, burn it, and it forms
+//    again at the heart minutes later.
 //    Burned, it leaves two 1 troy ounce bars of gold bullion lying where
 //    it was (drops.ts spillsOf), each a drop like any other (rule 12) that
 //    goes into the taker's pack.
@@ -391,8 +392,12 @@
 //    and everyone hears it ('topiary-hit'). At nothing the topiary is
 //    burned away ('topiary-burned'), and grows back whole
 //    CONFIG.topiaries.regrowSeconds later ('topiary-back', settled like
-//    the truck). A torch harms nothing else, and nothing else harms a
-//    topiary. Dialed in, there is neither toolbox nor topiary.
+//    the truck). Nothing but a torch harms a topiary. Held, a torch is a
+//    light too (rule 11): it burns a shadowman, spider or spiderling
+//    close by at half a beam's pace (CONFIG.torch, shadowstep.ts
+//    shadowRaiders from the state frame's `held`), and it is one of the
+//    Caretaker's two lights (rule 13). Dialed in, there is neither toolbox
+//    nor topiary.
 // 40. The campfire (cooking.ts): every firefly pond has one by its landing
 //    (campfireOf, from where the world was opened with each pond). A raider
 //    out of the bed whose last state frame put them beside one, or dialed

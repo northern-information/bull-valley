@@ -1,16 +1,20 @@
 // The tunnel shades as seen (tunnelshades.ts): one body each (assets.ts
 // buildTunnelShade) walking the Undercroft's floor, turned to face the
-// player, paling and shaking as a beam burns it. They are the valley's
+// player, paling and shaking as a beam burns it, its health bar over it
+// once it is hurt (enemybars.ts; the Warden's counts the hits it has
+// taken). They are the valley's
 // (sharedworld.ts rule 11): they ride in the shadowmen frames and are
 // drawn a beat behind the present, between the last two.
 
 import { buildTunnelShade } from './assets.ts'
 import { CONFIG } from './config.ts'
+import { bodyHeight, EnemyBars } from './enemybars.ts'
 import { mulberry32, range } from './rng.ts'
 import {
   applyShadowFrame,
   createShadowTable,
   sampleShadowmen,
+  shadeHealth,
 } from './shadowsync.ts'
 import type { TunnelShadeRig } from './assets.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
@@ -50,6 +54,9 @@ export class TunnelShades {
   private place: MazePlace | null
   private groundAt: HeightAt
   private rigs = new Map<number, TunnelShadeRig>()
+  // How tall each stands, for its health bar, and the bars.
+  private talls = new Map<number, number>()
+  private bars: EnemyBars
   private scene: THREE.Object3D
   private rng = mulberry32(0x7e117)
   private table: ShadowTable<TunnelShadeWire> = createShadowTable()
@@ -62,6 +69,7 @@ export class TunnelShades {
     this.scene = scene
     this.place = place
     this.groundAt = groundAt
+    this.bars = new EnemyBars(scene)
   }
 
   // A frame from the valley, landed at `at` (local ms).
@@ -71,10 +79,30 @@ export class TunnelShades {
     this.hits.push(...msg.tunnelWounds)
   }
 
-  update({ time, player, renderAt }: TunnelShadesFrame): TunnelShadesUpdate {
+  update({
+    dt,
+    time,
+    player,
+    renderAt,
+  }: TunnelShadesFrame): TunnelShadesUpdate {
     const shown = this.place ? sampleShadowmen(this.table, renderAt) : []
     this.shown = shown
     this.draw(shown, player, time)
+    for (const s of shown) {
+      this.bars.show(
+        s.id,
+        {
+          x: s.x,
+          y: this.groundAt(s.x, s.z),
+          z: s.z,
+          tall: this.talls.get(s.id) ?? 2,
+          share: shadeHealth(s.burn, s.hurt, CONFIG.tunnel[s.kind].hits),
+        },
+        player,
+        dt
+      )
+    }
+    this.bars.sweep()
     const bursts = this.pending
     const wounds = this.hits
     this.pending = []
@@ -94,6 +122,7 @@ export class TunnelShades {
       if (!rig) {
         rig = buildTunnelShade(s.kind, 0x7e11 + s.id)
         this.rigs.set(s.id, rig)
+        this.talls.set(s.id, bodyHeight(rig.group))
         this.scene.add(rig.group)
       }
       const burn = Math.min(1, s.burn)

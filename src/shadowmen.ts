@@ -198,6 +198,24 @@ export interface Raider {
   vulnerable: boolean
   // Their flashlight, while it is up and on.
   beam: Beam | null
+  // A lit torch in their hand (held.ts): a light all round them, close in
+  // and weaker than a beam (CONFIG.torch).
+  torch?: boolean
+}
+
+// Whether a raider's torch reaches a point: within CONFIG.torch
+// lightRadius of them, along the ground and up (where their feet are
+// known).
+export function inTorchLight(
+  r: Raider,
+  p: { x: number; z: number; y?: number },
+  radius: number = CONFIG.torch.lightRadius
+): boolean {
+  if (!r.torch) return false
+  if (r.y !== undefined && p.y !== undefined && Math.abs(p.y - r.y) > radius) {
+    return false
+  }
+  return Math.hypot(p.x - r.x, p.z - r.z) <= radius
 }
 
 export interface ShadowmenField {
@@ -691,6 +709,7 @@ export function stepShadowmen(
     (r) => r.vulnerable && !inHaven(r, havens, cfg.havenRadius)
   )
   const lit = raiders.filter((r) => r.beam !== null)
+  const torched = raiders.filter((r) => r.torch)
 
   // On a wall or a fire escape it is at its own height, not the ground's.
   const stand = (s: Shadowman): void => {
@@ -912,12 +931,16 @@ export function stepShadowmen(
       y: (s.y ?? beam.floor) + aim,
       z: s.z,
     })
-    const by = lit
+    const beamed = lit
       .filter(({ beam }) => (beam ? inBeam(beam, body(beam)) : false))
       .map((r) => r.id)
+    // A torch held close burns it too, slower (CONFIG.torch).
+    const burning = torched.filter((r) => inTorchLight(r, s)).map((r) => r.id)
+    const by = [...new Set([...beamed, ...burning])]
     const held =
-      by.length > 0 || lights.some((beam) => inBeam(beam, body(beam)))
-    s.burn = held ? s.burn + dt : Math.max(0, s.burn - dt)
+      beamed.length > 0 || lights.some((beam) => inBeam(beam, body(beam)))
+    const rate = held ? 1 : burning.length > 0 ? CONFIG.torch.burnRate : 0
+    s.burn = rate > 0 ? s.burn + dt * rate : Math.max(0, s.burn - dt)
     if (s.burn >= burnSecondsOf(s.kind, cfg)) {
       bursts.push({
         id: s.id,

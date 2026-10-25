@@ -10,6 +10,7 @@
 // would stand on (`drawnAt`), so one walking the moat's floor is never
 // drawn up on the fire escape over it.
 
+import { CONFIG } from './config.ts'
 import { between, keepFrame, lerp } from './framebuffer.ts'
 import type { HeightAt } from './interfaces.ts'
 import type { ShadowmanWire } from './protocol.ts'
@@ -92,4 +93,29 @@ export function drawnAt(
 ): number {
   if (s.y === undefined) return groundAt(s.x, s.z)
   return s.wall ? s.y : standAt(s.x, s.z, s.y)
+}
+
+// --- Health bars -----------------------------------------------------------
+
+// How much of an enemy is left, 0 to 1, for its bar (enemybars.ts): what a
+// beam has not yet burned of it (`burn`, 0 to 1), and for one that takes
+// `hits` before it bursts (the Warden) the share of them it has taken
+// (`hurt`), the beam working on the next.
+export function shadeHealth(burn: number, hurt = 0, hits = 1): number {
+  const left = 1 - hurt - Math.min(1, Math.max(0, burn)) / Math.max(1, hits)
+  return Math.min(1, Math.max(0, left))
+}
+
+// Whether an enemy's bar shows: once it is hurt, to a raider within range.
+export function barShown(
+  share: number,
+  distance: number,
+  range: number = CONFIG.healthBars.range
+): boolean {
+  return share < 1 && distance <= range
+}
+
+// How wide an enemy's bar is, for a body `tall` metres high.
+export function barWidth(tall: number, cfg = CONFIG.healthBars): number {
+  return Math.min(cfg.maxWidth, Math.max(cfg.minWidth, tall * cfg.perMetre))
 }

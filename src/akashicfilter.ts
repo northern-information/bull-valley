@@ -51,6 +51,12 @@ const POSES = new Set([
   'shadowman-striking',
   'shadow-spider-striking',
   'caretaker-striking',
+  'shadowman-burning',
+  'shadow-spider-burning',
+  'caretaker-burning',
+  'tunnel-shade-burning',
+  'warden-burning',
+  'topiary-dying',
 ])
 
 // Anything a raider can pick up, carry, wear or hold.

@@ -630,7 +630,8 @@ export const ITEMS = [
   },
   // Out of the toolbox at the foot of the corn maze's lookout, one an
   // account (sharedworld.ts rule 39): the only thing that harms a
-  // topiary, and harms nothing else.
+  // topiary; held, its fire burns the shadows close by, and is a light to
+  // the Caretaker.
   {
     id: 'torch',
     category: 'key-item',

@@ -446,7 +446,7 @@ export function wireValley(game: Game, actions: Actions): void {
       })
       const near =
         Math.hypot(at.x - player.pos.x, at.z - player.pos.z) <=
-        CONFIG.topiaries.barRange * 2
+        CONFIG.healthBars.range * 2
       if (blow.burned && blow.mine) {
         const animal = animalName(TOPIARIES[blow.index])
         hud.tell(copy('log.topiary_burned', { animal }))

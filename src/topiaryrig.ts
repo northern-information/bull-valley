@@ -9,7 +9,7 @@
 // rustles.
 //
 // The valley keeps each one's health (sharedworld.ts rule 39): hurt by a
-// torch, it shows the Elden Ring bar over its back (healthbar.ts) to a
+// torch, it shows the Elden Ring bar over its back (enemybars.ts) to a
 // raider near enough, and shudders at every blow (`struck`). Burned away,
 // it bursts into flame, falls onto its back and kicks while it blackens,
 // burns down into the ground (topiaries.ts deathPose), and its corridor
@@ -20,7 +20,7 @@
 import * as THREE from 'three'
 import { castShadows } from './assetkit.ts'
 import { CONFIG } from './config.ts'
-import { buildHealthBar, setHealthBar, stepHealthBar } from './healthbar.ts'
+import { bodyHeight, EnemyBars } from './enemybars.ts'
 import {
   burnedAway,
   deathPose,
@@ -36,7 +36,6 @@ import {
 import { buildTopiaryParts, poseDeath } from './topiarymodel.ts'
 import type { MazeFrame } from './cornmaze.ts'
 import type { Ground } from './ground.ts'
-import type { HealthBar } from './healthbar.ts'
 import type { XZ } from './interfaces.ts'
 import type { Cue } from './sfx.ts'
 import type { TopiaryHealth, TopiarySpot, TopiaryStand } from './topiaries.ts'
@@ -80,9 +79,6 @@ export interface TopiaryRig {
 // Seen within this much of a spot's middle, and this high over its ground.
 const SEEN_RADIUS = 2.4
 const SEEN_HEIGHT = 1.4
-// The bar floats this high over the ground, this wide.
-const BAR_HEIGHT = 3.3
-const BAR_WIDTH = 1.8
 // A blow shudders it this long, this far round, radians.
 const SHUDDER_SECONDS = 0.35
 const SHUDDER = 0.06
@@ -90,7 +86,8 @@ const SHUDDER = 0.06
 // One animal as drawn.
 interface Body {
   group: THREE.Group
-  bar: HealthBar
+  // How tall it stands, for its bar.
+  tall: number
   // When (running time) its last blow landed, and when it caught fire;
   // null with none.
   struckAt: number | null
@@ -120,20 +117,18 @@ export function placeTopiaries(
 
   const group = new THREE.Group()
   group.name = 'topiaries'
+  // Their health bars, over the hurt ones.
+  const bars = new EnemyBars(group)
   const bodies: Body[] = TOPIARIES.map((kind, i) => {
     const parts = buildTopiaryParts(kind, cfg.length, 0x70b + i)
     const body = parts.group
     castShadows(body)
     body.visible = false
     group.add(body)
-    const bar = buildHealthBar(BAR_WIDTH)
-    bar.sprite.visible = false
-    bar.sprite.position.y = BAR_HEIGHT
-    body.add(bar.sprite)
     return {
       group: body,
       parts,
-      bar,
+      tall: bodyHeight(body),
       struckAt: null,
       burningAt: null,
       placed: false,
@@ -181,7 +176,6 @@ export function placeTopiaries(
     if (was) standing.delete(was.spot.id)
     shown[i] = null
     bodies[i].group.visible = false
-    bodies[i].bar.sprite.visible = false
   }
 
   return {
@@ -243,7 +237,6 @@ export function placeTopiaries(
             cues.push({ id: 'topiary-burn', x: at.x, z: at.z, rate: 1 })
           }
           const over = burn(i, time - body.burningAt, time)
-          body.bar.sprite.visible = false
           if (over) {
             hide(i)
             heal(i)
@@ -266,14 +259,22 @@ export function placeTopiaries(
           }
         }
         // Its bar, once hurt, to a raider near enough.
-        const where = shown[i] ? world(shown[i].spot) : null
-        const share = kept ? kept.hp / cfg.hp : 1
-        const near =
-          where !== null &&
-          Math.hypot(where.x - eye.x, where.z - eye.z) <= cfg.barRange
-        body.bar.sprite.visible = near && share < 1
-        if (share !== body.bar.target) setHealthBar(body.bar, share)
-        stepHealthBar(body.bar, dt)
+        const where = shown[i]
+        if (where) {
+          const at = world(where.spot)
+          bars.show(
+            i,
+            {
+              x: at.x,
+              y: ground.at(at.x, at.z),
+              z: at.z,
+              tall: body.tall,
+              share: kept ? kept.hp / cfg.hp : 1,
+            },
+            eye,
+            dt
+          )
+        }
         // A blow shudders it.
         const since = body.struckAt === null ? Infinity : time - body.struckAt
         const shudder =
@@ -282,6 +283,7 @@ export function placeTopiaries(
             : 0
         body.parts.roll.rotation.z = shudder
       })
+      bars.sweep()
       return cues
     },
   }

@@ -2,9 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import {
   applyShadowFrame,
+  barShown,
+  barWidth,
   createShadowTable,
   drawnAt,
   sampleShadowmen,
+  shadeHealth,
 } from '../../src/shadowsync.ts'
 import type { ShadowmanWire } from '../../src/protocol.ts'
 
@@ -114,5 +117,38 @@ describe('height', () => {
     expect(drawnAt({ x: 0, z: 0, y: 7, wall: [0, 1] }, groundAt, standAt)).toBe(
       7
     )
+  })
+})
+
+describe('health bars', () => {
+  it('reads what a beam has not yet burned as what is left', () => {
+    expect(shadeHealth(0)).toBe(1)
+    expect(shadeHealth(0.25)).toBe(0.75)
+    expect(shadeHealth(1)).toBe(0)
+    expect(shadeHealth(1.4)).toBe(0)
+    expect(shadeHealth(-0.2)).toBe(1)
+  })
+
+  it('counts the hits the Warden has taken, the beam on the next', () => {
+    const { hits } = CONFIG.tunnel.warden
+    expect(shadeHealth(0, 0, hits)).toBe(1)
+    expect(shadeHealth(0, 1 / hits, hits)).toBeCloseTo(1 - 1 / hits)
+    expect(shadeHealth(0.5, 1 / hits, hits)).toBeCloseTo(1 - 1.5 / hits)
+    expect(shadeHealth(1, (hits - 1) / hits, hits)).toBeCloseTo(0)
+  })
+
+  it('shows a bar once hurt, to a raider near enough', () => {
+    const { range } = CONFIG.healthBars
+    expect(barShown(0.5, range)).toBe(true)
+    expect(barShown(0.5, range + 1)).toBe(false)
+    expect(barShown(1, 1)).toBe(false)
+    expect(barShown(0, 1)).toBe(true)
+  })
+
+  it('sizes a bar to the body, within its bounds', () => {
+    const { minWidth, maxWidth, perMetre } = CONFIG.healthBars
+    expect(barWidth(3)).toBeCloseTo(3 * perMetre)
+    expect(barWidth(0.1)).toBe(minWidth)
+    expect(barWidth(100)).toBe(maxWidth)
   })
 })

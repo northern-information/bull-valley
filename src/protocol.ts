@@ -1141,7 +1141,7 @@ export interface ShadowmanWire {
 }
 
 // The Caretaker as the valley sends it (rule 13): where it floats, how
-// far through being burned by two beams (0 to 1), and the raider it hunts.
+// far through being burned by two lights (0 to 1), and the raider it hunts.
 export interface CaretakerWire {
   x: number
   z: number
