@@ -2242,10 +2242,16 @@ describe('ValleyDO: corpse runs', () => {
     const fell = worldFrames(b).at(-1)
     expect(fell).toMatchObject({ reason: 'fell', by: idOf(a), corpse: 0 })
     expect(fell?.world?.corpses).toEqual([
-      { id: 0, x: 500, z: 500, yaw: 0.5, name: 'A', outfit: 'coleman' },
+      { id: 0, x: 500, y: 0, z: 500, yaw: 0.5, name: 'A', outfit: 'coleman' },
     ])
     expect(fell?.world?.drops).toContainEqual(
-      expect.objectContaining({ kind: 'dimes', count: dimes, x: 500, z: 500 })
+      expect.objectContaining({
+        kind: 'dimes',
+        count: dimes,
+        x: 500,
+        y: 0,
+        z: 500,
+      })
     )
     // B's pack never names A's body.
     expect(lastFrame(b)?.corpses ?? []).toEqual([])

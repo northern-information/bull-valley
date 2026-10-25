@@ -99,6 +99,7 @@ import { D1PackStore } from './d1packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { CrewRow } from '../src/crews.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
+import type { Facing } from '../src/drops.ts'
 import type { ExpeditionRun } from '../src/expeditions.ts'
 import type { FriendRow } from '../src/friends.ts'
 import type { HeightAt, Inventory, XZ } from '../src/interfaces.ts'
@@ -976,8 +977,7 @@ export class ValleyDO extends DurableObject<Env> {
     this.tellWards(reduced)
     if (!change.fatal) return
     const me = this.attachment(sockets[0]).me
-    const at = me?.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
-    await this.fallHeld(account, id, at)
+    await this.fallHeld(account, id, me ? facing(me) : null)
   }
 
   // Rule 24's draw for a touch's spread; the Worker tests replace it.
@@ -1136,7 +1136,7 @@ export class ValleyDO extends DurableObject<Env> {
   protected async fall(
     account: string,
     id: string,
-    at: { x: number; z: number; yaw: number } | null
+    at: Facing | null
   ): Promise<void> {
     await this.locked(() => this.fallHeld(account, id, at))
   }
@@ -1145,7 +1145,7 @@ export class ValleyDO extends DurableObject<Env> {
   private async fallHeld(
     account: string,
     id: string,
-    at: { x: number; z: number; yaw: number } | null
+    at: Facing | null
   ): Promise<void> {
     const packs = this.packs()
     let items: Inventory
@@ -3431,8 +3431,10 @@ function standing(me: PeerWire): XZ | null {
 }
 
 // The same, and which way they face: where a drop or a portal goes.
-function facing(me: PeerWire): { x: number; z: number; yaw: number } | null {
-  return me.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
+// Where `me` stands and faces, and the height of their feet: what a drop,
+// a portal or a body is laid from (drops.ts Facing).
+function facing(me: PeerWire): Facing | null {
+  return me.at ? { x: me.at.x, y: me.at.y, z: me.at.z, yaw: me.at.yaw } : null
 }
 
 function send(ws: WebSocket, msg: ServerMessage): void {

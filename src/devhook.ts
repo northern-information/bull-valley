@@ -476,6 +476,7 @@ export function installDevHook(game: Game, actions: Actions): void {
             time: s.time,
             tripping: levelsAt(s.wards, s.time).tripping,
             player: player.pos,
+            feet: player.groundY,
             yaw: player.yaw,
             blocked: game.world.walls.between,
           },

@@ -426,6 +426,7 @@ import {
   DIME_CENTS,
   DIMES,
   dropSpot,
+  feetOf,
   isCash,
   isPickupKind,
   takeUp,
@@ -2398,7 +2399,13 @@ function onDrop(
   if (isKeyItem(kind)) return refuse('key-item')
   if (count < 1) return refuse('nothing')
   const id = world.nextDrop
-  const drop: Drop = { id, kind, count, ...dropSpot(action.at, id) }
+  const drop: Drop = {
+    id,
+    kind,
+    count,
+    ...dropSpot(action.at, id),
+    ...feetOf(action.at),
+  }
   const next = withWorld(valley, {
     ...world,
     drops: [...world.drops, drop],
@@ -2547,6 +2554,7 @@ function onFall(
           x,
           z,
           yaw,
+          ...feetOf(action.at),
           name: member.name,
           outfit: member.outfit,
           items: { ...action.items },
@@ -2564,6 +2572,7 @@ function onFall(
       count: dimes,
       x: action.at.x,
       z: action.at.z,
+      ...feetOf(action.at),
       spilled: true,
     }
     next = withWorld(next, {

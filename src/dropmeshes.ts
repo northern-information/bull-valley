@@ -1,13 +1,14 @@
 // The drops as they lie in the valley (sharedworld.ts rule 12): one
-// assets.ts buildPickup mesh per drop, standing on ground.at, kept in step
-// with the valley's drop list. Each comes back
-// as a Pickup, so E, the glow and the floating label treat a drop like any
-// pickup; `drop` says which one it is.
+// assets.ts buildPickup mesh per drop, standing on the deck it was set
+// down on (ground.ts lieAt), kept in step with the valley's drop list.
+// Each comes back as a Pickup, so E, the glow and the floating label treat
+// a drop like any pickup; `drop` says which one it is.
 
 import * as THREE from 'three'
 import { buildDimes, buildPickup, buildTwenty, disposeTree } from './assets.ts'
 import { isCash, isPickupKind, TWENTY } from './drops.ts'
 import type { Drop } from './drops.ts'
+import type { LieAt } from './interfaces.ts'
 import type { Pickup } from './world.ts'
 
 interface DropPickup extends Pickup {
@@ -25,9 +26,7 @@ export function isDropPickup(pickup: Pickup): pickup is DropPickup {
   return 'drop' in pickup
 }
 
-export function createDropMeshes(
-  groundAt: (x: number, z: number) => number
-): DropMeshes {
+export function createDropMeshes(lieAt: LieAt): DropMeshes {
   const group = new THREE.Group()
   group.name = 'drops'
   const byId = new Map<number, DropPickup>()
@@ -71,7 +70,7 @@ export function createDropMeshes(
             : isCash(kind)
               ? buildDimes(d.count, d.id)
               : buildPickup(kind, d.id)
-        mesh.position.set(d.x, groundAt(d.x, d.z), d.z)
+        mesh.position.set(d.x, lieAt(d.x, d.z, d.y), d.z)
         mesh.rotation.y = d.id * 2.4
         group.add(mesh)
         const pickup: DropPickup = {
