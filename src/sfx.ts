@@ -31,6 +31,10 @@ export type SfxId =
   | 'caretaker-windup'
   | 'caretaker-lunge'
   | 'caretaker-burned'
+  | 'topiary-rustle'
+  | 'topiary-burn'
+  | 'torch-swing'
+  | 'torch-hit'
   | 'slurm-plop'
   | 'slurm-squish'
   | 'bat-smash'
@@ -204,6 +208,40 @@ export const SFX: Record<SfxId, SfxSpec> = {
     takes: 0,
     gain: 1,
     placeholder: { wave: 'sine', from: 300, to: 40, seconds: 2.5 },
+  },
+  // A topiary in the corn maze come to stand somewhere new, unseen
+  // (topiaries.ts): the hedge shaking itself still.
+  'topiary-rustle': {
+    positional: true,
+    loop: false,
+    takes: 0,
+    gain: 0.8,
+    placeholder: { wave: 'noise', from: 2400, to: 300, seconds: 0.9, pulse: 9 },
+  },
+  // A topiary burned away by a torch: the hedge going up like a haystack.
+  'topiary-burn': {
+    positional: true,
+    loop: false,
+    takes: 0,
+    gain: 1,
+    placeholder: { wave: 'noise', from: 900, to: 120, seconds: 2.4, pulse: 5 },
+  },
+  // The torch swung (held.ts swingPose), in the raider's own hand: a
+  // whoosh of fire.
+  'torch-swing': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.6,
+    placeholder: { wave: 'noise', from: 400, to: 1600, seconds: 0.3 },
+  },
+  // A swing landing on a topiary: fire into wet leaves.
+  'torch-hit': {
+    positional: true,
+    loop: false,
+    takes: 0,
+    gain: 0.9,
+    placeholder: { wave: 'noise', from: 3000, to: 200, seconds: 0.45 },
   },
   // A slurm landing on the lot off the dripline (slurms.ts).
   'slurm-plop': {
