@@ -27,13 +27,7 @@ import {
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { emptied, fallen, isEmpty, spilledDimes } from './corpses.ts'
-import {
-  affords,
-  cosmeticById,
-  gainedOf,
-  moabFanfare,
-  tradeRefusal,
-} from './cosmetics.ts'
+import { affords, cosmeticById, gainedOf, tradeRefusal } from './cosmetics.ts'
 import { crewLines, crewNamed } from './crews.ts'
 import { stepIndex } from './cycle.ts'
 import { openDealDialog } from './dealdialog.ts'
@@ -92,11 +86,11 @@ import { openShopDialog } from './shopdialog.ts'
 import { openStandDialog } from './standdialog.ts'
 import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
+import { tradeFanfare } from './tradefanfare.ts'
 import { planLeg } from './truckplan.ts'
 import { dose, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
 import { charterable } from './worldsync.ts'
-import type { Fanfare } from './catchfanfare.ts'
 import type { ChatCommand, CrewFrame } from './chat.ts'
 import type { CitgoLog, Stop } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -874,6 +868,13 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     shelveKind(kind)
   }
 
+  // Every trader's window cheers the last trade made a big deal of
+  // (tradefanfare.ts) with the fish's fanfare.
+  const tradeCheer = {
+    now: () => s.tradeCheer,
+    cheer: () => game.sfx?.play('fish-fanfare'),
+  }
+
   // E beside Erwin von Dutch, the squatter in the plaza: what he deals
   // and what he wants for it, and his quest, in a dialog with the pointer
   // free, as at the stand (rules 25 and 26).
@@ -900,6 +901,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
             }
           : null,
       icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
+      fanfare: tradeCheer,
       onDeal: (kind, offer) => {
         s.pendingDeal = true
         s.dealSaid = null
@@ -1038,6 +1040,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       pending: () => s.pending.buys.size > 0,
       said: () => s.shopSaid,
       icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
+      fanfare: tradeCheer,
       onBuy: (item, unit) => buy({ station, item, unit }),
     }).then(() => {
       s.talking = false
@@ -1096,8 +1099,6 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // him, for his window.
   let asked: CosmeticId | null = null
   let moabSaid: string | null = null
-  // The last trade made a big deal of, for his window (moabFanfare).
-  let moabCheer: Fanfare | null = null
 
   const wear = (cosmetics: CosmeticId[]) => {
     const gained = gainedOf(s.cosmetics, cosmetics)
@@ -1109,7 +1110,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       npcSays('moab', cosmetic.traded)
       hud.tell(cosmetic.worn)
       moabSaid = cosmetic.worn
-      moabCheer = moabFanfare(id)
+      s.tradeCheer = tradeFanfare('moab', id, cosmetic.label)
     }
   }
 
@@ -1149,10 +1150,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       said: () => moabSaid,
       icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
       onTrade: trade,
-      fanfare: {
-        now: () => moabCheer,
-        cheer: () => game.sfx?.play('fish-fanfare'),
-      },
+      fanfare: tradeCheer,
     }).then(() => {
       s.talking = false
       engagePointer()

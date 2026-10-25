@@ -12,7 +12,9 @@
 // is even. A trader with a quest has it on a tab beside the trade, marked
 // while it has a step to take with him. The caller sends the frames; the
 // window reads the game's state again every tick, so the valley's answers
-// show as they land.
+// show as they land. Every trade is a big deal (tradefanfare.ts): its
+// banner swept across the window and fireflies burst over it, as a fish
+// landed has (catchfanfare.ts, catchburst.ts).
 
 import { evenUp, offerWorth, payable, spareIn } from './barter.ts'
 import { burst } from './catchburst.ts'
@@ -96,11 +98,17 @@ export interface TradeWindowOptions {
   icon: (kind: string) => Promise<string>
   onTrade: (good: string, offer: Inventory) => void
   quest?: TradeQuest
-  // Read every tick: the last trade made a big deal of, or null; a new
-  // one sweeps its banner across the window, bursts fireflies over it and
-  // is cheered (the fanfare, a phone's buzz). One already there as the
-  // window opens is old news.
-  fanfare?: { now: () => Fanfare | null; cheer: (fanfare: Fanfare) => void }
+  // The last trade made a big deal of: a new one sweeps its banner
+  // across the window, bursts fireflies over it and is cheered. One
+  // already there as the window opens is old news.
+  fanfare: TradeCheer
+}
+
+// Read every tick: the last trade made a big deal of (tradefanfare.ts),
+// or null; and its cheer (the fanfare, a phone's buzz).
+export interface TradeCheer {
+  now: () => Fanfare | null
+  cheer: (fanfare: Fanfare) => void
 }
 
 // How often the readout is redrawn.
@@ -360,7 +368,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
   let want: string = options.pick ?? firstOpen()
   let offer: Inventory = {}
   let shown: string | null = null
-  let cheered = options.fanfare?.now() ?? null
+  let cheered = options.fanfare.now() ?? null
 
   // A trade made a big deal of, as dialfish.ts makes a fish landed.
   const celebrate = (fanfare: Fanfare) => {
@@ -378,11 +386,11 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
     void banner.offsetWidth
     banner.classList.add('bv-banner--on')
     burst(root, fanfare)
-    options.fanfare?.cheer(fanfare)
+    options.fanfare.cheer(fanfare)
   }
 
   const refresh = () => {
-    const fanfare = options.fanfare?.now() ?? null
+    const fanfare = options.fanfare.now() ?? null
     if (fanfare && fanfare !== cheered) {
       cheered = fanfare
       celebrate(fanfare)

@@ -42,6 +42,7 @@ import { freshPending } from './game.ts'
 import { inspectRefusal } from './inspect.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
+import { itemLabel } from './itemcopy.ts'
 import { partyNews, partyRefusal } from './party.ts'
 import { levelUp } from './progression.ts'
 import { CLOSE } from './protocol.ts'
@@ -58,6 +59,7 @@ import { seasonOf } from './season.ts'
 import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
+import { tradeFanfare } from './tradefanfare.ts'
 import { toWaypoints } from './waypoints.ts'
 import { jarSlurm } from './world.ts'
 import {
@@ -312,11 +314,21 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pendingDeal = false
       s.dealSaid = boughtLine(detail.item ?? '')
       hud.tell(s.dealSaid)
+      if (detail.item) {
+        s.tradeCheer = tradeFanfare(
+          'dealer',
+          detail.item,
+          itemLabel(detail.item)
+        )
+      }
     }
     // The shelves are the valley's; a unit it sold us goes in the pocket.
     if (sale) {
       s.pending.buys.delete(`${sale.station}:${sale.item}`)
-      if (sale.mine) actions.pocket(sale.item)
+      if (sale.mine) {
+        actions.pocket(sale.item)
+        s.tradeCheer = tradeFanfare('shop', sale.item, itemLabel(sale.item))
+      }
     }
     s.storeStock = wire.shelves
 

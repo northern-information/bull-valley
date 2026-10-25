@@ -309,6 +309,9 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
   await expect(shop).toBeVisible()
   await shop.locator('[data-bv="trade-go"]').click()
   await expect(cash).not.toHaveText(before ?? '')
+  await expect(shop.locator('.bv-banner-kicker')).toHaveText(
+    copy('shop.fanfare')
+  )
   await shop.locator('[data-bv="trade-close"]').click()
   await page.getByRole('button', { name: copy('dialup.back') }).click()
 
@@ -321,6 +324,9 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
   await deal.locator('[data-bv="trade-go"]').click()
   await expect(deal.locator('[data-bv="trade-said"]')).toHaveText(
     copy('dealer.bought', { item: copy('items.lsd.label') })
+  )
+  await expect(deal.locator('.bv-banner')).toContainText(
+    copy('dealer.fanfare') + copy('items.lsd.label')
   )
   await deal.locator('[data-bv="trade-tab-quest"]').click()
   await deal.locator('[data-bv="trade-quest-go"]').click()

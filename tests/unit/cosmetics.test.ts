@@ -6,7 +6,6 @@ import {
   COSMETICS,
   gainedOf,
   MOAB_OFFERS,
-  moabFanfare,
   moabOffer,
   moabWants,
   moabWorth,
@@ -121,18 +120,5 @@ describe("Moab's refusal", () => {
     )
     expect(tradeRefusal('short', null)).toBe(copy('log.trade_refused'))
     expect(tradeRefusal('gone', 'flaming-halo')).toBe(copy('log.trade_refused'))
-  })
-})
-
-describe("Moab's fanfare", () => {
-  it('makes a trade with Moab a big deal, as a fish landed', () => {
-    expect(moabFanfare('coleman-1')).toEqual({
-      kind: 'coleman-1',
-      tier: 'big',
-      kicker: copy('moab.fanfare'),
-      headline: copy('cosmetics.coleman-1.label'),
-      gold: true,
-    })
-    expect(moabFanfare('nothing-of-his')).toBeNull()
   })
 })

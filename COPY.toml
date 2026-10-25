@@ -320,6 +320,7 @@ lore = { text = "Sits cross-legged in the back of a red Jeep Wrangler beside Moa
 # src/dealdialog.ts), and his quest (src/quests.ts).
 
 [dealer]
+fanfare = { text = "Erwin shakes on it!", by = "ai" }
 ramble_1 = { text = "\"Put that wallet away. A Federal Reserve note is an IOU from an empire that owes everybody. I deal in things. Real things.\"", by = "ai" }
 ramble_2 = { text = "\"Fiat money is a story the empire tells itself so it can sleep. Cigarettes are a story too, but at least you can smoke them.\"", by = "ai" }
 ramble_3 = { text = "\"The dollar's been dead since '71. Nixon killed it on television and nobody came to the funeral. Show me what's in your pack.\"", by = "ai" }
@@ -367,6 +368,7 @@ wallet = { text = "Wallet", by = "ai" }
 # A Citgo's shelves in the trade window (src/shopdialog.ts, both apps).
 
 [shop]
+fanfare = { text = "Rung up at the Citgo!", by = "ai" }
 eyebrow = { text = "Shop", by = "ai" }
 where = { text = "· {citgo}", by = "ai" }
 cash_only = { text = "Cash Only", by = "ai" }

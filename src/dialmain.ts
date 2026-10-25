@@ -48,6 +48,7 @@ import { mountAccountStep } from './signin.ts'
 import { SILENT } from './silent.ts'
 import { openStandDialog } from './standdialog.ts'
 import { mountTapBurst } from './tapfeedback.ts'
+import type { Fanfare } from './catchfanfare.ts'
 import type { DialState, Pending } from './dialstate.ts'
 import type { Geo } from './interfaces.ts'
 import type { ClientMessage } from './protocol.ts'
@@ -120,6 +121,15 @@ async function boot(): Promise<void> {
     if (!sfx) return
     sfx.update({ started: true, setting: settings.current.sfx })
     sfx.play(id)
+  }
+  // Every trader's window cheers the last trade made a big deal of
+  // (tradefanfare.ts) as a fish landed: the fanfare, and the phone buzzing.
+  const tradeCheer = {
+    now: () => state.tradeCheer,
+    cheer: (fanfare: Fanfare) => {
+      fishSound('fish-fanfare')
+      if ('vibrate' in navigator) navigator.vibrate(FANFARE.buzz[fanfare.tier])
+    },
   }
   net.on((msg) => {
     // Rule 36: a fish too big for the skill breaks the line coming in.
@@ -289,6 +299,7 @@ async function boot(): Promise<void> {
           step: roseProgress(state.quests.rose, state.pack),
         }),
         icon: (kind) => shell?.icon(kind) ?? Promise.reject(new Error()),
+        fanfare: tradeCheer,
         onDeal: (kind, offer) =>
           send({ type: 'deal', kind, offer }, { deal: true }),
         onQuest: () => {
@@ -334,6 +345,7 @@ async function boot(): Promise<void> {
           pending: () => state.pending.buy !== null,
           said: () => state.said?.text ?? null,
           icon: (kind) => shell?.icon(kind) ?? Promise.reject(new Error()),
+          fanfare: tradeCheer,
           onBuy: (kind, unit) =>
             send(
               { type: 'buy', station, kind, unit },
@@ -353,16 +365,7 @@ async function boot(): Promise<void> {
         icon: (kind) => shell?.icon(kind) ?? Promise.reject(new Error()),
         onTrade: (offer) =>
           send({ type: 'trade', offer }, { trade: true, tradeOffer: offer }),
-        // As a fish landed: the fanfare, and the phone buzzing.
-        fanfare: {
-          now: () => state.traded,
-          cheer: (fanfare) => {
-            fishSound('fish-fanfare')
-            if ('vibrate' in navigator) {
-              navigator.vibrate(FANFARE.buzz[fanfare.tier])
-            }
-          },
-        },
+        fanfare: tradeCheer,
       }).then(() => shell?.render(state))
     },
     expeditions: {

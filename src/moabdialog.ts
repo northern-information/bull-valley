@@ -4,7 +4,7 @@
 // moabWorth), so the window prints ounces; his goods are his cosmetics
 // (MOAB_OFFERS), each yours for good once had. The valley takes the price
 // and writes the cosmetic, and the trade is made a big deal of
-// (cosmetics.ts moabFanfare) as a fish landed is.
+// (tradefanfare.ts) as a fish landed is.
 
 import { copy } from './copy.ts'
 import {
@@ -17,7 +17,7 @@ import {
 import { openTradeWindow } from './tradewindow.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Inventory } from './interfaces.ts'
-import type { TradeWindowOptions } from './tradewindow.ts'
+import type { TradeCheer } from './tradewindow.ts'
 
 interface MoabDialogOptions {
   // Read again every tick: whether the valley is there to trade with, the
@@ -31,7 +31,7 @@ interface MoabDialogOptions {
   icon: (kind: string) => Promise<string>
   onTrade: (offer: CosmeticId) => void
   // The last trade made a big deal of, and its cheer (tradewindow.ts).
-  fanfare: NonNullable<TradeWindowOptions['fanfare']>
+  fanfare: TradeCheer
 }
 
 // What he says as the window opens: his offer for what the pack holds,

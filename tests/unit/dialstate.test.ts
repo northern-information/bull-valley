@@ -3,7 +3,7 @@ import { BOOK, foundLines } from '../../src/book.ts'
 import { fanfareOf } from '../../src/catchfanfare.ts'
 import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
-import { moabFanfare, tradeRefusal } from '../../src/cosmetics.ts'
+import { tradeRefusal } from '../../src/cosmetics.ts'
 import { DAILY_TASK, taskLine } from '../../src/dailytask.ts'
 import { dealRefusal } from '../../src/dealer.ts'
 import {
@@ -43,6 +43,7 @@ import {
 import { SEASON, seasonLine } from '../../src/season.ts'
 import { FRESH_STAND, refusalLine } from '../../src/stand.ts'
 import { formatCash } from '../../src/store.ts'
+import { tradeFanfare } from '../../src/tradefanfare.ts'
 import { levelsAt } from '../../src/wardlevels.ts'
 import type { DialState } from '../../src/dialstate.ts'
 import type { ServerMessage, WelcomeMessage } from '../../src/protocol.ts'
@@ -480,6 +481,9 @@ describe('the folk, the Citgo and the chat on the phone', () => {
     )
     expect(s.pending.buy).toBeNull()
     expect(s.said?.text).toBe(itemLine('marlboro', 'bought'))
+    expect(s.tradeCheer).toEqual(
+      tradeFanfare('shop', 'marlboro', itemLabel('marlboro'))
+    )
     // Someone else's is no news.
     const other = applyFrame(
       s,
@@ -527,6 +531,9 @@ describe('the folk, the Citgo and the chat on the phone', () => {
     )
     expect(s.pending.deal).toBe(false)
     expect(s.said?.text).toBe(copy('dealer.bought', { item: itemLabel('lsd') }))
+    expect(s.tradeCheer).toEqual(
+      tradeFanfare('dealer', 'lsd', itemLabel('lsd'))
+    )
     s = applyFrame(s, { type: 'nack', re: 'deal', reason: 'sold-out' }, 0, 0)
     expect(s.said?.text).toBe(dealRefusal('sold-out'))
     s = applyFrame(
@@ -564,7 +571,9 @@ describe('the folk, the Citgo and the chat on the phone', () => {
       0
     )
     expect(s.cosmetics).toEqual(['flaming-halo'])
-    expect(s.traded).toEqual(moabFanfare('flaming-halo'))
+    expect(s.tradeCheer).toEqual(
+      tradeFanfare('moab', 'flaming-halo', copy('cosmetics.flaming-halo.label'))
+    )
     expect(s.said?.text).toBe(
       copy('log.cosmetic_worn', {
         cosmetic: copy('cosmetics.flaming-halo.label'),

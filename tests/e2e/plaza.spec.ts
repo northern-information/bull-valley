@@ -71,6 +71,10 @@ test('Erwin barters, the rose earns the key, the key opens the office', async ({
   await dialog.locator('[data-bv="trade-even"]').click()
   await dialog.locator('[data-bv="trade-go"]').click()
   await expect.poll(() => held(page, 'lsd')).toBe(1)
+  // A deal is a big deal, as a fish landed: his banner across the window.
+  await expect(dialog.locator('.bv-banner')).toContainText(
+    copy('dealer.fanfare') + copy('items.lsd.label')
+  )
   expect(await held(page, 'marlboro')).toBeLessThan(smokes)
   expect(await cash(page)).toBe(before)
 
