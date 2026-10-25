@@ -15,6 +15,7 @@
 // show as they land.
 
 import { evenUp, offerWorth, payable, spareIn } from './barter.ts'
+import { burst } from './catchburst.ts'
 import { copy } from './copy.ts'
 import { el, finder } from './dom.ts'
 import { itemLabel } from './itemcopy.ts'
@@ -26,6 +27,7 @@ import {
   setPips,
 } from './npcdialog.ts'
 import type { WorthOf } from './barter.ts'
+import type { Fanfare } from './catchfanfare.ts'
 import type { Inventory } from './interfaces.ts'
 
 // One of the trader's goods.
@@ -94,6 +96,11 @@ export interface TradeWindowOptions {
   icon: (kind: string) => Promise<string>
   onTrade: (good: string, offer: Inventory) => void
   quest?: TradeQuest
+  // Read every tick: the last trade made a big deal of, or null; a new
+  // one sweeps its banner across the window, bursts fireflies over it and
+  // is cheered (the fanfare, a phone's buzz). One already there as the
+  // window opens is old news.
+  fanfare?: { now: () => Fanfare | null; cheer: (fanfare: Fanfare) => void }
 }
 
 // How often the readout is redrawn.
@@ -217,6 +224,11 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
       ${questSection}
       ${npcFooter('trade-said', 'trade-close', copy('trade.close'))}
     </div>`
+  // The banner a big deal sweeps across the window (fanfare).
+  const banner = el('div', 'bv-banner')
+  banner.setAttribute('role', 'status')
+  banner.hidden = true
+  root.append(banner)
   document.body.appendChild(root)
 
   const find = finder(root)
@@ -348,8 +360,33 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
   let want: string = options.pick ?? firstOpen()
   let offer: Inventory = {}
   let shown: string | null = null
+  let cheered = options.fanfare?.now() ?? null
+
+  // A trade made a big deal of, as dialfish.ts makes a fish landed.
+  const celebrate = (fanfare: Fanfare) => {
+    banner.replaceChildren(
+      el('p', 'bv-banner-kicker', fanfare.kicker),
+      el('p', 'bv-banner-headline', fanfare.headline)
+    )
+    if (fanfare.detail) {
+      banner.append(el('p', 'bv-banner-detail', fanfare.detail))
+    }
+    banner.classList.toggle('bv-banner--gold', fanfare.gold)
+    banner.hidden = false
+    // Restart the sweep, for a second trade before the first's is done.
+    banner.classList.remove('bv-banner--on')
+    void banner.offsetWidth
+    banner.classList.add('bv-banner--on')
+    burst(root, fanfare)
+    options.fanfare?.cheer(fanfare)
+  }
 
   const refresh = () => {
+    const fanfare = options.fanfare?.now() ?? null
+    if (fanfare && fanfare !== cheered) {
+      cheered = fanfare
+      celebrate(fanfare)
+    }
     const open = options.open()
     const pending = options.pending()
     const busy = pending || !open

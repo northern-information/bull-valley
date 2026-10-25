@@ -30,6 +30,7 @@ import { copy } from './copy.ts'
 import {
   cosmeticById,
   gainedOf,
+  moabFanfare,
   toCosmetics,
   tradeRefusal,
 } from './cosmetics.ts'
@@ -154,6 +155,9 @@ export interface DialState {
   // The fish last landed, made a big deal of (catchfanfare.ts), and when
   // it came in (performance.now()); null before one has.
   landed: (Fanfare & { at: number }) | null
+  // The last trade with Moab, made a big deal of (cosmetics.ts
+  // moabFanfare); his window cheers it.
+  traded: Fanfare | null
   health: number
   healthMax: number
   // The wards as the valley last said them, at local `wardsAt` ms; they
@@ -261,6 +265,7 @@ export const DIALED: DialState = {
   angler: null,
   line: null,
   landed: null,
+  traded: null,
   health: BASE_GEOMETRIE,
   healthMax: BASE_GEOMETRIE,
   wards: NO_WARDS,
@@ -455,9 +460,12 @@ export function applyFrame(
           use: false,
         },
       }
-      // Rule 14: a cosmetic Moab traded, worn now.
+      // Rule 14: a cosmetic Moab traded, worn now, and a big deal.
       return gainedOf(s.cosmetics, cosmetics).reduce(
-        (after, id) => news(after, cosmeticById(id)?.worn ?? id, now, wall),
+        (after, id) => ({
+          ...news(after, cosmeticById(id)?.worn ?? id, now, wall),
+          traded: moabFanfare(id) ?? after.traded,
+        }),
         next
       )
     }

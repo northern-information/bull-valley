@@ -341,6 +341,9 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
       cosmetic: copy('cosmetics.flaming-halo.label'),
     })
   )
+  await expect(moab.locator('.bv-banner')).toContainText(
+    copy('moab.fanfare') + copy('cosmetics.flaming-halo.label')
+  )
   await moab.locator('[data-bv="trade-close"]').click()
 
   // A line said on the phone reaches the valley.

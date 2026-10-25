@@ -3,7 +3,7 @@ import { BOOK, foundLines } from '../../src/book.ts'
 import { fanfareOf } from '../../src/catchfanfare.ts'
 import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
-import { tradeRefusal } from '../../src/cosmetics.ts'
+import { moabFanfare, tradeRefusal } from '../../src/cosmetics.ts'
 import { DAILY_TASK, taskLine } from '../../src/dailytask.ts'
 import { dealRefusal } from '../../src/dealer.ts'
 import {
@@ -564,6 +564,7 @@ describe('the folk, the Citgo and the chat on the phone', () => {
       0
     )
     expect(s.cosmetics).toEqual(['flaming-halo'])
+    expect(s.traded).toEqual(moabFanfare('flaming-halo'))
     expect(s.said?.text).toBe(
       copy('log.cosmetic_worn', {
         cosmetic: copy('cosmetics.flaming-halo.label'),

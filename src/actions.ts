@@ -27,7 +27,13 @@ import {
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { emptied, fallen, isEmpty, spilledDimes } from './corpses.ts'
-import { affords, cosmeticById, gainedOf, tradeRefusal } from './cosmetics.ts'
+import {
+  affords,
+  cosmeticById,
+  gainedOf,
+  moabFanfare,
+  tradeRefusal,
+} from './cosmetics.ts'
 import { crewLines, crewNamed } from './crews.ts'
 import { stepIndex } from './cycle.ts'
 import { openDealDialog } from './dealdialog.ts'
@@ -90,6 +96,7 @@ import { planLeg } from './truckplan.ts'
 import { dose, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
 import { charterable } from './worldsync.ts'
+import type { Fanfare } from './catchfanfare.ts'
 import type { ChatCommand, CrewFrame } from './chat.ts'
 import type { CitgoLog, Stop } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
@@ -1089,6 +1096,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   // him, for his window.
   let asked: CosmeticId | null = null
   let moabSaid: string | null = null
+  // The last trade made a big deal of, for his window (moabFanfare).
+  let moabCheer: Fanfare | null = null
 
   const wear = (cosmetics: CosmeticId[]) => {
     const gained = gainedOf(s.cosmetics, cosmetics)
@@ -1100,6 +1109,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       npcSays('moab', cosmetic.traded)
       hud.tell(cosmetic.worn)
       moabSaid = cosmetic.worn
+      moabCheer = moabFanfare(id)
     }
   }
 
@@ -1139,6 +1149,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       said: () => moabSaid,
       icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
       onTrade: trade,
+      fanfare: {
+        now: () => moabCheer,
+        cheer: () => game.sfx?.play('fish-fanfare'),
+      },
     }).then(() => {
       s.talking = false
       engagePointer()

@@ -6,6 +6,7 @@
 
 import { copy } from './copy.ts'
 import { itemLabel } from './itemcopy.ts'
+import type { Fanfare } from './catchfanfare.ts'
 import type { Inventory } from './interfaces.ts'
 import type { ItemId } from './items.ts'
 
@@ -102,6 +103,22 @@ export function gainedOf(
   after: readonly CosmeticId[]
 ): CosmeticId[] {
   return after.filter((id) => !before.includes(id))
+}
+
+// A trade with Moab made a big deal of, as a fish landed is
+// (catchfanfare.ts), the same in both apps: his banner across his trade
+// window (tradewindow.ts) with what was had under it, gold, and the gold
+// fireflies of a big fish bursting over it. Null for anything not his.
+export function moabFanfare(id: string): Fanfare | null {
+  const cosmetic = cosmeticById(id)
+  if (!cosmetic) return null
+  return {
+    kind: cosmetic.id,
+    tier: 'big',
+    kicker: copy('moab.fanfare'),
+    headline: cosmetic.label,
+    gold: true,
+  }
 }
 
 // Moab's refusal of a trade for `offer`, as both apps say it: short of

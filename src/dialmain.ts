@@ -11,6 +11,7 @@ import './dialup.css'
 import { openAccountPanel } from './accountpanel.ts'
 import { fetchMe, refreshSession, saveLook, signOut } from './auth.ts'
 import { mountBuildTag } from './buildtag.ts'
+import { FANFARE } from './catchfanfare.ts'
 import { pickOf } from './characters.ts'
 import { citgoNames } from './citgomap.ts'
 import { CONFIG } from './config.ts'
@@ -352,6 +353,16 @@ async function boot(): Promise<void> {
         icon: (kind) => shell?.icon(kind) ?? Promise.reject(new Error()),
         onTrade: (offer) =>
           send({ type: 'trade', offer }, { trade: true, tradeOffer: offer }),
+        // As a fish landed: the fanfare, and the phone buzzing.
+        fanfare: {
+          now: () => state.traded,
+          cheer: (fanfare) => {
+            fishSound('fish-fanfare')
+            if ('vibrate' in navigator) {
+              navigator.vibrate(FANFARE.buzz[fanfare.tier])
+            }
+          },
+        },
       }).then(() => shell?.render(state))
     },
     expeditions: {
