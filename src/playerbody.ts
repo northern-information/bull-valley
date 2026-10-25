@@ -49,7 +49,7 @@ export class PlayerBody {
     this.cycle = 0
   }
 
-  // A new body in place of the old, for a new character from Gron. The
+  // A new body in place of the old, for a new character from Moab. The
   // next update() puts it where the old one stood. The old body's geometry
   // and materials are shared with every figure, so nothing is disposed.
   restyle(outfitId: OutfitId, guitarFinish?: string): void {

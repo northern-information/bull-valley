@@ -63,6 +63,7 @@ import { itemLabel, itemLine } from './itemcopy.ts'
 import { doseOf, isKeyItem, isUsable, tripSecondsOf } from './items.ts'
 import { openLaptopDialog } from './laptopdialog.ts'
 import { README } from './laptopreadme.ts'
+import { mountLookPanel } from './lookpanel.ts'
 import { call, refused } from './marx.ts'
 import { openMoabDialog } from './moabdialog.ts'
 import { marksMap, npcLine, npcName, pinnedAt } from './npcs.ts'
@@ -99,12 +100,14 @@ import type { CitgoLog, Stop } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { EmoteId } from './emotes.ts'
 import type { Hurt } from './fall.ts'
+import type { FinishId } from './finishes.ts'
 import type { Game } from './game.ts'
 import type { Hotbar } from './hotbar.ts'
 import type { DailyStatus, ShelfSpot } from './interactions.ts'
 import type { WardAxis, XZ } from './interfaces.ts'
 import type { Leg } from './marx.ts'
 import type { NpcId } from './npcs.ts'
+import type { OutfitId } from './outfits.ts'
 import type { BagAction, BagTab } from './packgrid.ts'
 import type { Portal } from './portals.ts'
 import type {
@@ -187,7 +190,7 @@ export interface Actions {
   // The account's wards as the valley keeps them.
   setWards(levels: WardLevels): void
   // Our own name and body as the valley shows them: a change made on the
-  // account's other app (Dial-Up's Gron) is taken on and said.
+  // account's other app (Dial-Up's Gron or Moab) is taken on and said.
   becomeShown(peer: PeerWire): void
   // The account's geometrie, left and whole, as the valley says it (a
   // forecourt, a use, a new level).
@@ -1212,8 +1215,24 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     net.send({ type: 'trade', offer })
   }
 
+  // A new character (and finish) from Moab's Your Character: the body,
+  // the saved picks, and the frames that tell the valley.
+  const become = (outfit: OutfitId, finish: FinishId) => {
+    const { pick } = game
+    void saveLook({ outfit, finish }).then((saved) => {
+      if (!saved.ok) hud.tell(saved.error)
+    })
+    pick.finish = finish
+    game.playerBody.restyle(outfit, finishById(finish).color)
+    game.hands.restyle(outfit)
+    pick.outfit = outfit
+    // A reconnect says hello in the new body too.
+    net.setOutfit(outfit)
+    net.send({ type: 'appearance', outfit })
+  }
+
   // E beside Moab Coldë: his trade window, with the pointer free, as at
-  // Erwin's (rule 14).
+  // Erwin's (rule 14), and Your Character beside the trade.
   const openMoab = () => {
     if (s.talking) return
     s.talking = true
@@ -1230,6 +1249,15 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       onTrade: trade,
       fanfare: tradeCheer,
       turntable: game.thumbs,
+      mountLook: (box) =>
+        Promise.resolve(
+          mountLookPanel(box, {
+            outfit: game.pick.outfit,
+            finish: game.pick.finish,
+            cosmetics: () => s.cosmetics,
+            onBecome: become,
+          })
+        ),
     }).then(() => {
       s.talking = false
       engagePointer()
@@ -1322,7 +1350,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       game.hands.restyle(peer.outfit)
       pick.outfit = peer.outfit
       net.setOutfit(peer.outfit)
-      hud.tell(copy('gron.became', { name: outfitById(peer.outfit).label }))
+      hud.tell(copy('moab.became', { name: outfitById(peer.outfit).label }))
     }
   }
 
@@ -1418,32 +1446,17 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   // Gron's dialog: the game stands aside for it (talking). He changes the
-  // name the valley knows and the body worn.
+  // name the valley knows.
   const talkToGron = () => {
     if (s.talking) return
     const { pick } = game
     withDialog(() =>
       openGronDialog({
         username: pick.username,
-        outfit: pick.outfit,
-        finish: pick.finish,
-        cosmetics: s.cosmetics,
         onRenamed: (name) => {
           pick.username = name
           hud.setRaider(name)
           net.send({ type: 'rename' })
-        },
-        onBecome: (outfit, finish) => {
-          void saveLook({ outfit, finish }).then((saved) => {
-            if (!saved.ok) hud.tell(saved.error)
-          })
-          pick.finish = finish
-          game.playerBody.restyle(outfit, finishById(finish).color)
-          game.hands.restyle(outfit)
-          pick.outfit = outfit
-          // A reconnect says hello in the new body too.
-          net.setOutfit(outfit)
-          net.send({ type: 'appearance', outfit })
         },
       })
     )

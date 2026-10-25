@@ -10,8 +10,8 @@ import {
 import type { Page } from '@playwright/test'
 
 // Gron stands under his raincloud beside the berry bush. Talking to him
-// changes the name the valley knows you by and the body you raid in, and
-// the game stands aside while he talks.
+// changes the name the valley knows you by, and the game stands aside
+// while he talks. Your character is Moab's (moab.spec.ts).
 
 async function standAtGron(page: Page): Promise<void> {
   const gron = await page.evaluate(() => {
@@ -40,10 +40,8 @@ const playerAt = (page: Page) =>
     return { x, z }
   })
 
-test('Gron changes your name and your character', async ({ page }) => {
-  // One long flow (sign in, rename, change body, chat) through a full
-  // valley. Before the e2e build stopped drawing the valley, this spec ran
-  // anywhere from 1.1 to over 2 minutes on CI against the 2 minute limit.
+test('Gron changes your name', async ({ page }) => {
+  // One long flow (sign in, rename, chat) through a full valley.
   test.slow()
   await beginRaid(page)
   await standAtGron(page)
@@ -81,33 +79,6 @@ test('Gron changes your name and your character', async ({ page }) => {
   await expect(dialog.locator('[data-bv="gron-name-status"]')).toHaveText(
     copy('gron.renamed', { name })
   )
-
-  // A new character: one step on from the Player is David Coleman.
-  await dialog.getByRole('button', { name: copy('select.next') }).click()
-  await expect(dialog.locator('[data-bv="gron-character-name"]')).toHaveText(
-    copy('outfits.coleman')
-  )
-  await dialog.getByRole('button', { name: copy('gron.become') }).click()
-  await expect
-    .poll(() =>
-      page.evaluate(
-        (): unknown =>
-          window.__bv?.scene.getObjectByName('player-body')?.userData.outfit
-      )
-    )
-    .toBe('coleman')
-  // The account keeps it, so it follows the raider to any browser.
-  await expect
-    .poll(() =>
-      page.evaluate(async () => {
-        const res = await fetch('/auth/me')
-        const me = (await res.json()) as {
-          account: { look: { outfit: string | null } } | null
-        }
-        return me.account?.look.outfit
-      })
-    )
-    .toBe('coleman')
 
   // E sends him away, and the valley knows the new name: a chat line
   // comes back from it under the name the valley read from the account.

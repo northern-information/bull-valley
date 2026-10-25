@@ -47,6 +47,7 @@ const THREE_AND_DOM = [
   'corpsemeshes',
   'cranemodel',
   'dealdialog',
+  'lookpanel',
   'moabdialog',
   'shopdialog',
   'tradewindow',

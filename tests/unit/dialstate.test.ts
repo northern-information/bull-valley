@@ -1114,7 +1114,7 @@ describe("the account's news on the phone", () => {
     )
     expect(s.outfit).toBe('gron')
     expect(lastLog(s)).toBe(
-      copy('gron.became', { name: outfitById('gron').label })
+      copy('moab.became', { name: outfitById('gron').label })
     )
   })
 

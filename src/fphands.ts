@@ -108,7 +108,7 @@ export class FirstPersonHands {
     this.group.add(this.light, this.light.target)
   }
 
-  // New forearms for a new character from Gron; the flashlight and the
+  // New forearms for a new character from Moab; the flashlight and the
   // item move across.
   restyle(outfitId: OutfitId): void {
     this.dress(outfitId)

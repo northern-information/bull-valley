@@ -693,7 +693,7 @@ interface LaptopDeleteMessage {
   id: string
 }
 
-// Gron changed this raider's character. The outfit is checked by the
+// Moab changed this raider's character. The outfit is checked by the
 // server against the select's roster (characters.ts isSelectable), like
 // the hello's.
 interface AppearanceMessage {
@@ -1088,8 +1088,9 @@ export interface PeerJoinedMessage {
   peer: PeerWire
 }
 
-// A raider already here changed their name or character at Gron. Sent to
-// everyone, the raider included, so their own name follows the valley's.
+// A raider already here changed their name at Gron or their character at
+// Moab. Sent to everyone, the raider included, so their own name follows
+// the valley's.
 export interface PeerUpdatedMessage {
   type: 'peer-updated'
   peer: PeerWire

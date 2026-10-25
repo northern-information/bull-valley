@@ -246,7 +246,7 @@ export class DialShell {
     if (said && fresh) this.toast.textContent = said.text
   }
 
-  // A new name or character from Gron.
+  // A new name from Gron.
   setName(name: string): void {
     this.options = { ...this.options, name }
     if (this.state) this.render(this.state)
