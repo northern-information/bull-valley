@@ -654,7 +654,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   {
     id: 'jericho',
-    label: 'Jericho, the Candlebearer, on his block by the payphone',
+    label: 'Jericho, the Candlebearer, by the payphone',
     build: () => buildJericho().group,
   },
   {

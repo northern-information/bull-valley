@@ -347,8 +347,8 @@ export function payphoneSpot(
   }
 }
 
-// Jericho, the Candlebearer: on his block a little along the side from
-// the payphone, a step further out, turned toward the phone's front,
+// Jericho, the Candlebearer: sat a little along the side from the
+// payphone, a step further out, turned toward the phone's front,
 // where a raider stands at it.
 export function jerichoSpot(
   place: MazePlace,
@@ -457,7 +457,7 @@ export function yardClutter(
   const crowded = crowding(place, cfg)
   const kept = [
     { ...payphoneSpot(place, cfg), pad: 3.5 },
-    { ...jerichoSpot(place, cfg), pad: cfg.yard.jericho.radius + 1 },
+    { ...jerichoSpot(place, cfg), pad: cfg.yard.jericho.spread + 0.3 },
     ...yardLamps(place, cfg).map((l) => ({ ...l, pad: 2.5 })),
   ]
   const piles: Clutter[] = []

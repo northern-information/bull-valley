@@ -203,7 +203,7 @@ export interface World {
   // for his typing. Null without a spawn station.
   tyler: XZ | null
   tylerRig: TylerRig | null
-  // Jericho, the Candlebearer, on his block beside the payphone on Castle
+  // Jericho, the Candlebearer, sat beside the payphone on Castle
   // Entropy's rim: where he sits, his rig (the body for the glow), and
   // the graveyard nearest him, which his last line pins on the raider's
   // map (npcs.ts nearestYard). Null without the castle, or the survey

@@ -160,8 +160,8 @@ export const SIGHTS = {
   person: { low: 0, high: 1.8, r: 0.35 },
   // Erwin, sat on the floor by his candles.
   seated: { low: 0, high: 1.2, r: 0.4 },
-  // Jericho, twice a raider's height, sat on his block.
-  giant: { low: 0, high: 3, r: 0.9 },
+  // Jericho, twice a raider's height, his cloak pooled round him.
+  giant: { low: 0, high: 3.4, r: 0.9 },
   // A body sprawled on its back.
   body: { low: 0, high: 0.4, r: 0.9 },
   bush: { low: 0, high: 1.3, r: 0.6 },

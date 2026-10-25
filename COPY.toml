@@ -317,7 +317,7 @@ lore = { text = "Sleeps behind the Golden Wok's boards with his candles and his 
 lore = { text = "Sits cross-legged in the back of a red Jeep Wrangler beside Moab, hunched over a laptop with the hatch up, a portable radar dish on the roof cabled down to it. He helps run the Citgo portals. Whatever else he is tuning in, it is not ready yet.", by = "ai" }
 
 [book.jericho]
-lore = { text = "Sits on a block of concrete beside the payphone on Castle Entropy's rim, twice the height of anyone who comes to him, a candle cupped in both hands. His cloak was grey before the embroidery faded into it. He is kind, and he knows a way across, but not an easy one.", by = "ai" }
+lore = { text = "Sits beside the payphone on Castle Entropy's rim, twice the height of anyone who comes to him, his cloak pooled round him in tatters. Deep in his hood a small pale mask, and a candle held up to it in one bound hand. The cloak was grey before its embroidery faded into it. He is kind, and he knows a way across, but not an easy one.", by = "ai" }
 
 # Erwin von Dutch, the squatter in Bull Valley Plaza (src/dealer.ts,
 # src/dealdialog.ts), and his quest (src/quests.ts).
@@ -1163,7 +1163,7 @@ says_1 = { text = "...", by = "ai" }
 says_2 = { text = "Hang on, almost got a lock on this thing.", by = "ai" }
 says_3 = { text = "Come back later, we're not ready yet.", by = "ai" }
 
-# Jericho, the Candlebearer, on his block beside the payphone on Castle
+# Jericho, the Candlebearer, sat beside the payphone on Castle
 # Entropy's rim (src/npcs.ts), one line each time, in turn. After the third
 # he pins the nearest graveyard on the raider's map (src/actions.ts), and
 # the log says which.

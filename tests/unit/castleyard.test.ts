@@ -284,13 +284,20 @@ describe('Jericho, the Candlebearer', () => {
   })
 
   it('keeps clear of the fence, the supplies, the lamps and the stairs', () => {
+    // His hem lies on the concrete, short of the channel.
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+      const x = jericho.x + Math.cos(a) * J.spread
+      const z = jericho.z + Math.sin(a) * J.spread
+      expect(inChannel(place, x, z)).toBe(false)
+      expect(onMoatGrounds(place, x, z)).toBe(true)
+    }
     for (const pole of poles) {
       expect(dist(pole, jericho)).toBeGreaterThan(J.radius)
     }
     for (const pile of clutter) {
       const wall = clutterWall(pile)
       const reach = CLUTTER_SIZE[pile.kind].length / 2
-      expect(dist(pile, jericho)).toBeGreaterThan(J.radius + 1 + reach - 1e-9)
+      expect(dist(pile, jericho)).toBeGreaterThan(J.spread + 0.3 + reach - 1e-9)
       expect(dist(wall.a, jericho)).toBeGreaterThan(J.radius)
       expect(dist(wall.b, jericho)).toBeGreaterThan(J.radius)
     }

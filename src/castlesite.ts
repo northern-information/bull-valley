@@ -81,7 +81,7 @@ export interface CastleSite {
   ) => (XZ & { y: number }) | null
   // The payphone on the rim (castleyard.ts payphoneSpot).
   payphone: YardSpot
-  // Jericho, the Candlebearer, on his block beside it (castleyard.ts
+  // Jericho, the Candlebearer, sat beside it (castleyard.ts
   // jerichoSpot): where he sits, and his rig, the body for the glow.
   jericho: YardSpot
   jerichoRig: JerichoRig

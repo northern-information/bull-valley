@@ -21,7 +21,7 @@ export interface NpcSpot extends XZ {
 // How close you must stand for him to glow and answer E. Moab stands
 // beside his horse, so his reach runs from the middle of it and is longer;
 // Tyler sits up in the back of his Jeep; Jericho, twice anyone's height,
-// sits on his block.
+// sits low, his cloak pooled round him.
 export function npcReach(id: NpcId): number {
   if (id === 'moab') return CONFIG.moab.reach
   if (id === 'tyler') return CONFIG.tyler.reach

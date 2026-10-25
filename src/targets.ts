@@ -188,7 +188,7 @@ export function createTargets(game: Game): Targets {
       })
       // Tyler, in the back of his Jeep by the spawn Citgo's Moab.
       if (world.tyler) spots.push({ id: 'tyler', ...world.tyler })
-      // Jericho, on his block by the payphone on Castle Entropy's rim.
+      // Jericho, by the payphone on Castle Entropy's rim.
       if (world.jericho) spots.push({ id: 'jericho', ...world.jericho })
       return spots
     },
