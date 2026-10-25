@@ -1340,7 +1340,7 @@ describe('rule 8: one berry a day per account, at each bush', () => {
   })
 })
 
-describe('rule 9: Gron changes how a raider is shown', () => {
+describe('rule 9: Your Name and Moab change how a raider is shown', () => {
   it('renames and restyles a member, and ignores a stranger', () => {
     const v = valleyWith(join('a'))
     v.step({ type: 'appearance', id: 'a', name: 'Renamed' })
@@ -4133,7 +4133,7 @@ describe('rule 34: parties', () => {
     expect(v.valley.parties.parties).toEqual([])
   })
 
-  it('follows a new name from Gron', () => {
+  it('follows a new name from Your Name', () => {
     const v = valleyWith(join('a'), join('b'))
     v.step(invite('a', 'b'))
     v.step(invite('b', 'a'))

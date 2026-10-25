@@ -32,11 +32,11 @@ import {
 } from './dialstate.ts'
 import { text } from './dom.ts'
 import { fontsReady } from './fonts.ts'
-import { openGronDialog } from './grondialog.ts'
 import { befriended, partied } from './inspect.ts'
 import { itemLine } from './itemcopy.ts'
 import { openMoabDialog } from './moabdialog.ts'
 import { mountModem } from './modemhud.ts'
+import { openNameDialog } from './namedialog.ts'
 import { NetClient, socketUrl } from './net.ts'
 import { npcLine } from './npcs.ts'
 import { GRAIN_URL, imagesReady } from './preload.ts'
@@ -250,8 +250,8 @@ async function boot(): Promise<void> {
     state = { ...state, said: { text, at: performance.now() } }
     shell?.render(state)
   }
-  // Who the raider is, as Gron and Moab leave them, here or in the 3D
-  // valley.
+  // Who the raider is, as Your Name and Moab leave them, here or in the
+  // 3D valley.
   let username = account.username
   let look = pickOf(account.look)
   state = { ...state, name: username, outfit: look.outfit }
@@ -322,8 +322,8 @@ async function boot(): Promise<void> {
         },
       }).then(() => shell?.render(state))
     },
-    openGron: () => {
-      void openGronDialog({
+    openName: () => {
+      void openNameDialog({
         username,
         onRenamed: (name) => {
           username = name

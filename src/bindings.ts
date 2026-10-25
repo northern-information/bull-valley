@@ -179,7 +179,7 @@ export const FISHING = {
 } as const satisfies Record<string, Binding>
 
 // With a keeper's dialog open (the Cabbage Stand's, Erwin von Dutch's,
-// Gron's, a raider's card, the laptop): E, the key that opened it, closes
+// Your Name, a raider's card, the laptop): E, the key that opened it, closes
 // it (npcdialog.ts closesDialog), and its close button wears the key.
 export const DIALOG = {
   close: { codes: ['KeyE'], key: 'E', labelKey: 'keys.close' },

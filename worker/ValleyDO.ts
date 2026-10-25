@@ -2063,7 +2063,7 @@ export class ValleyDO extends DurableObject<Env> {
     await this.reshowAccount(ws, attachment, me, { outfit })
   }
 
-  // A new username from Gron. The frame names nothing: the account's
+  // A new username from Your Name. The frame names nothing: the account's
   // username is read from the accounts database, which PUT /auth/username
   // has just changed, so no client can show itself under another name.
   private async rename(

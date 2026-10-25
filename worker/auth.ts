@@ -10,7 +10,7 @@
 // GET  /auth/me                             who is signed in (always 200)
 // POST /auth/confirm-signup                 say the magic word; create the account
 // POST /auth/username                       choose the username, once
-// PUT  /auth/username                       change it (Gron)
+// PUT  /auth/username                       change it (Your Name)
 // PUT  /auth/look                           the character and guitar finish
 // PUT  /auth/hotbar                         the number keys' items
 // PUT  /auth/settings                       the music and sound volumes
@@ -781,7 +781,7 @@ class AuthHandler {
     ])
   }
 
-  // POST chooses the first username, once; PUT (`rename`, from Gron)
+  // POST chooses the first username, once; PUT (`rename`, from Your Name)
   // changes it, any time.
   private setUsername(rename = false): Promise<Response> {
     return this.signedIn(async (claims) => {

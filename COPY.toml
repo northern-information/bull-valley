@@ -305,7 +305,7 @@ lore = { text = "Reads at his tailgate by the Citgo, does donuts across the road
 lore = { text = "Behind the counter at every Citgo at once. Friendly. Knows more about the outages than he says.", by = "ai" }
 
 [book.gron]
-lore = { text = "Stands under his own raincloud by the berry bush. He can give you a new name.", by = "ai" }
+lore = { text = "Stands under his own raincloud by the berry bush.", by = "ai" }
 
 [book.moab]
 lore = { text = "A burning skeleton in a red trench coat, his back to his burning horse, under every Citgo sign. He deals in gold, and he can put you in a new body.", by = "ai" }
@@ -1082,15 +1082,18 @@ curse_8 = { text = "I'm not paid enough for slurms.", by = "ai" }
 # When a raider squashes the last one before he gets to it.
 thanks = { text = "Oh, thanks!", by = "ai" }
 
-# Talking to Gron by the berry bush (src/grondialog.ts). One of the says_
-# lines greets you at random; the field and the checks share their lines
-# with [username].
+# Gron by the berry bush: E has him say his next line (src/npcs.ts).
 
 [gron]
 says_1 = { text = "I can make you anything you want.", by = "tyler" }
 says_2 = { text = "Castle Entropy is over yonder tonight.", by = "tyler" }
 says_3 = { text = "Every night the kingdom crumbles...", by = "tyler" }
-your_name = { text = "Your Name", by = "tyler" }
+
+# Your Name, from Settings (src/namedialog.ts): the field and the checks
+# share their lines with [username].
+
+[name]
+title = { text = "Your Name", by = "tyler" }
 change_name = { text = "Change Name", by = "tyler" }
 name_now = { text = "That is your name now", by = "tyler" }
 renamed = { text = "You are {name} now.", by = "tyler" }
@@ -1714,7 +1717,6 @@ banked = { text = "{amount} banked", by = "ai" }
 citgo = { text = "Citgo", by = "ai" }
 citgo_blurb = { text = "The shelves of every Citgo you've stood at. {count} found.", by = "ai" }
 erwin_blurb = { text = "Barters out of the Golden Wok. No fiat currency.", by = "ai" }
-gron_blurb = { text = "Changes your name.", by = "ai" }
 moab_blurb = { text = "Burns under every Citgo sign. Trades for gold and changes your character.", by = "ai" }
 audio_blurb = { text = "How loud the music and the sounds play, kept on your account.", by = "ai" }
 

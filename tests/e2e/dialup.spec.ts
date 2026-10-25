@@ -430,18 +430,18 @@ test('a new name from the phone reaches the account in the 3D valley', async ({
   await signIn(page, raider)
   await page.goto(`/?valley=${encodeURIComponent(valley)}`)
   await dialIn(page)
-  await page.locator('.bv-dial-card[data-card="gron"]').click()
+  await page.locator('[data-bv="dial-name"]').click()
   const name = freshRaider('Renamed').username
-  await page.locator('[data-bv="gron-username"]').fill(name)
-  const rename = page.locator('[data-bv="gron-rename"]')
+  await page.locator('[data-bv="name-username"]').fill(name)
+  const rename = page.locator('[data-bv="name-rename"]')
   await expect(rename).toBeEnabled()
   await rename.click()
-  await page.locator('[data-bv="gron-close"]').click()
+  await page.locator('[data-bv="name-close"]').click()
   await expect(page.locator('.bv-dial-name')).toHaveText(name)
   // The 3D valley takes it on as its own, and never as another raider's.
   const said = () =>
     desk.evaluate(() => window.__bv?.chat.map((line) => line.text) ?? [])
-  await expect.poll(said).toContain(copy('gron.renamed', { name }))
+  await expect.poll(said).toContain(copy('name.renamed', { name }))
   expect(await said()).not.toContain(
     copy('log.peer_renamed', { was: raider.username, name })
   )

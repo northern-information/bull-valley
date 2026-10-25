@@ -4,7 +4,7 @@
 // left and the credit in the lower right. Signed out, the one option is Create Account, which hands the
 // raider to the account step (signin.ts) beneath it. Signed in: Die (on to
 // the character select), Audio (the music and sound volumes), Settings
-// (the account panel and Sign Out), and
+// (Your Name, the account panel and Sign Out), and
 // Quit, which closes the tab, or says to where the browser will not let a
 // page close itself. Mounted at boot above the account step and the select,
 // so hiding it uncovers them; it never removes itself until titles.ts is
@@ -30,6 +30,8 @@ interface MainMenuOptions {
   settings: SettingsStore
   // The valley's music, started with the menu; none under e2e.
   music: Music | null
+  // Your Name was pressed in Settings: its dialog opens over the menu.
+  onName: () => void
   // Account was pressed in Settings: the panel opens over the menu.
   onAccount: () => void
   // Sign Out was pressed in Settings.
@@ -61,6 +63,7 @@ export function mountMainMenu({
   downscale,
   settings,
   music,
+  onName,
   onAccount,
   onSignOut,
 }: MainMenuOptions): MainMenu {
@@ -89,6 +92,7 @@ export function mountMainMenu({
       </div>
       <div class="bv-menu-options" data-face="settings">
         <h2>${copy('menu.settings')}</h2>
+        <button type="button" class="bv-btn" data-bv="menu-name">${copy('name.title')}</button>
         <button type="button" class="bv-btn" data-bv="menu-account">${copy('menu.account')}</button>
         <button type="button" class="bv-btn" data-bv="menu-sign-out">${copy('menu.sign_out')}</button>
         <button type="button" class="bv-btn" data-bv="menu-back">${copy('menu.back')}</button>
@@ -107,6 +111,7 @@ export function mountMainMenu({
   const audioBackBtn = find<HTMLButtonElement>('[data-bv="menu-audio-back"]')
   const settingsBtn = find<HTMLButtonElement>('[data-bv="menu-settings"]')
   const quitBtn = find<HTMLButtonElement>('[data-bv="menu-quit"]')
+  const nameBtn = find<HTMLButtonElement>('[data-bv="menu-name"]')
   const accountBtn = find<HTMLButtonElement>('[data-bv="menu-account"]')
   const signOutBtn = find<HTMLButtonElement>('[data-bv="menu-sign-out"]')
   const backBtn = find<HTMLButtonElement>('[data-bv="menu-back"]')
@@ -212,6 +217,7 @@ export function mountMainMenu({
   audioBackBtn.addEventListener('click', () => show('in'))
   settingsBtn.addEventListener('click', () => show('settings'))
   backBtn.addEventListener('click', () => show('in'))
+  nameBtn.addEventListener('click', onName)
   accountBtn.addEventListener('click', onAccount)
   signOutBtn.addEventListener('click', () => {
     signOutBtn.disabled = true
