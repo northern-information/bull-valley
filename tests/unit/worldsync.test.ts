@@ -6,6 +6,7 @@ import {
   clockText,
   countdown,
   giftsIn,
+  myBodies,
   newLeg,
   portalNews,
   reconcileBed,
@@ -353,5 +354,26 @@ describe('a topiary under the torch (rule 39)', () => {
     ).toBeNull()
     expect(topiaryNews({ reason: 'topiary-back' }, 'me')).toBeNull()
     expect(topiaryNews({ reason: 'topiary-hit' }, 'me')).toBeNull()
+  })
+})
+
+describe('bodies', () => {
+  const body = (id: number, name: string) => ({
+    id,
+    x: id,
+    z: 0,
+    yaw: 0,
+    name,
+    outfit: 'player' as const,
+  })
+  const all = [body(1, 'able'), body(2, 'baker'), body(3, 'able')]
+
+  it('keeps our own bodies, not a stranger’s', () => {
+    expect(myBodies(all, [1, 3], new Set()).map((c) => c.id)).toEqual([1, 3])
+    expect(myBodies(all, [], new Set())).toEqual([])
+  })
+
+  it('drops one we have asked to take back', () => {
+    expect(myBodies(all, [1, 3], new Set([1])).map((c) => c.id)).toEqual([3])
   })
 })

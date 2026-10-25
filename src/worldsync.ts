@@ -6,6 +6,7 @@
 
 import { GIFTS } from './book.ts'
 import { useOf } from './held.ts'
+import type { CorpseWire } from './corpses.ts'
 import type { Leg, TruckState } from './marx.ts'
 import type { Portal } from './portals.ts'
 import type { WorldMessage, WorldWire } from './protocol.ts'
@@ -222,4 +223,15 @@ export function topiaryNews(
     mine: me !== null && msg.by === me,
     burned: msg.reason === 'topiary-burned',
   }
+}
+
+// This raider's own bodies (the ids a pack frame names) among every body
+// the snapshot carries, less any they have asked to take back: the ones E
+// answers to, and the ones the map marks (sharedworld.ts rule 18).
+export function myBodies<C extends CorpseWire>(
+  corpses: readonly C[],
+  mine: readonly number[],
+  looting: ReadonlySet<number>
+): C[] {
+  return corpses.filter((c) => mine.includes(c.id) && !looting.has(c.id))
 }
