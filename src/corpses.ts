@@ -19,6 +19,10 @@ import type { OutfitId } from './outfits.ts'
 export interface CorpseWire extends XZ {
   id: number
   yaw: number
+  // The height of the feet where the raider fell (drops.ts Drop.y): the
+  // body lies on the deck under them (ground.ts lieAt). Missing on bodies
+  // from before it was kept.
+  y?: number
   name: string
   outfit: OutfitId
 }
@@ -86,12 +90,15 @@ export function emptied(pack: Inventory): Inventory {
 export function corpseWire({
   id,
   x,
+  y,
   z,
   yaw,
   name,
   outfit,
 }: Corpse): CorpseWire {
-  return { id, x, z, yaw, name, outfit }
+  return y === undefined
+    ? { id, x, z, yaw, name, outfit }
+    : { id, x, y, z, yaw, name, outfit }
 }
 
 // The nearest of `mine` (body ids) within `reach` of `at`, or null: the

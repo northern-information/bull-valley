@@ -48,10 +48,9 @@ import type {
   Solid,
 } from './hallucinations.ts'
 import type { HallucinationSpot } from './interactions.ts'
+import type { LieAt } from './interfaces.ts'
 import type { PoseName } from './poses.ts'
 import type { XYZ } from './sfxrig.ts'
-
-type GroundAt = (x: number, z: number) => number
 
 // Who a raider seen could be: the names the rig is handed.
 export interface Someone {
@@ -124,7 +123,7 @@ function fuchsiaGlow(alpha: number): string {
 
 export interface HallucinationsOptions {
   scene: THREE.Object3D
-  groundAt: GroundAt
+  groundAt: LieAt
   // Whose names a raider seen might wear: this raider's own, and whoever
   // else is in the valley.
   people: () => readonly Someone[]
@@ -138,7 +137,7 @@ export class Hallucinations {
   private state: HallucinationState
   private shown = new Map<number, Shown>()
   private playing: Burst[] = []
-  private groundAt: GroundAt
+  private groundAt: LieAt
   private people: () => readonly Someone[]
   private time = 0
 
@@ -186,10 +185,12 @@ export class Hallucinations {
     const spots: HallucinationSpot[] = []
     for (const h of this.state.list) {
       if (presenceAt(h, this.time) <= 0) continue
+      const at =
+        h.y === undefined ? { x: h.x, z: h.z } : { x: h.x, y: h.y, z: h.z }
       spots.push(
         h.look.shape === 'thing'
-          ? { id: h.id, x: h.x, z: h.z, shape: 'thing', item: h.look.kind }
-          : { id: h.id, x: h.x, z: h.z, shape: h.look.shape }
+          ? { id: h.id, ...at, shape: 'thing', item: h.look.kind }
+          : { id: h.id, ...at, shape: h.look.shape }
       )
     }
     return spots
@@ -210,7 +211,7 @@ export class Hallucinations {
     const thing = gone.look.shape === 'thing'
     const at: XYZ = {
       x: gone.x,
-      y: this.groundAt(gone.x, gone.z) + (thing ? THING_MIDDLE : CHEST),
+      y: this.groundAt(gone.x, gone.z, gone.y) + (thing ? THING_MIDDLE : CHEST),
       z: gone.z,
     }
     this.spawnBurst(at, thing ? THING_SCALE : 1, id)
@@ -239,7 +240,7 @@ export class Hallucinations {
 
   private build(h: Hallucination): void {
     const shown = this.make(h)
-    shown.root.position.set(h.x, this.groundAt(h.x, h.z), h.z)
+    shown.root.position.set(h.x, this.groundAt(h.x, h.z, h.y), h.z)
     shown.root.rotation.y = h.yaw
     shown.root.name = `hallucination-${h.id}`
     shown.root.userData.hallucination = h.id

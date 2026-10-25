@@ -169,7 +169,7 @@ export function createTargets(game: Game): Targets {
         eye: [camera.position.x, camera.position.y, camera.position.z],
         dir: [look.x, look.y, look.z],
         feet: player.groundY,
-        groundAt: world.ground.at,
+        groundAt: world.ground.lieAt,
         heightOf,
       }
     },

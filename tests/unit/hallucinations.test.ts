@@ -135,6 +135,15 @@ describe('when they come', () => {
     }
   })
 
+  it('stands them from the height of the raider’s feet, when told it', () => {
+    const low = run(freshHallucinations(5), 0, 200, { feet: -30 })
+    expect(low.list.length).toBeGreaterThan(0)
+    for (const h of low.list) expect(h.y).toBe(-30)
+    for (const h of run(freshHallucinations(5), 0, 200).list) {
+      expect(h).not.toHaveProperty('y')
+    }
+  })
+
   it('never comes behind a wall', () => {
     const s = run(freshHallucinations(5), 0, 200, { blocked: () => true })
     expect(s.list).toEqual([])
