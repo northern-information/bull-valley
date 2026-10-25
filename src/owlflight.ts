@@ -186,16 +186,7 @@ export function owlPose(
   cfg: OwlConfig = CONFIG.castle.yard.jericho.owl
 ): OwlPose {
   const now = huntAt(t, cfg)
-  if (!now) {
-    return {
-      ...xyz(perch),
-      phase: 'perched',
-      heading: perch.heading,
-      pitch: 0,
-      spread: 0,
-      beat: 0,
-    }
-  }
+  if (!now) return perchedOn(perch)
   const { hunt, into } = now
   const { at, phase } = flightAt(hunt, into, perch, groundAt, cfg)
   const length = huntLength(cfg)
@@ -235,6 +226,18 @@ export function owlPose(
     heading: heading + angleBetween(heading, perch.heading) * settle,
     pitch: pitch * (1 - settle),
     ...wings,
+  }
+}
+
+// The owl sat on `perch`, its wings folded.
+export function perchedOn(perch: Perch): OwlPose {
+  return {
+    ...xyz(perch),
+    phase: 'perched',
+    heading: perch.heading,
+    pitch: 0,
+    spread: 0,
+    beat: 0,
   }
 }
 

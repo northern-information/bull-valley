@@ -88,7 +88,7 @@ const PORTRAITS: Partial<Record<string, () => THREE.Object3D>> = {
   moab: () => buildMoab().group,
   squatter: () => standing('squatter'),
   tyler: () => buildTyler().group,
-  jericho: () => buildJericho().group,
+  jericho: () => buildJericho(() => 0, false).group,
 }
 
 // The model for an entry's page, and the item it is when it is one (for

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
-import { huntAt, huntLength, huntOf, owlPose } from '../../src/owlflight.ts'
+import {
+  huntAt,
+  huntLength,
+  huntOf,
+  owlPose,
+  perchedOn,
+} from '../../src/owlflight.ts'
 import type { GroundAt, Perch } from '../../src/owlflight.ts'
 
 const O = CONFIG.castle.yard.jericho.owl
@@ -44,6 +50,7 @@ describe('owlPose', () => {
     for (let t = quiet * O.cycle; t < (quiet + 1) * O.cycle; t += 1.7) {
       expect(huntAt(t)).toBeNull()
       const pose = owlPose(t, perch, flat)
+      expect(pose).toEqual(perchedOn(perch))
       expect(pose).toMatchObject({
         ...perch,
         phase: 'perched',

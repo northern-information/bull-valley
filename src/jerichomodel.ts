@@ -11,7 +11,7 @@ import {
 } from './assetkit.ts'
 import { canvas } from './canvas.ts'
 import { CONFIG } from './config.ts'
-import { owlPose } from './owlflight.ts'
+import { owlPose, perchedOn } from './owlflight.ts'
 import { mulberry32, range } from './rng.ts'
 import type { GroundAt, Perch } from './owlflight.ts'
 
@@ -484,8 +484,13 @@ function buildOwl(): OwlRig {
 }
 
 // `groundAt` the ground under a point of his own space, in his own space
-// (flat for the Akashic), for the owl's dive.
-export function buildJericho(groundAt: GroundAt = () => 0): JerichoRig {
+// (flat for the Akashic), for the owl's dive; `hunts` false keeps the owl
+// on his shoulder (his Book of Shadows portrait, which turns on a clock
+// of its own and would lose it out of the frame).
+export function buildJericho(
+  groundAt: GroundAt = () => 0,
+  hunts = true
+): JerichoRig {
   const group = new THREE.Group()
   group.name = 'jericho'
   const body = new THREE.Group()
@@ -664,7 +669,7 @@ export function buildJericho(groundAt: GroundAt = () => 0): JerichoRig {
     rays.scale.setScalar(1.3 + flicker * 0.1)
     halo.scale.setScalar(0.5 + flicker * 0.05)
     warmth.scale.setScalar(3.4 + flicker * 0.25)
-    const pose = owlPose(t, OWL_PERCH, groundAt)
+    const pose = hunts ? owlPose(t, OWL_PERCH, groundAt) : perchedOn(OWL_PERCH)
     owl.group.position.set(pose.x, pose.y, pose.z)
     owl.group.rotation.set(0, pose.heading, pose.pitch)
     owl.fly(pose.spread, pose.beat)
