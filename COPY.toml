@@ -976,8 +976,8 @@ berry_offline = { text = "No Signal", by = "ai" }
 label = { text = "Flaming Halo", by = "ai" }
 
 [cosmetics.coleman-1]
-label = { text = "Mask of David Coleman: #1", by = "ai" }
-offer = { text = "Gold bullion. Ten troy ounces, and the mask is yours. He will answer to it.", by = "ai" }
+label = { text = "David Coleman: #1", by = "ai" }
+offer = { text = "Gold bullion. Ten troy ounces, and he is yours. He will answer to his name.", by = "ai" }
 traded = { text = "Number one. Wear him well.", by = "ai" }
 worn = { text = "David Coleman: #1 is yours to raid as. Gron or the select will dress you.", by = "ai" }
 
