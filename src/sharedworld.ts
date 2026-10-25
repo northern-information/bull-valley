@@ -16,7 +16,9 @@
 //    and Erwin's stock start afresh. A client on the world's protocol
 //    whose pickups or stations differ from the world's is turned away.
 // 2. A raider comes back where their account last stood on foot, or at the
-//    spawn Citgo the first time (Valley.places).
+//    spawn Citgo the first time (Valley.places). The valley keeps it as
+//    they walk (stand), not only when they leave, so a tab that vanished
+//    without closing still comes back near where it was.
 // 3. Matthew Marx's truck is the valley's (marx.ts): his reading and his
 //    donuts, his countdown once anyone is in the bed, the joyride out and
 //    home, and the whistle. Anyone arriving while he is at his donuts
@@ -781,6 +783,8 @@ export type ValleyAction =
     }
   // at: where their last state frame put them, or null.
   | { type: 'leave'; id: string; at: PeerStateWire | null }
+  // Rule 2: where a raider still here stands, kept as they walk.
+  | { type: 'stand'; id: string; at: PeerStateWire }
   // In every action below, at: where the raider's last state frame put
   // them, or null when the valley has not heard one. The valley holds them
   // to it (CONFIG.valleyReach), never to where a frame says they are.
@@ -1664,6 +1668,10 @@ function act(
       return onDial(valley, action, context)
     case 'leave':
       return onLeave(valley, action, context)
+    case 'stand':
+      return done(withPlace(valley, action.id, action.at), context.now, {
+        broadcast: [],
+      })
     case 'board':
     case 'hop-out':
     case 'call':
@@ -1902,6 +1910,20 @@ function onDial(
   })
 }
 
+// Rule 2: the valley with where `id` stands kept as their account's
+// place, unless they ride in the bed or have no body here.
+function withPlace(valley: Valley, id: string, at: PeerStateWire): Valley {
+  const member = valley.members[id]
+  if (!member || member.dialup || inTheBed(valley, id)) return valley
+  return {
+    ...valley,
+    places: {
+      ...valley.places,
+      [member.account]: { x: at.x, z: at.z, yaw: at.yaw },
+    },
+  }
+}
+
 function onLeave(
   valley: Valley,
   action: ActionOf<'leave'>,
@@ -1921,19 +1943,14 @@ function onLeave(
   // Rule 36: a line left out goes with the socket.
   const lines = { ...valley.lines }
   delete lines[action.id]
-  let next: Valley = { ...valley, members, parties, lines }
-  const world = next.world
   // Rule 2: where they stood on foot is where they come back.
-  const at = action.at
-  if (at && !inTheBed(valley, action.id)) {
-    next = {
-      ...next,
-      places: {
-        ...next.places,
-        [member.account]: { x: at.x, z: at.z, yaw: at.yaw },
-      },
-    }
+  let next: Valley = {
+    ...(action.at ? withPlace(valley, action.id, action.at) : valley),
+    members,
+    parties,
+    lines,
   }
+  const world = next.world
   if (!world) {
     return done(next, now, { broadcast: [], ...partyFields(party, []) })
   }

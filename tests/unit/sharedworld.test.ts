@@ -542,6 +542,19 @@ describe('rule 2: a raider comes back where they stood', () => {
     expect(placeOf(v.valley, 'acct-a')?.x).toBe(120)
   })
 
+  it('keeps where a raider still here stands, but not from the bed', () => {
+    const v = valleyWith(join('a'))
+    v.step({ type: 'stand', id: 'a', at: at() })
+    expect(placeOf(v.valley, 'acct-a')).toEqual({ x: 120, z: -40, yaw: 1.5 })
+    expect(v.last().broadcast).toEqual([])
+    v.step({ type: 'board', id: 'a', at: HERE })
+    v.step({ type: 'stand', id: 'a', at: at({ x: 5 }) })
+    expect(placeOf(v.valley, 'acct-a')?.x).toBe(120)
+    // No one by that id: nothing kept.
+    v.step({ type: 'stand', id: 'nobody', at: at({ x: 5 }) })
+    expect(placeOf(v.valley, 'acct-nobody')).toBeNull()
+  })
+
   it('keeps where they stood when only their frame said they rode', () => {
     const v = valleyWith(join('a'))
     v.step(leaveAs('a', at({ x: 0, riding: true })))
