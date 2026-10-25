@@ -89,7 +89,7 @@ export function applyJoined(peers: PeerTable, wire: PeerWire, now: number) {
   return peer
 }
 
-// A known peer's new name or character, from Gron, a cosmetic from Moab,
+// A known peer's new name from Gron, character or cosmetic from Moab,
 // a new level, or a crew joined or left. Their place and motion stay as they were. An unknown id is ignored: we have not seen them join.
 export function applyUpdated(peers: PeerTable, wire: PeerWire): Peer | null {
   const peer = peers.get(wire.id)

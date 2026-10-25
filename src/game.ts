@@ -503,7 +503,8 @@ export interface Game {
   hands: FirstPersonHands
   // The line in the water over the view, while the rod fishes.
   fishHud: FishHud
-  // The account and outfit from the titles; Gron changes them.
+  // The account and outfit from the titles; Gron changes the name and
+  // Moab the outfit.
   pick: Titles
   // The phone, dialing Citgo portals (Q).
   phone: Phone

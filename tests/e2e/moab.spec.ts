@@ -17,7 +17,8 @@ const inOrder = (lines: string[], first: string, then: string) => {
 // Moab Coldë stands by his burning horse under every Citgo sign. Come near
 // and he glows, with no prompt, and says his offer if the pack can pay for
 // one; E opens his trade window, the one Erwin von Dutch keeps too
-// (tradewindow.ts). Each trade is its own test: each needs its own pack.
+// (tradewindow.ts), with Your Character on a tab beside the trade. Each
+// trade is its own test: each needs its own pack.
 
 async function standAtMoab(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -190,4 +191,52 @@ test('Moab Coldë trades David Coleman: #1 for ten ounces of gold', async ({
   await page.keyboard.press('KeyE')
   // His now: the account may raid as him.
   expect(await look('coleman1')).toBe(200)
+})
+
+test('Moab Coldë changes your character on his Your Character tab', async ({
+  page,
+}) => {
+  test.slow()
+  await beginRaid(page)
+  await standAtMoab(page)
+  const moab = await openMoab(page)
+  await moab
+    .getByRole('tab', { name: copy('moab.your_character'), exact: true })
+    .click()
+  // The trade stands aside for the turntable, on the character worn.
+  await expect(moab.locator('[data-bv="trade-his"]')).toBeHidden()
+  const name = moab.locator('[data-bv="look-character-name"]')
+  await expect(name).toHaveText(copy('outfits.player'))
+  await expect(moab.locator('[data-bv="look-status"]')).toHaveText(
+    copy('moab.character_now')
+  )
+  // One step on from the Player is David Coleman.
+  await moab.getByRole('button', { name: copy('select.next') }).click()
+  await expect(name).toHaveText(copy('outfits.coleman'))
+  await moab.getByRole('button', { name: copy('moab.become') }).click()
+  await expect(moab.locator('[data-bv="look-status"]')).toHaveText(
+    copy('moab.became', { name: copy('outfits.coleman') })
+  )
+  await expect
+    .poll(() =>
+      page.evaluate(
+        (): unknown =>
+          window.__bv?.scene.getObjectByName('player-body')?.userData.outfit
+      )
+    )
+    .toBe('coleman')
+  // The account keeps it, so it follows the raider to any browser.
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const res = await fetch('/auth/me')
+        const me = (await res.json()) as {
+          account: { look: { outfit: string | null } } | null
+        }
+        return me.account?.look.outfit
+      })
+    )
+    .toBe('coleman')
+  await page.keyboard.press('KeyE')
+  await expect(moab).toBeHidden()
 })

@@ -41,7 +41,7 @@ export function tierFor(method: string, parts: readonly string[]): Tier | null {
       return 'strict'
     }
     if (method === 'POST' && first === 'refresh') return 'loose'
-    // The character and finish, at the select and at Gron.
+    // The character and finish, at the select and at Moab.
     if (method === 'PUT' && first === 'look') return 'loose'
     // The number keys, assigned in the pack.
     if (method === 'PUT' && first === 'hotbar') return 'loose'
