@@ -13,6 +13,7 @@ import {
   CAR,
   inBuilding,
   INDUSTRIAL,
+  LOAD,
   LOOT_INSET,
   onParkGrounds,
   PARK_SIGN,
@@ -423,6 +424,46 @@ describe('the industrial park', () => {
     // Nothing else is painted.
     for (const prop of INDUSTRIAL.props.filter((p) => p.kind !== 'sign')) {
       expect(propSigns(prop)).toEqual([])
+    }
+  })
+
+  it('leaves pallets of boxes in the truck courts, clear of the bays and trailers', () => {
+    const loads = INDUSTRIAL.props.filter((p) => p.kind === 'load')
+    expect(loads.length).toBeGreaterThanOrEqual(12)
+    const trailers = INDUSTRIAL.props.filter((p) => p.kind === 'trailer')
+    const reach = Math.hypot(LOAD.width, LOAD.length) / 2
+    for (const load of loads) {
+      // Behind a building, out in its court.
+      const i = INDUSTRIAL.places.findIndex(
+        (p, k) =>
+          Math.abs(load.x - p.x) < INDUSTRIAL.buildings[k].w / 2 &&
+          load.z < p.z - INDUSTRIAL.buildings[k].d / 2 &&
+          load.z > p.z - INDUSTRIAL.buildings[k].d / 2 - 12
+      )
+      expect(i, `load at (${load.x}, ${load.z})`).toBeGreaterThanOrEqual(0)
+      const b = INDUSTRIAL.buildings[i]
+      const p = INDUSTRIAL.places[i]
+      // Never across a bay's opening.
+      for (const way of waysOf(b).filter((w) => w.name.startsWith('bay-'))) {
+        const half = INDUSTRIAL.bay.width / 2 + 0.5
+        expect(
+          Math.abs(p.x + way.x - load.x),
+          `${b.id} ${way.name}`
+        ).toBeGreaterThan(half + reach)
+      }
+      for (const trailer of trailers) {
+        const apart =
+          Math.abs(trailer.x - load.x) > TRAILER.width / 2 + reach ||
+          Math.abs(trailer.z - load.z) > TRAILER.length / 2 + reach
+        expect(apart).toBe(true)
+      }
+      expect(propBoxes(load).length).toBeGreaterThan(1)
+    }
+    // No two on top of each other.
+    for (const [k, a] of loads.entries()) {
+      for (const c of loads.slice(k + 1)) {
+        expect(Math.hypot(a.x - c.x, a.z - c.z)).toBeGreaterThan(LOAD.length)
+      }
     }
   })
 

@@ -767,6 +767,12 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: buildForklift,
   },
   {
+    id: 'pallet-load',
+    label: 'A pallet of boxes left in an industrial park truck court',
+    build: () =>
+      buildWorksProp({ kind: 'load', x: 0, z: 0, yaw: 0, layers: 3 }),
+  },
+  {
     id: 'semi-trailer',
     label: 'A semi trailer left at a bay in the industrial park',
     build: () => buildWorksProp({ kind: 'trailer', x: 0, z: 0, yaw: 0 }),

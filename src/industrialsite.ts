@@ -6,6 +6,7 @@ import {
   CAR,
   DRUMS,
   INDUSTRIAL,
+  LOAD,
   PALLET_HEAP,
   PARK_SIGN,
   parkLoot,
@@ -164,7 +165,11 @@ export function buildIndustrialSite(
       walls.addWall(along(prop, -reach), along(prop, reach), size.width / 2)
     } else {
       const radius =
-        prop.kind === 'pallets' ? PALLET_HEAP.width / 2 : DRUMS.radius
+        prop.kind === 'drums'
+          ? DRUMS.radius
+          : prop.kind === 'load'
+            ? LOAD.width / 2 + 0.1
+            : PALLET_HEAP.width / 2
       walls.addWall(p, p, radius)
     }
   }

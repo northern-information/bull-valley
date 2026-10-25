@@ -1765,13 +1765,17 @@ interface Paint {
 // What stands round the buildings, park-local: the park's sign out
 // front, the semi trailers backed against bays that are shut, the cars
 // left in the stalls, a dumpster at each building's west wall by its back
-// corner, pallets heaped and drums out by the bays.
+// corner, empty pallets heaped and drums out by the bays, and pallets of
+// boxes left in the truck courts.
 export interface WorksProp extends XZ {
-  kind: 'sign' | 'trailer' | 'car' | 'dumpster' | 'pallets' | 'drums'
+  kind: 'sign' | 'trailer' | 'car' | 'dumpster' | 'pallets' | 'drums' | 'load'
   // rotation.y in the park's frame: the prop's own +Z turned to (sin, cos).
   yaw: number
   color?: 'red' | 'blue' | 'white' | 'burnt'
   fallen?: boolean
+  // A load's layers of cartons, and whether it went under shrink-wrap.
+  layers?: number
+  wrapped?: boolean
 }
 
 const STRIPE = '#5e5c55'
@@ -1878,13 +1882,46 @@ function propsOf(): WorksProp[] {
       }
     )
   })
+  props.push(...loadsOf())
   return props
+}
+
+// The pallets of boxes left in the truck courts, on their own seed so the
+// rest stay where they were: between a building's bays (never in front of
+// one, and clear of the trailers backed into them), a few metres out
+// across the court, one now and then with another beside it.
+function loadsOf(): WorksProp[] {
+  const loads: WorksProp[] = []
+  const rng = mulberry32(0x1d10ad)
+  BUILDING_LIST.forEach((b, i) => {
+    const p = placeOf(i, b)
+    const back = p.z - b.d / 2
+    const bays = planOf(b).bays
+    for (let k = 0; k + 1 < bays.length; k++) {
+      if (rng() < 0.3) continue
+      const x = p.x + (bays[k] + bays[k + 1]) / 2 + range(rng, -0.4, 0.4)
+      const z = back - range(rng, 4, 10)
+      const load = (dz: number): WorksProp => ({
+        kind: 'load',
+        x,
+        z: z - dz,
+        yaw: range(rng, -0.25, 0.25),
+        layers: 1 + Math.floor(rng() * 3),
+        wrapped: rng() < 0.35,
+      })
+      loads.push(load(0))
+      if (rng() < 0.4) loads.push(load(LOAD.length + 0.3))
+    }
+  })
+  return loads
 }
 
 // The props' sizes: what each covers on the ground, along its own z.
 export const TRAILER = { width: 2.6, length: 13.6, height: 4.0, deck: 1.25 }
 export const CAR = { width: 1.9, length: 4.8, height: 1.4 }
 export const PALLET_HEAP = { width: 1.3, length: 1.3, height: 1.2 }
+// A pallet of boxes: the pallet, and each layer of cartons on it.
+export const LOAD = { width: 1.2, length: 1.2, deck: 0.14, layer: 0.42 }
 export const DRUMS = { radius: 1.0 }
 // The park's sign: a panel between two block piers on a concrete base,
 // `length` along its own z, `width` through, `height` to its cap.
@@ -1976,6 +2013,60 @@ export function propBoxes(prop: WorksProp): WorksBox[] {
             )
           )
         }
+      }
+      return boxes
+    }
+    case 'load': {
+      const { width, deck, layer } = LOAD
+      const layers = prop.layers ?? 1
+      const boxes: WorksBox[] = [
+        box('pallet', [0, deck / 2, 0], [width, deck, width], 'pallet'),
+      ]
+      if (prop.wrapped) {
+        boxes.push(
+          box(
+            'wrapped',
+            [0, deck + (layers * layer) / 2, 0],
+            [width - 0.04, layers * layer, width - 0.04],
+            'wrap'
+          )
+        )
+        return boxes
+      }
+      // Four cartons a layer, each a little askew; the top one short a
+      // carton, which lies fallen beside it.
+      const c = width / 2 - 0.02
+      for (let l = 0; l < layers; l++) {
+        for (const [n, [x, z]] of [
+          [c / 2, c / 2],
+          [-c / 2, c / 2],
+          [c / 2, -c / 2],
+          [-c / 2, -c / 2],
+        ].entries()) {
+          if (l === layers - 1 && layers > 1 && n === 3) continue
+          boxes.push(
+            box(
+              `carton-${l}-${n}`,
+              [x, deck + layer * (l + 0.5), z],
+              [c - 0.03, layer - 0.02, c - 0.03],
+              'cardboard',
+              false,
+              [0, ((l + n) % 3) * 0.04 - 0.04, 0]
+            )
+          )
+        }
+      }
+      if (layers > 1) {
+        boxes.push(
+          box(
+            'carton-fallen',
+            [-c, (c - 0.03) / 2, -width / 2 - 0.35],
+            [c - 0.03, layer - 0.02, c - 0.03],
+            'cardboard',
+            false,
+            [Math.PI / 2, 0.5, 0]
+          )
+        )
       }
       return boxes
     }
