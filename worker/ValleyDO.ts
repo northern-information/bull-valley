@@ -120,7 +120,7 @@ import type {
   ServerMessage,
   TaskWire,
 } from '../src/protocol.ts'
-import type { QuestId, QuestStage } from '../src/quests.ts'
+import type { QuestId, QuestStage, QuestStages } from '../src/quests.ts'
 import type { Research } from '../src/recycling.ts'
 import type { SeasonProgress } from '../src/season.ts'
 import type { StairPath } from '../src/shadowclimb.ts'
@@ -1607,6 +1607,7 @@ export class ValleyDO extends DurableObject<Env> {
               ponds: hello.ponds,
               bushes: hello.bushes,
               dealer: hello.dealer,
+              gron: hello.gron,
               undercroft: hello.undercroft,
               moat: hello.moat,
               rings: hello.rings,
@@ -2515,16 +2516,15 @@ export class ValleyDO extends DurableObject<Env> {
       refuse('no-such-quest')
       return
     }
-    const id = action.quest
     await this.locked(async () => {
       const packs = this.packs()
-      let quest: { stage: QuestStage; pack: Inventory }
+      let quest: { stages: QuestStages; pack: Inventory }
       try {
         const [stages, holdings] = await Promise.all([
           packs.quests(account),
           packs.get(account),
         ])
-        quest = { stage: stages[id], pack: holdings.pack }
+        quest = { stages, pack: holdings.pack }
       } catch (err) {
         console.error('The quest could not be read', err)
         refuse('unavailable')

@@ -28,12 +28,16 @@ import {
   closesDialog,
   npcFooter,
   npcHeader,
+  questParts,
+  questSection,
   sectionHead,
   setPips,
+  showQuest,
 } from './npcdialog.ts'
 import type { WorthOf } from './barter.ts'
 import type { Fanfare } from './catchfanfare.ts'
 import type { Inventory } from './interfaces.ts'
+import type { QuestShown } from './npcdialog.ts'
 
 // One of the trader's goods.
 export interface TradeGood {
@@ -51,15 +55,10 @@ export interface TradeGood {
   out: () => string | null
 }
 
-// The trader's quest, as its tab shows it.
+// The trader's quest, as its tab shows it: read every tick (null with
+// none to show), so the quest he speaks of can change while it is open.
 interface TradeQuest {
-  title: string
-  prize: string
-  // Each step: its name and where it happens.
-  steps: readonly (readonly [string, string])[]
-  // Read every tick (null with none to show): his line, the button that
-  // takes the next step, and the step under way.
-  now: () => { line: string; button: string | null; step: number } | null
+  now: () => QuestShown | null
   onStep: () => void
 }
 
@@ -181,28 +180,10 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
   root.setAttribute('role', 'dialog')
   root.setAttribute('aria-modal', 'true')
   root.setAttribute('aria-labelledby', 'bv-trade-title')
-  const steps = (quest?.steps ?? [])
-    .map(
-      ([name, where]) => `
-        <div class="bv-npc-step">
-          <span class="bv-npc-label">${name}</span>
-          <span class="bv-npc-where">${where}</span>
-        </div>`
-    )
-    .join('')
   const questTab = quest
     ? `<button type="button" class="bv-bag-tab" role="tab" data-bv="trade-tab-quest">${copy('trade.tab_quest')}<span class="bv-trade-due" data-bv="trade-due"></span></button>`
     : ''
-  const questSection = quest
-    ? `<section class="bv-npc-section bv-trade-quest" data-bv="trade-quest">
-        ${sectionHead(quest.title, 'trade-prize')}
-        <div class="bv-npc-steps" data-bv="trade-steps">${steps}</div>
-        <div class="bv-npc-grid">
-          <p class="bv-npc-say bv-npc-c8" data-bv="trade-quest-line"></p>
-          <button type="button" class="bv-btn bv-npc-btn bv-btn--primary bv-npc-c4" data-bv="trade-quest-go"></button>
-        </div>
-      </section>`
-    : ''
+  const questBox = quest ? questSection('trade') : ''
   const panelTab = panel
     ? `<button type="button" class="bv-bag-tab" role="tab" data-bv="trade-tab-panel">${panel.tab}</button>`
     : ''
@@ -260,7 +241,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
           </div>
         </div>
       </section>
-      ${questSection}
+      ${questBox}
       ${panelSection}
       ${npcFooter('trade-said', 'trade-close', copy('trade.close'))}
     </div>`
@@ -306,21 +287,17 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
     tab = 'trade'
     refresh()
   })
-  const questParts = quest && {
+  const questBits = quest && {
     tab: find<HTMLButtonElement>('[data-bv="trade-tab-quest"]'),
     due: find<HTMLElement>('[data-bv="trade-due"]'),
-    box: find<HTMLElement>('[data-bv="trade-quest"]'),
-    steps: find<HTMLDivElement>('[data-bv="trade-steps"]'),
-    line: find<HTMLParagraphElement>('[data-bv="trade-quest-line"]'),
-    go: find<HTMLButtonElement>('[data-bv="trade-quest-go"]'),
+    parts: questParts(root, 'trade'),
   }
-  if (quest && questParts) {
-    find<HTMLElement>('[data-bv="trade-prize"]').textContent = quest.prize
-    questParts.tab.addEventListener('click', () => {
+  if (quest && questBits) {
+    questBits.tab.addEventListener('click', () => {
       tab = 'quest'
       refresh()
     })
-    questParts.go.addEventListener('click', () => {
+    questBits.parts.go.addEventListener('click', () => {
       if (!options.pending()) quest.onStep()
       refresh()
     })
@@ -570,21 +547,12 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
     tradeTab.setAttribute('aria-selected', String(tab === 'trade'))
     mine.hidden = tab !== 'trade'
     his.hidden = tab !== 'trade'
-    if (questParts) {
-      questParts.tab.hidden = now === null
-      questParts.due.hidden = now?.button == null
-      questParts.tab.setAttribute('aria-selected', String(tab === 'quest'))
-      questParts.box.hidden = tab !== 'quest'
-      if (now) {
-        Array.from(questParts.steps.children).forEach((step, i) => {
-          step.classList.toggle('bv-npc-step--done', i < now.step)
-          step.classList.toggle('bv-npc-step--now', i === now.step)
-        })
-        questParts.line.textContent = now.line
-        questParts.go.hidden = now.button === null
-        questParts.go.textContent = now.button ?? ''
-        questParts.go.disabled = pending
-      }
+    if (questBits) {
+      questBits.tab.hidden = now === null
+      questBits.due.hidden = now?.button == null
+      questBits.tab.setAttribute('aria-selected', String(tab === 'quest'))
+      questBits.parts.box.hidden = tab !== 'quest'
+      if (now) showQuest(questBits.parts, now, pending)
     }
     if (panelParts) {
       panelParts.tab.setAttribute('aria-selected', String(tab === 'panel'))

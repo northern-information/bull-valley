@@ -498,15 +498,27 @@ export class D1PackStore implements PackStore {
   // quest stands where the step found it (no row is 'none') and, for a
   // change out of the pack, while the pack holds it, stamped with this
   // step's id; the pack changes after it only where that stamp is this
-  // step's, so the two land together or not at all.
+  // step's, so the two land together or not at all. A step with no change
+  // to the pack writes the stage alone.
   async quest(
     accountId: string,
     quest: QuestId,
     from: QuestStage,
     to: QuestStage,
-    change: { kind: string; delta: number }
+    change: { kind: string; delta: number } | null
   ): Promise<boolean> {
     const id = crypto.randomUUID()
+    if (!change) {
+      const result = await this.db
+        .prepare(
+          'INSERT INTO quests (account_id, quest, stage, step_id, updated_at) ' +
+            "SELECT ?, ?, ?, ?, ? WHERE COALESCE((SELECT stage FROM quests WHERE account_id = ? AND quest = ?), 'none') = ? " +
+            'ON CONFLICT (account_id, quest) DO UPDATE SET stage = excluded.stage, step_id = excluded.step_id, updated_at = excluded.updated_at'
+        )
+        .bind(accountId, quest, to, id, Date.now(), accountId, quest, from)
+        .run()
+      return (result.meta.changes ?? 0) > 0
+    }
     const out = Math.max(0, -change.delta)
     const stamped =
       '(SELECT step_id FROM quests WHERE account_id = ? AND quest = ?) = ?'

@@ -352,6 +352,26 @@ test('with a raider on foot in the valley: the Citgo, Erwin, Moab and the chat',
   )
   await deal.locator('[data-bv="trade-close"]').click()
 
+  // Gron gives his first quest from anywhere, the same dialog as at the
+  // bush.
+  await page.locator('.bv-dial-card[data-card="gron"]').click()
+  const gron = page.getByRole('dialog', {
+    name: copy('outfits.gron'),
+    exact: true,
+  })
+  await expect(gron).toContainText(copy('quests.berries_title'))
+  const go = gron.locator('[data-bv="gron-quest-go"]')
+  await expect(go).toHaveText(copy('quests.berries_accept'))
+  await go.click()
+  await expect(gron.locator('[data-bv="gron-said"]')).toHaveText(
+    copy('quests.berries_given')
+  )
+  await expect(gron.locator('[data-bv="gron-quest-line"]')).toHaveText(
+    copy('quests.berries_waiting')
+  )
+  await gron.locator('[data-bv="gron-close"]').click()
+  await expect(gron).toHaveCount(0)
+
   // Moab offers the halo once the pack holds gold.
   await desk.evaluate(() => window.__bv?.grant('gold-bullion', 1))
   await page.locator('.bv-dial-card[data-card="moab"]').click()

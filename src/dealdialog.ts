@@ -3,7 +3,8 @@
 // E beside him and from Dial-Up's lobby. He takes no cash, so it counts
 // each unit at a little under its shelf price (dealer.ts unitWorth) and
 // prints that in cents; his goods (dealer.ts DEALER_GOODS) show what he
-// has left today; his rose quest (quests.ts) has its tab.
+// has left today; his quest has its tab: Gron's errand while the raider
+// is on it, else his rose (quests.ts erwinQuest).
 
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -13,6 +14,7 @@ import { formatCash } from './store.ts'
 import { openTradeWindow } from './tradewindow.ts'
 import type { DealerStock } from './dealer.ts'
 import type { Inventory } from './interfaces.ts'
+import type { QuestShown } from './npcdialog.ts'
 import type { TradeCheer, Turntable } from './tradewindow.ts'
 
 interface DealDialogOptions {
@@ -21,13 +23,13 @@ interface DealDialogOptions {
   // Read again every tick: his stock today (null when the valley is gone),
   // the pack, whether a deal is still unanswered, the last word on one,
   // and his quest as it stands for this raider (null with none to show):
-  // his line, the button that takes the next step, and the step under way
-  // (quests.ts roseProgress).
+  // its card, his line, the button that takes the next step, and the step
+  // under way (quests.ts questCard, questNow).
   stock: () => DealerStock | null
   pack: () => Inventory
   pending: () => boolean
   said: () => string | null
-  quest: () => { line: string; button: string | null; step: number } | null
+  quest: () => QuestShown | null
   icon: (kind: string) => Promise<string>
   onDeal: (kind: string, offer: Inventory) => void
   onQuest: () => void
@@ -79,16 +81,6 @@ export function openDealDialog(options: DealDialogOptions): Promise<void> {
     fanfare: options.fanfare,
     turntable: options.turntable,
     onTrade: options.onDeal,
-    quest: {
-      title: copy('quests.rose_title'),
-      prize: copy('quests.rose_prize'),
-      steps: [
-        [copy('quests.rose_step_take'), copy('quests.rose_step_take_where')],
-        [copy('quests.rose_step_lay'), copy('quests.rose_step_lay_where')],
-        [copy('quests.rose_step_key'), copy('quests.rose_step_key_where')],
-      ],
-      now: options.quest,
-      onStep: options.onQuest,
-    },
+    quest: { now: options.quest, onStep: options.onQuest },
   })
 }

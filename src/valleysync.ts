@@ -681,7 +681,7 @@ export function wireValley(game: Game, actions: Actions): void {
       if (!isQuest(msg.quest) || !isQuestStage(msg.stage)) return
       s.quests = { ...(s.quests ?? toQuests(null)), [msg.quest]: msg.stage }
       s.pendingQuest = false
-      s.dealSaid = stepNews(msg.step)
+      s.dealSaid = stepNews(msg.quest, msg.step)
       hud.tell(s.dealSaid)
     } else if (msg.type === 'book') {
       // Rule 20: written in the account's Book of Shadows.

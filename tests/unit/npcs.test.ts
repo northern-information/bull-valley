@@ -37,13 +37,6 @@ describe('npcLine', () => {
     expect(npcLine('jericho', 2)).toBe(copy('jericho.says_3'))
     expect(npcLine('jericho', 3)).toBe(copy('jericho.says_1'))
   })
-
-  it('has Gron say his lines in turn under his raincloud', () => {
-    expect(npcLine('gron', 0)).toBe(copy('gron.says_1'))
-    expect(npcLine('gron', 2)).toBe(copy('gron.says_3'))
-    expect(npcLine('gron', 3)).toBe(copy('gron.says_1'))
-    expect(npcName('gron')).toBe(copy('outfits.gron'))
-  })
 })
 
 describe('npcName', () => {
@@ -105,6 +98,5 @@ describe('npcReach', () => {
     expect(npcReach('moab')).toBe(CONFIG.moab.reach)
     expect(npcReach('tyler')).toBe(CONFIG.tyler.reach)
     expect(npcReach('jericho')).toBe(CONFIG.castle.yard.jericho.reach)
-    expect(npcReach('gron')).toBe(CONFIG.gron.reach)
   })
 })

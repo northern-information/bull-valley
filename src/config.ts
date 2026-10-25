@@ -721,6 +721,9 @@ export const CONFIG = {
     // How close E must be to talk to him; when the bush is in reach too,
     // the nearer of the two answers.
     reach: 2.4,
+    // How far from him the valley takes a step of his quests (quests.ts
+    // atGron): past his reach, as the last state frame lags.
+    questReach: 4,
     // He blocks like a post this wide.
     radius: 0.4,
   },

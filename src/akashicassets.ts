@@ -470,6 +470,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   { id: 'adderall', label: 'Adderall', build: () => buildPickup('adderall') },
   { id: 'rose', label: "Erwin's rose", build: () => buildPickup('rose') },
   {
+    id: 'floppy-disk',
+    label: "Gron's floppy disk",
+    build: () => buildPickup('floppy-disk'),
+  },
+  {
     id: 'flashlight-item',
     label: 'Flashlight (in the pack)',
     build: () => buildPickup('flashlight'),
