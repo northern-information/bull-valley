@@ -25,6 +25,7 @@ import {
   applyFrame,
   asking,
   DIALED,
+  heardOf,
   lineLost,
   sayLine,
   withCitgoNames,
@@ -114,11 +115,12 @@ async function boot(): Promise<void> {
       })
     },
   })
-  // Fishing's sounds (sfx.ts), in the head as the 3D valley hears them, at
-  // the account's sound volume; none on a silent page. The rig wakes on
-  // the first, which a tap has always just armed.
+  // The valley's sounds the phone hears (sfx.ts): fishing's, and what a
+  // frame calls for (dialstate.ts heardOf), in the head as the 3D valley
+  // hears them, at the account's sound volume; none on a silent page. The
+  // rig wakes on the first, which a tap has always just armed.
   const sfx = SILENT ? null : createSfx()
-  const fishSound = (id: SfxId) => {
+  const sound = (id: SfxId) => {
     if (!sfx) return
     sfx.update({ started: true, setting: settings.current.sfx })
     sfx.play(id)
@@ -135,13 +137,13 @@ async function boot(): Promise<void> {
   const tradeCheer = {
     now: () => state.tradeCheer,
     cheer: (fanfare: Fanfare) => {
-      fishSound('fish-fanfare')
+      sound('fish-fanfare')
       if ('vibrate' in navigator) navigator.vibrate(FANFARE.buzz[fanfare.tier])
     },
   }
   net.on((msg) => {
     // Rule 36: a fish too big for the skill breaks the line coming in.
-    if (msg.type === 'catch' && msg.outcome === 'snap') fishSound('line-snap')
+    if (msg.type === 'catch' && msg.outcome === 'snap') sound('line-snap')
     if (msg.type === 'welcome') {
       modem.connected()
       // Without the survey a Citgo found goes unnamed in the log.
@@ -161,6 +163,7 @@ async function boot(): Promise<void> {
     // A frame that changes nothing the phone shows (a pong, a peer's
     // state) leaves the screen be.
     if (next === state) return
+    for (const id of heardOf(state, next, msg, performance.now())) sound(id)
     state = next
     takeOnShown()
     shell?.render(state)
@@ -432,7 +435,7 @@ async function boot(): Promise<void> {
       dig: () => send({ type: 'dig' }, { fish: true }),
       cast: (bait) => send({ type: 'cast', bait }, { fish: true }),
       reel: (landed) => send({ type: 'reel', landed }, { fish: true }),
-      sound: fishSound,
+      sound,
       empty: (said) => {
         state = { ...state, line: null }
         say(said)

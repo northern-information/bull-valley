@@ -87,6 +87,7 @@ import {
   seasonOf,
   shownKills,
 } from './season.ts'
+import { healSound, wardSound, xpSound } from './sfx.ts'
 import { buyRefusal, shelfRows } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
@@ -122,6 +123,7 @@ import type {
 import type { QuestId, QuestStage } from './quests.ts'
 import type { Research } from './recycling.ts'
 import type { SeasonProgress } from './season.ts'
+import type { SfxId } from './sfx.ts'
 import type { ShelfRow } from './shop.ts'
 import type { StandLedger } from './stand.ts'
 
@@ -377,6 +379,54 @@ function shownAs(
 // expeditions read them.
 export function wardsNow(s: DialState, now: number): WardLevels {
   return levelsAt({ at: s.wardsAt / 1000, levels: s.wards }, now / 1000)
+}
+
+// The sounds a frame calls for on the phone, read off the state before
+// (`was`) and after it (`now`, local ms), as the 3D valley hears the same
+// news (sfx.ts xpSound, healSound, wardSound): XP and a new level, the
+// geometrie given back, a ward come up, and a purchase, a deal or a trade
+// of the account's gone through. What only the 3D valley does (a pickup,
+// a berry, a portal, a page found) sounds there alone.
+export function heardOf(
+  was: DialState,
+  after: DialState,
+  msg: ServerMessage,
+  now: number
+): SfxId[] {
+  const heard: (SfxId | null)[] = []
+  switch (msg.type) {
+    case 'xp':
+      heard.push(xpSound(was.xp, after.xp))
+      break
+    case 'health':
+      heard.push(
+        healSound(
+          { health: was.health, max: was.healthMax },
+          { health: after.health, max: after.healthMax }
+        )
+      )
+      break
+    case 'wards':
+      heard.push(wardSound(wardsNow(was, now), after.wards))
+      break
+    case 'world':
+      if (
+        was.id !== null &&
+        msg.by === was.id &&
+        msg.item &&
+        (msg.reason === 'bought' || msg.reason === 'dealt')
+      ) {
+        heard.push('register')
+      }
+      break
+    case 'pack':
+      // Rule 14: a cosmetic Moab traded.
+      if (gainedOf(was.cosmetics, after.cosmetics).length) {
+        heard.push('register')
+      }
+      break
+  }
+  return heard.filter((id): id is SfxId => id !== null)
 }
 
 // What one use of `kind` would do now (sharedworld.ts rules 24 and 27):

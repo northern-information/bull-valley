@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
+import { xpToReach } from '../../src/progression.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import {
+  healSound,
   isSfxId,
   keeperCues,
+  portalCues,
   SFX,
   SFX_BASE,
   SFX_IDS,
@@ -11,7 +14,9 @@ import {
   shadeCues,
   takeUrls,
   toneSamples,
+  wardSound,
   windupsBegun,
+  xpSound,
 } from '../../src/sfx.ts'
 import type { ShadeHeard, Tone } from '../../src/sfx.ts'
 
@@ -38,6 +43,9 @@ describe('the sound table', () => {
     )
     expect(SFX['caretaker-windup'].placeholder.seconds).toBe(
       CONFIG.caretaker.windupSeconds
+    )
+    expect(SFX['phone-dial'].placeholder.seconds).toBe(
+      CONFIG.portal.dialSeconds
     )
   })
 
@@ -256,5 +264,81 @@ describe('keeperCues', () => {
     const out = keeperCues(true, true, far, [{ x: 900, z: 0 }], me, tuning)
     expect(out.cues).toEqual([])
     expect(out.holds).toEqual([])
+  })
+})
+
+describe('portalCues', () => {
+  const life = { lifeSeconds: 180, freshSeconds: 3 }
+  const now = 1_000_000
+  const portal = (id: number, closes: number, x = 10) =>
+    ({
+      id,
+      name: 'r',
+      field: { x, z: 0, yaw: 0 },
+      citgo: { x: 500, z: 0, yaw: 0 },
+      station: 0,
+      slot: 0,
+      closes,
+    }) as const
+  const fresh = portal(1, now + 179_000)
+
+  it('sounds a fresh one opening at each end near, and hums there', () => {
+    const heard = portalCues(new Map(), [fresh], null, now, me, tuning, life)
+    // The Citgo end is far off.
+    expect(heard.cues).toEqual([{ id: 'portal-open', x: 10, z: 0, rate: 1 }])
+    expect(heard.holds.map((h) => [h.key, h.id])).toEqual([
+      ['portal:1:field', 'portal-hum'],
+    ])
+    expect([...heard.open.keys()]).toEqual([1])
+  })
+
+  it('is quiet for one found open, and for one heard already', () => {
+    const old = portal(2, now + 60_000)
+    expect(
+      portalCues(new Map(), [old], null, now, me, tuning, life).cues
+    ).toEqual([])
+    const was = new Map([[1, fresh]])
+    expect(portalCues(was, [fresh], null, now, me, tuning, life).cues).toEqual(
+      []
+    )
+  })
+
+  it('sounds one closing where it stood', () => {
+    const was = new Map([[1, fresh]])
+    const heard = portalCues(was, [], null, now, me, tuning, life)
+    expect(heard.cues).toEqual([{ id: 'portal-close', x: 10, z: 0, rate: 1 }])
+    expect(heard.holds).toEqual([])
+    expect(heard.open.size).toBe(0)
+  })
+
+  it("hums at the maze's heart while near", () => {
+    const near = portalCues(new Map(), [], { x: 5, z: 5 }, now, me, tuning)
+    expect(near.holds.map((h) => h.key)).toEqual(['portal:maze'])
+    const far = portalCues(new Map(), [], { x: 900, z: 0 }, now, me, tuning)
+    expect(far.holds).toEqual([])
+  })
+})
+
+describe('progress sounds', () => {
+  it('ticks for XP and sounds a new level', () => {
+    expect(xpSound(0, 1)).toBe('xp-tick')
+    expect(xpSound(0, xpToReach(2))).toBe('level-up')
+    expect(xpSound(5, 5)).toBeNull()
+    expect(xpSound(5, 4)).toBeNull()
+  })
+
+  it('heals only at the same whole', () => {
+    expect(healSound({ health: 5, max: 10 }, { health: 8, max: 10 })).toBe(
+      'heal'
+    )
+    expect(healSound({ health: 5, max: 10 }, { health: 8, max: 12 })).toBeNull()
+    expect(healSound({ health: 5, max: 10 }, { health: 3, max: 10 })).toBeNull()
+  })
+
+  it('sounds a ward come up past its margin', () => {
+    const none = { high: 0, stimulated: 0, drunk: 0, tripping: 0 }
+    expect(wardSound(none, { ...none, drunk: 0.3 })).toBe('ward-up')
+    expect(wardSound(none, { ...none, drunk: 0.01 })).toBeNull()
+    expect(wardSound({ ...none, high: 0.5 }, none)).toBeNull()
   })
 })

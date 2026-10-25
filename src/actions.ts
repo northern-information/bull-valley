@@ -81,6 +81,7 @@ import { normalizeChat } from './protocol.ts'
 import { dealerStep, roseLine, roseProgress } from './quests.ts'
 import { openRecycleDialog } from './recycledialog.ts'
 import { callRoute, nearestRoadPoint } from './roadgraph.ts'
+import { healSound, portalCues, wardSound } from './sfx.ts'
 import { inHaven } from './shadowmen.ts'
 import { buy as buyItem, settle } from './shop.ts'
 import { openShopDialog } from './shopdialog.ts'
@@ -89,7 +90,7 @@ import { move, moveAmount } from './stash.ts'
 import { formatCash } from './store.ts'
 import { tradeFanfare } from './tradefanfare.ts'
 import { planLeg } from './truckplan.ts'
-import { dose, SOBER } from './wardlevels.ts'
+import { dose, levelsAt, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
 import { placeWaypoint } from './waypoints.ts'
 import { charterable } from './worldsync.ts'
@@ -105,6 +106,7 @@ import type { WardAxis, XZ } from './interfaces.ts'
 import type { Leg } from './marx.ts'
 import type { NpcId } from './npcs.ts'
 import type { BagAction, BagTab } from './packgrid.ts'
+import type { Portal } from './portals.ts'
 import type {
   DailyMessage,
   InspectWire,
@@ -112,6 +114,7 @@ import type {
   PeerWire,
   WardLevels,
 } from './protocol.ts'
+import type { ShadeCues } from './sfx.ts'
 import type { Waypoints } from './waypoints.ts'
 import type { Pickup } from './world.ts'
 
@@ -223,8 +226,9 @@ export interface Actions {
   // The valley refused it.
   portalRefused(reason: string): void
   // Every frame, at `now` (the valley's clock): the open portals drawn,
-  // and one walked into taking us out of its other end.
-  tendPortals(now: number): void
+  // one walked into taking us out of its other end, and what they sound
+  // like this frame, with the maze's heart (`standing`) humming too.
+  tendPortals(now: number, standing: XZ | null): ShadeCues
   // The account's Citgos as the valley says (the welcome, a citgos frame):
   // a new one is said, unless `quiet` or before Begin.
   applyCitgos(log: CitgoLog, quiet?: boolean): void
@@ -333,12 +337,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         finish: game.pick.finish,
         cosmetics: s.cosmetics,
       })
+      if (s.inventoryOpen) game.sfx?.play('ui-open')
       showBagTab(PACK_TABS[0])
     })
 
   const closeInventory = (relock = false) => {
     if (!s.inventoryOpen) return
     s.inventoryOpen = hud.showBag(false)
+    game.sfx?.play('ui-close')
     s.lockerOpen = false
     hud.setLocker(false)
     if (relock) engagePointer()
@@ -371,12 +377,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     closeInventory()
     withPanel(() => {
       s.bookOpen = hud.showBook(true)
+      if (s.bookOpen) game.sfx?.play('ui-open')
     })
   }
 
   const closeBook = (relock = false) => {
     if (!s.bookOpen) return
     s.bookOpen = hud.showBook(false)
+    game.sfx?.play('ui-close')
     game.thumbs.stop()
     if (relock) engagePointer()
   }
@@ -407,6 +415,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     bookHud.setFound(s.book)
     bookHud.announce(names)
+    if (names.length) game.sfx?.play('discovery')
     // In the valley a landmark found pays its bounty (book.ts bountyOf).
     const bounty = s.world ? bountyLine(found) : null
     if (bounty) hud.tell(bounty)
@@ -471,6 +480,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.aboard = true
     s.pending.board = true
     net.send({ type: 'board' })
+    game.sfx?.play('truck-board')
     hud.tell(copy('log.board'))
     if (first) openCharter()
   }
@@ -482,6 +492,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.charting = true
     withPanel(() => {
       s.mapOpen = hud.showMap(true, true)
+      if (s.mapOpen) game.sfx?.play('ui-open')
     })
   }
 
@@ -492,6 +503,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (!s.charting) return
     s.charting = false
     s.mapOpen = hud.showMap(false)
+    game.sfx?.play('ui-close')
     if (s.started) engagePointer()
     if (to === undefined || !s.aboard) return
     const spot = to && nearestRoadPoint(game.truckContext.graph, to.x, to.z)
@@ -510,6 +522,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.aboard = false
     const spot = truck.hopOutSpot()
     player.relocate(spot.x, spot.z, player.yaw)
+    game.sfx?.play('truck-hop-out')
     if (line) hud.tell(line)
   }
 
@@ -615,6 +628,11 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       points >= max &&
       s.health < s.healthMax &&
       inHaven(player.pos, world.fuelPoints, CONFIG.shadowmen.havenRadius)
+    const healed = healSound(
+      { health: s.health, max: s.healthMax },
+      { health: points, max }
+    )
+    if (healed) game.sfx?.play(healed)
     s.health = points
     s.healthMax = max
     if (mended) hud.tell(copy('log.mended'))
@@ -1037,6 +1055,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       s.inventory = next.inventory
       s.cash = next.cash
       if (inventoryChanged) refreshBag()
+      game.sfx?.play('register')
     }
     if (line) hud.tell(line)
     s.shopSaid = line
@@ -1116,6 +1135,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(copy('log.berry_picked'))
       return
     }
+    game.sfx?.play('berry-pick')
     s.inventory = addItem(s.inventory, 'berries', 1)
     refreshBag()
     const collected = itemLine('berries', 'collected')
@@ -1164,6 +1184,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     for (const id of gained) {
       const cosmetic = cosmeticById(id)
       if (!cosmetic) continue
+      game.sfx?.play('register')
       npcSays('moab', cosmetic.traded)
       hud.tell(cosmetic.worn)
       moabSaid = cosmetic.worn
@@ -1227,7 +1248,10 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.inventory = result.inv
     keepHotbar(spent(s.hotbar, kind, s.inventory))
     s.effects = result.effects
+    const was = levelsAt(s.wards, s.time)
     s.wards = dose(s.wards, doseOf(kind), s.time)
+    const up = wardSound(was, levelsAt(s.wards, s.time))
+    if (up) game.sfx?.play(up)
     // The right hand brings it up (fphands.ts).
     s.using = { kind, at: s.time }
     s.lastUsed = kind
@@ -1281,6 +1305,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   // Rule 27: the valley's levels, as of now on our own clock.
   const setWards = (levels: WardLevels) => {
+    const up = wardSound(levelsAt(s.wards, s.time), levels)
+    if (up) game.sfx?.play(up)
     s.wards = { at: s.time, levels }
   }
 
@@ -1341,6 +1367,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       // A tool taken up goes on the bar, as a pack frame's does.
       if (!had && useOf(kind, false) !== null) shelveKind(kind)
     }
+    game.sfx?.play('pickup')
     s.interaction = null
     hud.prompt(null)
     hud.itemLabel(null)
@@ -1720,9 +1747,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     // Before Begin there is no one to tell: the spawn Citgo is found then.
     if (quiet || !s.started) return
     const inWorld = s.world !== null
-    for (const line of citgoLines(before, log, citgoLabel, inWorld)) {
-      hud.tell(line)
-    }
+    const lines = citgoLines(before, log, citgoLabel, inWorld)
+    for (const line of lines) hud.tell(line)
+    if (lines.length) game.sfx?.play('discovery')
   }
 
   // The click with the phone in hand. It dials first; aboard it has no
@@ -1732,7 +1759,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       hud.tell(copy('log.portal_aboard'))
       return
     }
-    if (!game.phone.dial()) hud.tell(copy('log.portal_hung_up'))
+    if (game.phone.dial()) game.sfx?.play('phone-dial')
+    else hud.tell(copy('log.portal_hung_up'))
   }
 
   const portalRefusal = (reason: string): string => {
@@ -1773,16 +1801,32 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     net.send({ type: 'portal' })
   }
 
-  const tendPortals = (now: number) => {
+  // The portals open as the last frame heard them (sfx.ts portalCues).
+  let portalsHeard: ReadonlyMap<
+    number,
+    Pick<Portal, 'field' | 'citgo'>
+  > = new Map()
+
+  const tendPortals = (now: number, standing: XZ | null): ShadeCues => {
     const open = openAt(s.portals, now)
     game.portals.sync(open)
     game.portals.update(s.time)
-    if (s.aboard || performance.now() < s.portalGraceUntil) return
+    const heard = portalCues(
+      portalsHeard,
+      open,
+      standing,
+      now,
+      player.pos,
+      CONFIG.sfx
+    )
+    portalsHeard = heard.open
+    if (s.aboard || performance.now() < s.portalGraceUntil) return heard
     const walked = enteredAt(open, player.pos, now)
-    if (!walked) return
+    if (!walked) return heard
     const out = exitFrom(walked.portal, walked.side)
     player.relocate(out.x, out.z, out.yaw)
     s.portalGraceUntil = performance.now() + GRACE_MS
+    game.sfx?.play('portal-through')
     hud.tell(
       walked.side === 'field'
         ? copy('log.portal_citgo')
@@ -1790,6 +1834,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
           ? copy('log.portal_back')
           : copy('log.portal_through', { name: walked.portal.name })
     )
+    return heard
   }
 
   const openMap = () => {
@@ -1798,6 +1843,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     closeBook()
     withPanel(() => {
       s.mapOpen = hud.showMap(true)
+      if (s.mapOpen) game.sfx?.play('ui-open')
     })
   }
 
@@ -1809,6 +1855,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     }
     if (!s.mapOpen) return
     s.mapOpen = hud.showMap(false)
+    game.sfx?.play('ui-close')
     if (relock) engagePointer()
   }
 
@@ -1841,6 +1888,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.emoting = null
     s.portalGraceUntil = performance.now() + GRACE_MS
     closeMap(true)
+    game.sfx?.play('portal-through')
     hud.tell(copy('log.travel', { citgo: stopLabel(stop) }))
   }
   // --- Rule 37: waypoints -------------------------------------------------

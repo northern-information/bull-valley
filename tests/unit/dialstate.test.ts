@@ -13,6 +13,7 @@ import {
   DIALED,
   expeditionName,
   haulLine,
+  heardOf,
   lineLost,
   NO_WARDS,
   raiderStats,
@@ -1243,5 +1244,55 @@ describe('what the 3D valley did, in the phone log', () => {
     s = applyFrame(s, { type: 'nack', re: 'trade', reason: 'owned' }, 0, 0)
     expect(s.pending.tradeOffer).toBeNull()
     expect(s.chat.at(-1)?.text).toBe(tradeRefusal('owned', 'flaming-halo'))
+  })
+})
+
+describe('heardOf', () => {
+  const s = applyFrame(DIALED, welcome(), 0, 0)
+  const heard = (msg: ServerMessage, from: DialState = s, now = 0) =>
+    heardOf(from, applyFrame(from, msg, now, now), msg, now)
+
+  it('ticks for XP, and sounds a new level', () => {
+    expect(heard({ type: 'xp', xp: 121, gained: 1 })).toEqual(['xp-tick'])
+    expect(heard({ type: 'xp', xp: xpToReach(3), gained: 9 })).toEqual([
+      'level-up',
+    ])
+    // An overtaken frame is no news.
+    expect(heard({ type: 'xp', xp: 100, gained: 1 })).toEqual([])
+  })
+
+  it('sounds geometrie given back, not a larger whole or a loss', () => {
+    expect(heard({ type: 'health', health: 950, max: 1000 })).toEqual(['heal'])
+    expect(heard({ type: 'health', health: 950, max: 1040 })).toEqual([])
+    expect(heard({ type: 'health', health: 800, max: 1000 })).toEqual([])
+  })
+
+  it('sounds a ward come up past where it had faded to', () => {
+    const up = { type: 'wards', wards: { ...NO_WARDS, high: 0.9 } } as const
+    expect(heard(up)).toEqual(['ward-up'])
+    // The same level said again later has only faded.
+    const later = 10_000
+    const faded = wardsNow(s, later)
+    expect(heard({ type: 'wards', wards: faded }, s, later)).toEqual([])
+  })
+
+  it("rings up the account's own purchase, deal and trade", () => {
+    const world = { shelves: [], dealer: {} } as never
+    const sale = (by: string, reason: 'bought' | 'dealt') =>
+      ({ type: 'world', reason, world, by, item: 'marlboro' }) as const
+    expect(heard(sale('p1', 'bought'))).toEqual(['register'])
+    expect(heard(sale('p1', 'dealt'))).toEqual(['register'])
+    expect(heard(sale('p2', 'bought'))).toEqual([])
+    const pack = (cosmetics: string[]) =>
+      ({
+        type: 'pack',
+        pack: {},
+        cash: 0,
+        cosmetics,
+        stash: {},
+        corpses: [],
+      }) as never
+    expect(heard(pack(['flaming-halo']))).toEqual(['register'])
+    expect(heard(pack([]))).toEqual([])
   })
 })

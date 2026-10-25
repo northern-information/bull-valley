@@ -57,6 +57,7 @@ import {
 import { toResearch } from './recycling.ts'
 import { foundLine, recycleRefusal, researchNews } from './researchlines.ts'
 import { seasonOf } from './season.ts'
+import { xpSound } from './sfx.ts'
 import { buyRefusal } from './shop.ts'
 import { isStandLedger, refusalLine, standNews } from './stand.ts'
 import { formatCash } from './store.ts'
@@ -330,6 +331,7 @@ export function wireValley(game: Game, actions: Actions): void {
     // goods and the wallet.
     if (reason === 'dealt' && me !== null && detail.by === me) {
       s.pendingDeal = false
+      game.sfx?.play('register')
       s.dealSaid = boughtLine(detail.item ?? '')
       hud.tell(s.dealSaid)
       if (detail.item) {
@@ -690,6 +692,8 @@ export function wireValley(game: Game, actions: Actions): void {
       s.xp = Math.max(s.xp, msg.xp)
       const level = levelUp(before, s.xp)
       if (s.xp > before) hud.season.flash()
+      const heard = xpSound(before, s.xp)
+      if (heard) game.sfx?.play(heard)
       if (level !== null) {
         hud.season.announce({
           kicker: copy('level.kicker'),
@@ -770,6 +774,7 @@ export function wireValley(game: Game, actions: Actions): void {
       if (!applyTask(msg.task)) return
       const news = taskNews(s.task, msg.rewarded)
       if (news === 'done') {
+        game.sfx?.play('task-complete')
         hud.season.announce({
           kicker: copy('task.kicker'),
           headline: copy('task.banner_done'),
