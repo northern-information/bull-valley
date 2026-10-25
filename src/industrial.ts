@@ -103,6 +103,24 @@ export type WorksArtId =
   | 'bay-5'
   | 'park-sign'
   | Extract<MallArtId, 'graffiti-eye' | 'graffiti-tag'>
+  | WorksGraffiti
+
+// The park's own graffiti (industrialart.ts), beside the plaza's two.
+export type WorksGraffiti =
+  | 'graffiti-throwup'
+  | 'graffiti-shadowman'
+  | 'graffiti-crown'
+  | 'graffiti-arrow'
+
+// Every piece a wall in the park may wear, the plaza's among them.
+export const GRAFFITI: readonly WorksArtId[] = [
+  'graffiti-eye',
+  'graffiti-tag',
+  'graffiti-throwup',
+  'graffiti-shadowman',
+  'graffiti-crown',
+  'graffiti-arrow',
+]
 
 // One painted panel, `size` wide and tall, centred at `center` a hair off
 // its face, turned by `turn` so its art (asset +Z) faces out.
@@ -1658,14 +1676,8 @@ function signs(b: Building, plan: Plan): WorksSign[] {
       size: [0.9, 0.6],
       turn: [0, 0, 0],
     },
-    {
-      name: 'tag',
-      art: b.seed % 2 ? 'graffiti-eye' : 'graffiti-tag',
-      center: [-b.w / 2 - 0.05, 1.8, -hd / 2],
-      size: [3.2, 1.8],
-      turn: [0, -Math.PI / 2, 0],
-    },
   ]
+  list.push(...graffitiOf(b, plan))
   plan.bays.forEach((x, i) => {
     list.push({
       name: `bay-${i}`,
@@ -1676,6 +1688,84 @@ function signs(b: Building, plan: Plan): WorksSign[] {
     })
   })
   return list
+}
+
+// The graffiti on a building, from its own seed: where a wall has room
+// for a piece clear of its openings and its signs (out front either side
+// of the floor's door, out back between the bays and inside them, on both
+// sides clear of the side door), some of them sprayed, never fewer than
+// three, each a piece of GRAFFITI. Every piece hangs with its bottom over
+// the wainscot (GRAFFITI_LOW), a hair off its wall.
+export const GRAFFITI_LOW = 1.3
+const GRAFFITI_OFF = 0.04
+const GRAFFITI_H = 2.2
+
+function graffitiOf(b: Building, plan: Plan): WorksSign[] {
+  const hw = b.w / 2
+  const hd = b.d / 2
+  const y = GRAFFITI_LOW + GRAFFITI_H / 2
+  // Each a spot on a face: its middle along the wall, the room it has,
+  // and how it faces (+z front, -z back outside, +z back inside, ±x sides).
+  type Face = 'front' | 'back' | 'inside' | 'east' | 'west'
+  const spots: { face: Face; at: number; room: number }[] = []
+  // Out front: west of the floor's door, and between it (past its notice)
+  // and the office's windows.
+  const door = plan.floorDoor
+  spots.push({
+    face: 'front',
+    at: (-hw + door - 0.5) / 2,
+    room: door - 0.5 - (-hw + 0.5),
+  })
+  const pane = plan.office.door - 2.4 - WINDOW.width / 2
+  const from = door + 2.1
+  spots.push({
+    face: 'front',
+    at: (from + pane - 0.5) / 2,
+    room: pane - 0.5 - from,
+  })
+  // Out back and inside, between each pair of bays.
+  for (let k = 0; k + 1 < plan.bays.length; k++) {
+    const at = (plan.bays[k] + plan.bays[k + 1]) / 2
+    const room = plan.bays[k + 1] - plan.bays[k] - BAY.width - 1.2
+    spots.push({ face: 'back', at, room }, { face: 'inside', at, room })
+  }
+  // The sides, either side of the middle (the side door on the west).
+  for (const face of ['east', 'west'] as const) {
+    spots.push(
+      { face, at: -hd / 2, room: hd - 2 },
+      { face, at: hd / 2, room: hd - 2 }
+    )
+  }
+  const rng = mulberry32(b.seed ^ 0x6a6a)
+  const chosen = spots.filter((s) => s.room >= 1.8 && rng() < 0.55)
+  for (const s of spots) {
+    if (chosen.length >= 3) break
+    if (s.room >= 1.8 && !chosen.includes(s)) chosen.push(s)
+  }
+  return chosen.map((s, n) => {
+    const art = GRAFFITI[Math.floor(rng() * GRAFFITI.length)]
+    const width = Math.min(s.room, range(rng, 3, 4.8))
+    const size: [number, number] = [width, Math.min(GRAFFITI_H, width * 0.6)]
+    const sprayed = (center: Vec3, turn: Vec3): WorksSign => ({
+      name: `graffiti-${n}`,
+      art,
+      center,
+      size,
+      turn,
+    })
+    switch (s.face) {
+      case 'front':
+        return sprayed([s.at, y, hd + GRAFFITI_OFF], [0, 0, 0])
+      case 'back':
+        return sprayed([s.at, y, -hd - GRAFFITI_OFF], [0, Math.PI, 0])
+      case 'inside':
+        return sprayed([s.at, y, -hd + WALL + GRAFFITI_OFF], [0, 0, 0])
+      case 'east':
+        return sprayed([hw + GRAFFITI_OFF, y, s.at], [0, Math.PI / 2, 0])
+      case 'west':
+        return sprayed([-hw - GRAFFITI_OFF, y, s.at], [0, -Math.PI / 2, 0])
+    }
+  })
 }
 
 // Where in a building a spot is, building-local.

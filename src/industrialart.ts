@@ -6,10 +6,10 @@
 // (mallart.ts).
 
 import { canvas, SANS, SERIF, text } from './canvas.ts'
-import { isCutOut, paintMallArt } from './mallart.ts'
+import { paintMallArt, spray } from './mallart.ts'
 import { mulberry32, range } from './rng.ts'
 import type { CanvasArt } from './canvas.ts'
-import type { WorksArtId } from './industrial.ts'
+import type { WorksArtId, WorksGraffiti } from './industrial.ts'
 
 // The signs, 512 by 104: a panel bolted over every office.
 const SIGN: [number, number] = [512, 104]
@@ -66,7 +66,7 @@ function company(
 }
 
 const PAINTERS: Record<
-  Exclude<WorksArtId, 'graffiti-eye' | 'graffiti-tag'>,
+  Exclude<WorksArtId, 'graffiti-eye' | 'graffiti-tag' | WorksGraffiti>,
   () => CanvasArt
 > = {
   nippersink: () => {
@@ -263,12 +263,171 @@ function bayNumber(n: number): CanvasArt {
   return art
 }
 
+// --- Graffiti ------------------------------------------------------------
+
+// Paint run down from a stroke: a few drips, each from a point along it.
+function drips(
+  ctx: CanvasRenderingContext2D,
+  rng: () => number,
+  color: string,
+  points: readonly [number, number][]
+): void {
+  ctx.fillStyle = color
+  for (const [x, y] of points) {
+    const long = range(rng, 8, 30)
+    ctx.fillRect(x - 1, y, 2, long)
+    ctx.beginPath()
+    ctx.arc(x, y + long, 2, 0, Math.PI * 2)
+    ctx.fill()
+  }
+}
+
+// A throw-up: three fat bubble letters, filled and outlined, a crew's
+// letters no one in the valley can read.
+function throwup(): CanvasArt {
+  const art = canvas([256, 128])
+  const { ctx, w, h } = art
+  const rng = mulberry32(0x7b0)
+  ctx.font = SANS.replace('$', '88')
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.lineJoin = 'round'
+  ctx.lineWidth = 14
+  ctx.strokeStyle = '#141414'
+  ctx.strokeText('VKR', w / 2, h / 2)
+  ctx.fillStyle = '#e0e0d4'
+  ctx.fillText('VKR', w / 2, h / 2)
+  ctx.lineWidth = 4
+  ctx.strokeStyle = '#7a2fb0'
+  ctx.strokeText('VKR', w / 2, h / 2)
+  drips(ctx, rng, '#7a2fb0', [
+    [70, 92],
+    [128, 96],
+    [176, 90],
+  ])
+  spray(ctx, rng, '#e0e0d4', () => undefined, 1)
+  return art
+}
+
+// A shadowman, black and tall with long arms, sprayed by someone who saw
+// one cross: the paint run off his hands.
+function shadowman(): CanvasArt {
+  const art = canvas([128, 192])
+  const { ctx, w } = art
+  const rng = mulberry32(0x5dad)
+  ctx.fillStyle = '#0b0b0b'
+  ctx.beginPath()
+  ctx.ellipse(w / 2, 34, 14, 18, 0, 0, Math.PI * 2)
+  ctx.fill()
+  spray(
+    ctx,
+    rng,
+    '#0b0b0b',
+    () => {
+      ctx.beginPath()
+      ctx.moveTo(w / 2, 50)
+      ctx.lineTo(w / 2, 120)
+      ctx.moveTo(w / 2, 120)
+      ctx.lineTo(w / 2 - 14, 176)
+      ctx.moveTo(w / 2, 120)
+      ctx.lineTo(w / 2 + 14, 176)
+      ctx.moveTo(w / 2, 62)
+      ctx.lineTo(w / 2 - 34, 132)
+      ctx.moveTo(w / 2, 62)
+      ctx.lineTo(w / 2 + 34, 132)
+      ctx.stroke()
+    },
+    12
+  )
+  drips(ctx, rng, '#0b0b0b', [
+    [w / 2 - 34, 132],
+    [w / 2 + 34, 132],
+  ])
+  return art
+}
+
+// A crown in yellow, three points and a band, run at the bottom.
+function crown(): CanvasArt {
+  const art = canvas([192, 128])
+  const { ctx } = art
+  const rng = mulberry32(0xc20)
+  spray(
+    ctx,
+    rng,
+    '#e3c22a',
+    () => {
+      ctx.beginPath()
+      ctx.moveTo(40, 90)
+      ctx.lineTo(48, 30)
+      ctx.lineTo(74, 66)
+      ctx.lineTo(96, 20)
+      ctx.lineTo(118, 66)
+      ctx.lineTo(144, 30)
+      ctx.lineTo(152, 90)
+      ctx.closePath()
+      ctx.stroke()
+    },
+    7
+  )
+  drips(ctx, rng, '#e3c22a', [
+    [56, 92],
+    [96, 92],
+    [140, 92],
+  ])
+  return art
+}
+
+// An arrow in red round a circle crossed through: a mark for whoever
+// comes after, pointing back the way out.
+function arrow(): CanvasArt {
+  const art = canvas([224, 112])
+  const { ctx, h } = art
+  const rng = mulberry32(0xa22)
+  spray(
+    ctx,
+    rng,
+    '#c4281f',
+    () => {
+      ctx.beginPath()
+      ctx.arc(52, h / 2, 30, 0, Math.PI * 2)
+      ctx.moveTo(30, h / 2 + 22)
+      ctx.lineTo(74, h / 2 - 22)
+      ctx.moveTo(100, h / 2)
+      ctx.lineTo(200, h / 2)
+      ctx.moveTo(176, h / 2 - 20)
+      ctx.lineTo(200, h / 2)
+      ctx.lineTo(176, h / 2 + 20)
+      ctx.stroke()
+    },
+    8
+  )
+  drips(ctx, rng, '#c4281f', [
+    [130, h / 2 + 4],
+    [52, h / 2 + 30],
+  ])
+  return art
+}
+
+const GRAFFITI_PAINTERS: Record<WorksGraffiti, () => CanvasArt> = {
+  'graffiti-throwup': throwup,
+  'graffiti-shadowman': shadowman,
+  'graffiti-crown': crown,
+  'graffiti-arrow': arrow,
+}
+
+// Whether a piece is one of the park's own graffiti.
+function isParkGraffiti(id: WorksArtId): id is WorksGraffiti {
+  return id in GRAFFITI_PAINTERS
+}
+
 export function paintWorksArt(id: WorksArtId): CanvasArt {
   if (id === 'graffiti-eye' || id === 'graffiti-tag') return paintMallArt(id)
+  if (isParkGraffiti(id)) return GRAFFITI_PAINTERS[id]()
   return PAINTERS[id]()
 }
 
-// Whether a panel's art is cut out of its background, drawn see-through.
+// Whether a panel's art is cut out of its background, drawn see-through:
+// every piece of graffiti, the plaza's and the park's.
 export function isWorksCutOut(id: WorksArtId): boolean {
-  return (id === 'graffiti-eye' || id === 'graffiti-tag') && isCutOut(id)
+  return id.startsWith('graffiti-')
 }

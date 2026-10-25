@@ -11,6 +11,8 @@ import {
   buildingOrigin,
   buildingSigns,
   CAR,
+  GRAFFITI,
+  GRAFFITI_LOW,
   inBuilding,
   INDUSTRIAL,
   LOAD,
@@ -536,6 +538,63 @@ describe('the industrial park', () => {
       expect(signs.filter((s) => s.art.startsWith('bay-'))).toHaveLength(
         b.bays.length
       )
+    }
+  })
+
+  it('sprays graffiti on every building, on its walls and off its openings', () => {
+    for (const b of INDUSTRIAL.buildings) {
+      const signs = buildingSigns(b)
+      const pieces = signs.filter((s) => s.name.startsWith('graffiti-'))
+      expect(pieces.length, b.id).toBeGreaterThanOrEqual(3)
+      const openings = waysOf(b)
+      for (const piece of pieces) {
+        expect(GRAFFITI).toContain(piece.art)
+        const [x, y, z] = piece.center
+        const [width, height] = piece.size
+        // Over the wainscot, under the roof.
+        expect(y - height / 2).toBeGreaterThanOrEqual(GRAFFITI_LOW - 1e-9)
+        expect(y + height / 2).toBeLessThan(b.h)
+        // On a wall: within a hair of one of its faces, inside or out.
+        const onSide = Math.abs(Math.abs(x) - b.w / 2) < 0.1
+        const onEnd =
+          Math.abs(Math.abs(z) - b.d / 2) < 0.1 ||
+          Math.abs(z - (-b.d / 2 + INDUSTRIAL.wall)) < 0.1
+        expect(onSide || onEnd, `${b.id} ${piece.name}`).toBe(true)
+        // Along that wall, its span and every opening's apart.
+        const along = onSide ? z : x
+        for (const way of openings) {
+          const sameWall = onSide
+            ? Math.abs(way.x - Math.sign(x) * (b.w / 2 - INDUSTRIAL.wall / 2)) <
+              0.2
+            : Math.sign(way.z) === Math.sign(z) &&
+              Math.abs(Math.abs(way.z) - b.d / 2) < 1
+          if (!sameWall) continue
+          const half = way.name.startsWith('bay-')
+            ? INDUSTRIAL.bay.width / 2
+            : INDUSTRIAL.door.width / 2
+          const wayAlong = onSide ? way.z : way.x
+          expect(
+            Math.abs(along - wayAlong),
+            `${b.id} ${piece.name} ${way.name}`
+          ).toBeGreaterThan(half + width / 2)
+        }
+        // And off every other panel on the same face.
+        for (const other of signs) {
+          if (other === piece) continue
+          const sameFace =
+            Math.abs(other.center[0] - x) < 0.2 ||
+            Math.abs(other.center[2] - z) < 0.2
+          if (!sameFace || other.turn[1] !== piece.turn[1]) continue
+          const dx = onSide
+            ? Math.abs(other.center[2] - z)
+            : Math.abs(other.center[0] - x)
+          const dy = Math.abs(other.center[1] - y)
+          const apart =
+            dx >= (other.size[0] + width) / 2 ||
+            dy >= (other.size[1] + height) / 2
+          expect(apart, `${b.id} ${piece.name} and ${other.name}`).toBe(true)
+        }
+      }
     }
   })
 
