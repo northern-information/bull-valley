@@ -1250,6 +1250,32 @@ describe('ValleyDO', () => {
     expect(kept()).toEqual({ x: 60, z: 20, yaw: 0.5 })
   })
 
+  it('keeps where a raider hops out of the bed at once', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.UTC(2026, 6, 1, 17) })
+    onTestFinished(() => {
+      vi.useRealTimers()
+    })
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const kept = () =>
+      (s.storage.map.get('valley') as { places: Record<string, unknown> })
+        .places['acct-A']
+    await intoTheBed(v, a)
+    await settle()
+    expect(kept()).toEqual({ x: 10, z: 10, yaw: 0.5 })
+    // Nothing kept from the bed.
+    vi.setSystemTime(Date.now() + CONFIG.net.placeEveryMs)
+    await v.webSocketMessage(ws(a), state(30, 10))
+    await settle()
+    expect(kept()).toEqual({ x: 10, z: 10, yaw: 0.5 })
+    // Over the side: where they land is kept with the next frame, not
+    // the interval after it.
+    await v.webSocketMessage(ws(a), '{"type":"hop-out"}')
+    await v.webSocketMessage(ws(a), state(12, 14))
+    await settle()
+    expect(kept()).toEqual({ x: 12, z: 14, yaw: 0.5 })
+  })
+
   it('brings a reload back where the old tab stood, though it has not closed yet', async () => {
     const { valley: v, state: s } = await valley()
     const a = await join(v, s, 'A')
