@@ -419,6 +419,9 @@ export const CONFIG = {
     hearing: 60,
     // At most this many spiderlings skitter at once, the nearest.
     skitters: 3,
+    // A Citgo portal is heard opening only while it has opened within
+    // this many seconds: the ones a raider finds open on joining are not.
+    portalFreshSeconds: 3,
     // A placed sound is at full loudness this close, in metres, and falls
     // away past it this fast (a Web Audio inverse model).
     refDistance: 4,

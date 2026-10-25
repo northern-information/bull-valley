@@ -6,10 +6,14 @@
 // takes are streamed from assets.the-rn.info (SFX_BASE), never in the
 // bundle or the repo. Which sounds a frame of the valley calls for is read
 // here too (shadeCues, keeperCues); sfxrig.ts plays them. No three.js, no
-// DOM.
+// DOM. What a portal, an XP frame, the geometrie or the wards sound like is
+// read here as well (portalCues, xpSound, healSound, wardSound), the same
+// for both apps.
 
 import { CONFIG } from './config.ts'
-import type { XZ } from './interfaces.ts'
+import { levelUp } from './progression.ts'
+import type { WardAxis, XZ } from './interfaces.ts'
+import type { Portal } from './portals.ts'
 import type { CaretakerWire } from './protocol.ts'
 import type { Rng } from './rng.ts'
 import type { Burst, ShadeKind } from './shadowmen.ts'
@@ -47,6 +51,24 @@ export type SfxId =
   | 'line-snap'
   | 'dig'
   | 'jar-clink'
+  | 'phone-dial'
+  | 'portal-open'
+  | 'portal-hum'
+  | 'portal-through'
+  | 'portal-close'
+  | 'xp-tick'
+  | 'level-up'
+  | 'task-complete'
+  | 'discovery'
+  | 'pickup'
+  | 'register'
+  | 'heal'
+  | 'ward-up'
+  | 'berry-pick'
+  | 'truck-board'
+  | 'truck-hop-out'
+  | 'ui-open'
+  | 'ui-close'
 
 // A placeholder: a wave swept from one pitch to another (Hz) over its
 // seconds, or for noise a low-pass swept the same way; `pulse` beats its
@@ -78,6 +100,7 @@ export const SFX_BASE = 'https://assets.the-rn.info/bull-valley/sfx/'
 
 const SHADE_WINDUP = CONFIG.shadowmen.windupSeconds
 const KEEPER_WINDUP = CONFIG.caretaker.windupSeconds
+const PHONE_DIAL = CONFIG.portal.dialSeconds
 
 export const SFX: Record<SfxId, SfxSpec> = {
   'shadow-windup': {
@@ -358,6 +381,194 @@ export const SFX: Record<SfxId, SfxSpec> = {
     gain: 0.6,
     placeholder: { wave: 'triangle', from: 2600, to: 2400, seconds: 0.2 },
   },
+  // The phone (Q) dialing a Citgo portal, for as long as the dial takes.
+  'phone-dial': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.5,
+    placeholder: {
+      wave: 'square',
+      from: 950,
+      to: 950,
+      seconds: PHONE_DIAL,
+      pulse: 8,
+    },
+  },
+  // A Citgo portal opening, heard at each of its ends (portalCues).
+  'portal-open': {
+    positional: true,
+    loop: false,
+    takes: 0,
+    gain: 0.9,
+    placeholder: {
+      wave: 'sine',
+      from: 120,
+      to: 900,
+      seconds: 1.2,
+      pulse: 9,
+    },
+  },
+  // Every open portal end, and the one at the maze's heart, while near.
+  'portal-hum': {
+    positional: true,
+    loop: true,
+    takes: 0,
+    gain: 0.45,
+    placeholder: { wave: 'sine', from: 70, to: 70, seconds: 2, pulse: 3 },
+  },
+  // Through a portal, or set down by fast travel: in the head.
+  'portal-through': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.8,
+    placeholder: { wave: 'noise', from: 6000, to: 300, seconds: 0.6 },
+  },
+  // A Citgo portal closing, at each of its ends.
+  'portal-close': {
+    positional: true,
+    loop: false,
+    takes: 0,
+    gain: 0.8,
+    placeholder: { wave: 'sine', from: 900, to: 90, seconds: 0.9 },
+  },
+  // Progress (xpSound), in the head in both apps: XP earned short of a
+  // new level, under the bar's flash.
+  'xp-tick': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.4,
+    placeholder: { wave: 'sine', from: 1320, to: 1760, seconds: 0.12 },
+  },
+  // A new level, under its banner.
+  'level-up': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.8,
+    placeholder: {
+      wave: 'triangle',
+      from: 392,
+      to: 1568,
+      seconds: 1.4,
+      pulse: 6,
+    },
+  },
+  // The daily task done, under its gold banner.
+  'task-complete': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.8,
+    placeholder: {
+      wave: 'triangle',
+      from: 523,
+      to: 2093,
+      seconds: 1.6,
+      pulse: 8,
+    },
+  },
+  // A page written in the Book of Shadows, or a Citgo stood at the first
+  // time.
+  discovery: {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.7,
+    placeholder: {
+      wave: 'sine',
+      from: 660,
+      to: 1320,
+      seconds: 0.9,
+      pulse: 4,
+    },
+  },
+  // Something taken up into the pack or the wallet: a pickup or a drop.
+  pickup: {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.5,
+    placeholder: { wave: 'triangle', from: 600, to: 1100, seconds: 0.1 },
+  },
+  // A purchase, a deal or a trade gone through, at any trader.
+  register: {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.6,
+    placeholder: {
+      wave: 'square',
+      from: 2000,
+      to: 1500,
+      seconds: 0.35,
+      pulse: 18,
+    },
+  },
+  // Geometrie given back (healSound).
+  heal: {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.6,
+    placeholder: { wave: 'sine', from: 300, to: 700, seconds: 0.7 },
+  },
+  // A ward come up (wardSound).
+  'ward-up': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.55,
+    placeholder: {
+      wave: 'sawtooth',
+      from: 200,
+      to: 500,
+      seconds: 0.5,
+      pulse: 12,
+    },
+  },
+  // Today's berry off a bush.
+  'berry-pick': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.5,
+    placeholder: { wave: 'sine', from: 900, to: 500, seconds: 0.09 },
+  },
+  // Up into Marx's truck bed, and down off it.
+  'truck-board': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.7,
+    placeholder: { wave: 'noise', from: 900, to: 120, seconds: 0.3 },
+  },
+  'truck-hop-out': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.6,
+    placeholder: { wave: 'noise', from: 1200, to: 200, seconds: 0.25 },
+  },
+  // The 3D valley's panels opened from the keys (the pack, the Book, the
+  // map) and closed. What opens on a click, a dialog or a Dial-Up sheet,
+  // already ticks under the finger (tapfeedback.ts).
+  'ui-open': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.35,
+    placeholder: { wave: 'triangle', from: 700, to: 1000, seconds: 0.06 },
+  },
+  'ui-close': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.35,
+    placeholder: { wave: 'triangle', from: 1000, to: 700, seconds: 0.06 },
+  },
 }
 
 export const SFX_IDS = Object.keys(SFX) as SfxId[]
@@ -622,4 +833,93 @@ export function keeperCues(
   if (begun) cues.push({ id: 'caretaker-windup', x, z, rate: 1 })
   if (lunged) cues.push({ id: 'caretaker-lunge', x, z, rate: 1 })
   return { cues, holds }
+}
+
+// The Citgo portals as one frame hears them: each opened since the last
+// (and still fresh, so the portals a raider finds open on joining make no
+// sound) and each closed, at both of its ends; every end near humming, and
+// the portal at the maze's heart (`standing`) with them. `open` is what
+// the next frame compares against.
+export function portalCues(
+  was: ReadonlyMap<number, Pick<Portal, 'field' | 'citgo'>>,
+  shown: readonly Portal[],
+  standing: XZ | null,
+  now: number,
+  player: XZ,
+  tuning: Pick<CueTuning, 'hearing'>,
+  portal: { lifeSeconds: number; freshSeconds: number } = {
+    lifeSeconds: CONFIG.portal.lifeSeconds,
+    freshSeconds: CONFIG.sfx.portalFreshSeconds,
+  }
+): ShadeCues & { open: Map<number, Pick<Portal, 'field' | 'citgo'>> } {
+  const cues: Cue[] = []
+  const holds: Hold[] = []
+  const open = new Map(shown.map((p) => [p.id, p]))
+  const at = (id: Cue['id'], end: XZ) => {
+    if (near(end, player, tuning.hearing)) {
+      cues.push({ id, x: end.x, z: end.z, rate: 1 })
+    }
+  }
+  const freshFrom = (portal.lifeSeconds - portal.freshSeconds) * 1000
+  for (const p of shown) {
+    if (!was.has(p.id) && p.closes - now >= freshFrom) {
+      at('portal-open', p.field)
+      at('portal-open', p.citgo)
+    }
+    for (const side of ['field', 'citgo'] as const) {
+      const end = p[side]
+      if (!near(end, player, tuning.hearing)) continue
+      holds.push({
+        key: `portal:${p.id}:${side}`,
+        id: 'portal-hum',
+        x: end.x,
+        z: end.z,
+        rate: 1,
+        gain: 1,
+      })
+    }
+  }
+  for (const [id, p] of was) {
+    if (open.has(id)) continue
+    at('portal-close', p.field)
+    at('portal-close', p.citgo)
+  }
+  if (standing && near(standing, player, tuning.hearing)) {
+    holds.push({
+      key: 'portal:maze',
+      id: 'portal-hum',
+      x: standing.x,
+      z: standing.z,
+      rate: 1,
+      gain: 1,
+    })
+  }
+  return { cues, holds, open }
+}
+
+// What XP going from `before` to `after` sounds like: a new level, or a
+// tick for XP short of one, or nothing for XP that did not grow.
+export function xpSound(before: number, after: number): SfxId | null {
+  if (after <= before) return null
+  return levelUp(before, after) === null ? 'xp-tick' : 'level-up'
+}
+
+// Geometrie given back, at the same whole. A larger whole (a new level)
+// is the level's news, and a touch's loss is the hit's.
+export function healSound(
+  was: { health: number; max: number },
+  now: { health: number; max: number }
+): SfxId | null {
+  return now.max === was.max && now.health > was.health ? 'heal' : null
+}
+
+// A ward come up: any level above where it had faded to, by more than the
+// `margin` that a frame's own fading could account for.
+export function wardSound(
+  was: Readonly<Record<WardAxis, number>>,
+  now: Readonly<Record<WardAxis, number>>,
+  margin = 0.02
+): SfxId | null {
+  const axes: WardAxis[] = ['high', 'stimulated', 'drunk', 'tripping']
+  return axes.some((axis) => now[axis] - was[axis] > margin) ? 'ward-up' : null
 }

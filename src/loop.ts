@@ -63,7 +63,7 @@ import type { CaretakerShade } from './caretakerrig.ts'
 import type { Game } from './game.ts'
 import type { BushSpot } from './interactions.ts'
 import type { DailyWire, PeerStateWire } from './protocol.ts'
-import type { Cue } from './sfx.ts'
+import type { Cue, ShadeCues } from './sfx.ts'
 import type { ShadowBodies } from './shadowbodies.ts'
 import type { HeadlightsSent } from './shadowmen.ts'
 import type { Feet as SlurmFeet } from './slurms.ts'
@@ -215,6 +215,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   let slurmCues: Cue[] = []
   let moatCues: Cue[] = []
   let topiaryCues: Cue[] = []
+  // And the portals', the same way.
+  let portalHeard: ShadeCues = { cues: [], holds: [] }
   // A hard landing for the valley to hear, after where we came down.
   let landing: number | null = null
   let last = performance.now()
@@ -482,8 +484,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         ...slurmCues,
         ...moatCues,
         ...topiaryCues,
+        ...portalHeard.cues,
       ],
-      [...swarm.heard.holds, ...keeper.heard.holds],
+      [...swarm.heard.holds, ...keeper.heard.holds, ...portalHeard.holds],
       (x, z) => world.ground.at(x, z)
     )
     mist.update({ dt, player: player.pos })
@@ -614,13 +617,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       const { x, z } = player.pos
       if (!s.aboard && inPortal(x, z, portal.at, CONFIG.maze.portal.radius)) {
         player.relocate(portal.exit.x, portal.exit.z, portal.exit.yaw)
+        game.sfx?.play('portal-through')
         hud.tell(copy('log.portal'))
       }
     }
     // The Citgo portals (rule 28), on the valley's clock: drawn, and one
     // walked into takes you out of its twin.
     const portalNow = net.clock.serverNow(now)
-    actions.tendPortals(portalNow)
+    portalHeard = actions.tendPortals(portalNow, portal?.at ?? null)
     return portalNow
   }
 
