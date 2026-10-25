@@ -228,6 +228,7 @@ const join = (id: string): ValleyAction => ({
   havens: HAVENS,
   metres: METRES,
   lairs: [],
+  lurks: [],
   maze: null,
   routes: ROUTES,
   stand: STAND,
@@ -2956,6 +2957,28 @@ describe("rule 11: the shadowmen are the valley's", () => {
       expect(s.burn).toBe(0)
     }
     expect(out?.struck).toEqual([])
+  })
+
+  it('forms a lurker at each lurk the world was opened with, as a raider nears', () => {
+    const lurk = { x: 650, z: 500 }
+    const v = valleyWith(
+      { ...join('a'), lurks: [lurk] } as ValleyAction,
+      join('b')
+    ).valley
+    expect(v.world?.lurks).toEqual([lurk])
+    const out = stepShadows(
+      v,
+      createShadows(),
+      [{ id: 'b', at: state() }],
+      mulberry32(1),
+      { now: T0, dt: 0.1 }
+    )
+    // The crossings as ever, and the lurker beside them at its lurk.
+    const shadowmen = out?.message.shadowmen ?? []
+    expect(shadowmen.length).toBe(CONFIG.shadowmen.count + 1)
+    expect(
+      shadowmen.some((s) => Math.hypot(s.x - lurk.x, s.z - lurk.z) < 0.5)
+    ).toBe(true)
   })
 
   it('strikes the raider touched, then leaves them alone for the grace', () => {

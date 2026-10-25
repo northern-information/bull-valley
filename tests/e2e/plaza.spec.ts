@@ -6,7 +6,8 @@ import type { Page } from '@playwright/test'
 // barters and never takes cash (rule 25), and gives the rose quest (rule
 // 26): the rose laid at the heart of the maze earns the key that opens
 // the Video Vault's office for whoever carries it (keys.ts), and the $20
-// the day leaves in its safe is cash (rule 4).
+// the day leaves in its safe is cash (rule 4). Behind it, the industrial
+// park's buildings leave their loot like the plaza (industrial.ts).
 
 const cash = (page: Page) => page.evaluate(() => window.__bv?.cash ?? 0)
 const held = (page: Page, kind: string) =>
@@ -135,4 +136,21 @@ test('Erwin barters, the rose earns the key, the key opens the office', async ({
   )
   await page.keyboard.press('KeyE')
   await expect.poll(() => cash(page)).toBe(paid + 2000)
+
+  // Out the back to the industrial park: the bottle left in Shadow Brook
+  // Dairy's office is the pack's.
+  const bottle = await page.evaluate(() => {
+    const bv = window.__bv
+    const goose = bv?.world.pickups.find((p) => p.kind === 'grey-goose')
+    if (!bv || !goose) throw new Error('no bottle')
+    bv.player.relocate(goose.x + 0.6, goose.z, 0)
+    return { x: goose.x, z: goose.z }
+  })
+  await faceSpot(page, bottle.x, bottle.z)
+  await heardWhere(page)
+  await expect(page.locator('.bv-item-label')).toContainText(
+    copy('items.grey-goose.label')
+  )
+  await page.keyboard.press('KeyE')
+  await expect.poll(() => held(page, 'grey-goose')).toBe(1)
 })

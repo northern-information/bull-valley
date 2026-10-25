@@ -73,6 +73,12 @@ const NAMED: readonly BookEntry[] = [
     lore: copy('book.undercroft.lore'),
   },
   {
+    id: 'industrial',
+    chapter: 'places',
+    name: copy('book.industrial.name'),
+    lore: copy('book.industrial.lore'),
+  },
+  {
     id: 'donut-field',
     chapter: 'places',
     name: copy('book.donut-field.name'),

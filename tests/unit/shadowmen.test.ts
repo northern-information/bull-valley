@@ -31,6 +31,15 @@ import type {
 // Pinned so the tests do not move when CONFIG.shadowmen is retuned.
 const CFG: ShadowmenConfig = {
   count: 6,
+  lurk: {
+    wake: 300,
+    clear: 40,
+    roam: 4,
+    speedMin: 0.5,
+    speedMax: 1.3,
+    turnSeconds: 4,
+    respawnSeconds: 90,
+  },
   dimes: { min: 3, max: 20 },
   spider: {
     chance: 0,
@@ -1143,5 +1152,118 @@ describe('height', () => {
       }).bursts
     }
     expect(bursts[0]?.y).toBe(-30)
+  })
+})
+
+describe('the lurkers', () => {
+  const HOME: XZ = { x: 0, z: -150 }
+  const lurks = [HOME]
+  // Raiders 'a' and 'b' known, so no crossings fill round them.
+  const empty = (): ShadowmenField => ({
+    shadowmen: [],
+    nextId: 1,
+    cooldowns: { a: 1e9, b: 1e9 },
+  })
+  const lurkers = (field: ShadowmenField) =>
+    field.shadowmen.filter((s) => s.lurk !== undefined)
+
+  it('forms one at its lurk as a raider nears it, out in the fog', () => {
+    const field = empty()
+    // Too far off, then too close to form before their eyes.
+    step(field, undefined, { raiders: [raider({ z: 400 })], lurks })
+    expect(lurkers(field)).toEqual([])
+    step(field, undefined, { raiders: [raider({ z: -130 })], lurks })
+    expect(lurkers(field)).toEqual([])
+    step(field, undefined, { raiders: [raider()], lurks })
+    const [one] = lurkers(field)
+    expect(one).toMatchObject({ kind: 'man', lurk: 0, target: null })
+    expect(Math.hypot(one.x - HOME.x, one.z - HOME.z)).toBeLessThan(0.1)
+    expect(one.speed).toBeGreaterThanOrEqual(CFG.lurk.speedMin)
+    expect(one.speed).toBeLessThanOrEqual(CFG.lurk.speedMax)
+    // Never two at one lurk.
+    for (let i = 0; i < 20; i++)
+      step(field, undefined, { raiders: [raider()], lurks })
+    expect(lurkers(field)).toHaveLength(1)
+  })
+
+  it('drifts round its lurk and never wanders off', () => {
+    const field = empty()
+    const rng = mulberry32(7)
+    let furthest = 0
+    for (let i = 0; i < 4000; i++) {
+      step(field, rng, { raiders: [raider()], lurks })
+      for (const s of lurkers(field)) {
+        furthest = Math.max(furthest, Math.hypot(s.x - HOME.x, s.z - HOME.z))
+      }
+    }
+    expect(lurkers(field)).toHaveLength(1)
+    expect(furthest).toBeGreaterThan(CFG.lurk.roam / 2)
+    expect(furthest).toBeLessThan(CFG.lurk.roam + 1)
+  })
+
+  it('rushes a raider who comes close, and strikes like any other', () => {
+    const field = empty()
+    step(field, undefined, { raiders: [raider()], lurks })
+    const near = [raider({ z: -135, vulnerable: true })]
+    const struck: string[] = []
+    for (let i = 0; i < 200 && struck.length === 0; i++) {
+      struck.push(...step(field, undefined, { raiders: near, lurks }).struck)
+    }
+    expect(struck).toEqual(['a'])
+    expect(lurkers(field)[0].target).toBe('a')
+  })
+
+  it('goes back to its drift when its raider gets away', () => {
+    const field = empty()
+    step(field, undefined, { raiders: [raider()], lurks })
+    step(field, undefined, {
+      raiders: [raider({ z: -140, vulnerable: true })],
+      lurks,
+    })
+    expect(lurkers(field)[0].target).toBe('a')
+    step(field, undefined, { raiders: [raider({ z: -140 })], lurks })
+    const [s] = lurkers(field)
+    expect(s.target).toBeNull()
+    expect(s.speed).toBeLessThanOrEqual(CFG.lurk.speedMax)
+  })
+
+  it("is no one's bubble: the crossings fill as if it were not there", () => {
+    const field: ShadowmenField = { shadowmen: [], nextId: 1, cooldowns: {} }
+    step(field, undefined, { raiders: [raider()], lurks })
+    expect(lurkers(field)).toHaveLength(1)
+    expect(field.shadowmen).toHaveLength(CFG.count + 1)
+  })
+
+  it('forms again only respawnSeconds after it bursts', () => {
+    const field = one({ z: -20, speed: 0, lurk: 0 })
+    const home = [{ x: 0, z: -20 }]
+    let bursts: unknown[] = []
+    for (let i = 0; i < 40 && bursts.length === 0; i++) {
+      bursts = step(field, undefined, {
+        raiders: [raider({ beam: BEAM })],
+        lurks: home,
+      }).bursts
+    }
+    expect(bursts).toHaveLength(1)
+    expect(lurkers(field)).toEqual([])
+    const away = [raider({ z: 100 })]
+    const wait = Math.floor(CFG.lurk.respawnSeconds / DT) - 2
+    for (let i = 0; i < wait; i++) {
+      step(field, undefined, { raiders: away, lurks: home })
+    }
+    expect(lurkers(field)).toEqual([])
+    for (let i = 0; i < 4; i++)
+      step(field, undefined, { raiders: away, lurks: home })
+    expect(lurkers(field)).toHaveLength(1)
+  })
+
+  it('is dropped past every bubble, and forms again when a raider comes back', () => {
+    const field = empty()
+    step(field, undefined, { raiders: [raider()], lurks })
+    expect(lurkers(field)).toHaveLength(1)
+    step(field, undefined, { raiders: [raider({ z: 1000 })], lurks })
+    expect(lurkers(field)).toEqual([])
+    step(field, undefined, { raiders: [raider()], lurks })
+    expect(lurkers(field)).toHaveLength(1)
   })
 })

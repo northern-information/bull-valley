@@ -1,13 +1,14 @@
 // Pure: the spiders' lairs (sharedworld.ts rule 11), the valley's works
 // gone to rust and concrete: the dish array behind the spawn Citgo, Castle
-// Entropy and its moat with the cranes over it, and Bull Valley Plaza, the
-// dead strip mall. A shadow spider comes far more often round a raider
+// Entropy and its moat with the cranes over it, Bull Valley Plaza, the
+// dead strip mall, and the industrial park behind it. A shadow spider comes far more often round a raider
 // near one, or where it comes in near one (shadowmen.ts spiderComes). Each
 // is a circle round the whole of what stands there, placed from the spawn
 // Citgo as the things themselves are; the hello carries them and the
 // valley keeps them in the world. No three.js, no DOM.
 
 import { CONFIG } from './config.ts'
+import { parkMiddle, parkOrigin } from './industrial.ts'
 import { MOAT } from './moat.ts'
 import { toWorld } from './store.ts'
 import { STRIP_MALL } from './stripmall.ts'
@@ -20,7 +21,7 @@ export interface Lair extends XZ {
 }
 
 // The lairs round the spawn Citgo `station`: the dish array, the castle's
-// moat, and the plaza.
+// moat, the plaza, and the industrial park.
 export function lairsOf(station: StoreOrigin): Lair[] {
   const at = (x: number, z: number): XZ => {
     const [wx, , wz] = toWorld(station, [x, 0, z])
@@ -48,7 +49,9 @@ export function lairsOf(station: StoreOrigin): Lair[] {
     ...at(mall.x - depth / 2, mall.z),
     radius: Math.hypot(depth / 2, length / 2),
   }
-  return [dishes, castle, plaza]
+  // The park, out to the corners of its asphalt.
+  const park = parkMiddle(parkOrigin(station))
+  return [dishes, castle, plaza, park]
 }
 
 // Whether `p` is within `reach` metres of a lair's edge.

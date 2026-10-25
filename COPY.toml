@@ -256,6 +256,10 @@ lore = { text = "Four shops in a row past the Citgo's lot, dark since before any
 name = { text = "The Undercroft", by = "ai" }
 lore = { text = "Down the ladder under the Video Vault's office: rough-cut rooms older than the plaza, older than the roads. Candles someone keeps lit, a floor of chalk, a wall of skulls, and an altar at the bottom.", by = "ai" }
 
+[book.industrial]
+name = { text = "The Industrial Park", by = "ai" }
+lore = { text = "Behind the plaza, past the Golden Wok's alley: a dozen warehouses on one sheet of cracked asphalt, the sodium lamps still burning over empty stalls and trailers no one came back for. The shadows keep to the buildings, and they do not leave.", by = "ai" }
+
 [book.donut-field]
 name = { text = "The Donut Field", by = "ai" }
 lore = { text = "Between Lake Avenue and the corn, rutted into rings. Matthew Marx comes here to think.", by = "ai" }

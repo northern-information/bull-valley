@@ -111,6 +111,7 @@ const PLACES = new Set([
   'castle-moat',
   'strip-mall',
   'undercroft',
+  'warehouse',
   'cabbage-stand',
   'wreck',
 ])

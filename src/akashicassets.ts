@@ -52,6 +52,7 @@ import {
   buildStringer,
   buildTackleBox,
 } from './fishmodels.ts'
+import { buildWarehouse, buildWorksProp } from './industrialmodel.ts'
 import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
 import { buildJeep, buildRadarDish } from './jeep.ts'
@@ -742,6 +743,20 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildUndercroft().group,
   },
   { id: 'trapdoor', label: 'The trapdoor in the office', build: buildTrapdoor },
+  {
+    id: 'warehouse',
+    label: 'Bull Valley Box & Carton, in the industrial park',
+    build: () => {
+      const rig = buildWarehouse(4)
+      setMotion(rig.group, (t) => rig.update(t))
+      return rig.group
+    },
+  },
+  {
+    id: 'semi-trailer',
+    label: 'A semi trailer left at a bay in the industrial park',
+    build: () => buildWorksProp({ kind: 'trailer', x: 0, z: 0, yaw: 0 }),
+  },
   {
     id: 'tunnel-shade',
     label: 'A tunnel shade',

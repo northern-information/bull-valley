@@ -396,6 +396,7 @@ export function stepShadows(
       metres: world.metres,
       havens: shadeHavens(world),
       lairs: world.lairs,
+      lurks: world.lurks,
       calm,
       lights: headlightsAt(shadows, now),
       ground,

@@ -539,6 +539,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       // The building is long: its tube and candles flicker from a way off.
       if (live(plaza.doorAt, 60)) plaza.update(time)
     }
+    // The industrial park's last lit high bays and its fires in drums.
+    world.industrial?.update(time)
     // The topiaries move on the valley's clock, but only while this raider
     // looks at neither where one stands nor where it is going.
     if (topiaries) {

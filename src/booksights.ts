@@ -12,7 +12,8 @@ import type { FuelPoint, LandmarkPoint, MazePortal } from './world.ts'
 
 // Where each place of the Book of Shadows is found (CONFIG.book.reach):
 // every Citgo, and round the spawn Citgo its stand, the wreck, the dishes,
-// Bull Valley Plaza and the Undercroft under it, the donut field, the corn
+// Bull Valley Plaza and the Undercroft under it, the industrial park behind
+// it (three rings down its length), the donut field, the corn
 // maze (three rings down its length, so the whole of it counts and little
 // past it) and its heart, the Keep, and Castle Entropy over its moat.
 export function bookSights(at: {
@@ -25,6 +26,8 @@ export function bookSights(at: {
   dishes: readonly XZ[]
   plaza: XZ | null
   undercroft: MazePlace | null
+  // The industrial park's rings (industrial.ts parkRings), none without it.
+  industrial: readonly (XZ & { radius: number })[]
   landmarks: readonly LandmarkPoint[]
   // The middle of Castle Entropy's island.
   castle: XZ | null
@@ -65,6 +68,9 @@ export function bookSights(at: {
       ...mazeToWorld(at.undercroft, { x: across / 2, z: along / 2 }),
       reach: Math.hypot(across, along) / 2,
     })
+  }
+  for (const ring of at.industrial) {
+    sights.push({ id: 'industrial', x: ring.x, z: ring.z, reach: ring.radius })
   }
   if (at.donutField) {
     const { x, z, radius } = at.donutField
