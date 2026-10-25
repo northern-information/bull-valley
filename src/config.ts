@@ -900,16 +900,15 @@ export const CONFIG = {
       // The light towers, one to a side, this far out, each with a pool
       // of light this wide in front of it.
       lamps: { out: 6.4, pool: 10 },
-      // The payphone: on outer side `side`, `along` its length, `out` from
-      // the edge; a raider within `reach` of it stands at it.
-      payphone: { side: 1, along: 0.42, out: 5.6, reach: 3 },
-      // Jericho, the Candlebearer, sat beside it: `beside` metres further
-      // along the side than the payphone, `out` from the edge, turned
-      // toward where a raider stands at the phone; he blocks like a post
+      // The payphone: `beside` metres along the side from Jericho, `out`
+      // from the edge; a raider within `reach` of it stands at it.
+      payphone: { beside: 3.4, out: 5.6, reach: 3 },
+      // Jericho, the Candlebearer, where the walk straight out of the spawn
+      // Citgo's door comes to the rim (castleyard.ts jerichoSpot): `out`
+      // from the edge, facing back up the walk; he blocks like a post
       // `radius` wide, his torn hem lies out to `spread` (the supplies keep
       // off it), and E within `reach` of him talks to him.
       jericho: {
-        beside: 3.4,
         out: 6.6,
         radius: 0.9,
         spread: 2,

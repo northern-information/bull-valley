@@ -27,9 +27,9 @@ import type { GroundAt, Perch } from './owlflight.ts'
 // its flame throwing rays, warm on his mask and his hand and glowing so
 // he can be found across the yard. A dull brass trumpet is slung across
 // his back on a strap over one shoulder, and a great horned owl perches
-// on the other, looking about and now and then off hunting. Origin on the ground under him, facing
-// +x. Call update(t) every frame with the shared clock's seconds, for
-// the flame and the owl.
+// on the top of his hood, looking about and now and then off hunting.
+// Origin on the ground under him, facing +x. Call update(t) every frame
+// with the shared clock's seconds, for the flame and the owl.
 
 export interface JerichoRig {
   group: THREE.Group
@@ -349,9 +349,6 @@ const plumageArt = memo(() => {
   return artTexture(art)
 })
 
-// Where the owl sits on his shoulder, against the hood's fold.
-const OWL_PERCH: Perch = { x: 0.05, y: 2.3, z: -1.05, heading: 0.25 }
-
 // Where the owl's head looks, in turn, radians off straight ahead, each
 // held a few seconds and turned to fast, as an owl's does.
 const OWL_LOOKS = [0, 0.9, 0.2, -1.1, 0.5, 2.2, -0.3]
@@ -485,7 +482,7 @@ function buildOwl(): OwlRig {
 
 // `groundAt` the ground under a point of his own space, in his own space
 // (flat for the Akashic), for the owl's dive; `hunts` false keeps the owl
-// on his shoulder (his Book of Shadows portrait, which turns on a clock
+// on his hood (his Book of Shadows portrait, which turns on a clock
 // of its own and would lose it out of the frame).
 export function buildJericho(
   groundAt: GroundAt = () => 0,
@@ -528,7 +525,8 @@ export function buildJericho(
   hood.position.set(HOOD.x, HOOD.y, 0)
   hood.rotation.z = -0.12
   body.add(hood)
-  hood.add(new THREE.Mesh(hoodShell(HOOD.r), cloak))
+  const shell = new THREE.Mesh(hoodShell(HOOD.r), cloak)
+  hood.add(shell)
   hood.add(new THREE.Mesh(hoodShell(HOOD.r * 0.95), dark))
 
   // His mask, hung back in the dark of the hood a little off its middle:
@@ -618,9 +616,19 @@ export function buildJericho(
   trumpet.position.set(-0.57, 1.62, 0)
   body.add(trumpet)
 
-  // A great horned owl perched on his other shoulder, over the hood's
-  // fold, looking about, and now and then away hunting (owlflight.ts).
-  // It is not him, so the ring that marks him leaves it out.
+  // A great horned owl perched on the top of his hood, looking about,
+  // and now and then away hunting (owlflight.ts). Its perch is the
+  // hood's highest point, read off the hood itself, so its feet are on
+  // the cloth. It is not him, so the ring that marks him leaves it out.
+  group.updateMatrixWorld(true)
+  const top = new THREE.Vector3(0, -Infinity, 0)
+  const corner = new THREE.Vector3()
+  const corners = shell.geometry.getAttribute('position')
+  for (let i = 0; i < corners.count; i++) {
+    corner.fromBufferAttribute(corners, i).applyMatrix4(shell.matrixWorld)
+    if (corner.y > top.y) top.copy(corner)
+  }
+  const perch: Perch = { x: top.x, y: top.y - 0.03, z: top.z, heading: 0 }
   const owl = buildOwl()
   owl.group.scale.setScalar(1.7)
   owl.group.rotation.order = 'YZX'
@@ -669,7 +677,7 @@ export function buildJericho(
     rays.scale.setScalar(1.3 + flicker * 0.1)
     halo.scale.setScalar(0.5 + flicker * 0.05)
     warmth.scale.setScalar(3.4 + flicker * 0.25)
-    const pose = hunts ? owlPose(t, OWL_PERCH, groundAt) : perchedOn(OWL_PERCH)
+    const pose = hunts ? owlPose(t, perch, groundAt) : perchedOn(perch)
     owl.group.position.set(pose.x, pose.y, pose.z)
     owl.group.rotation.set(0, pose.heading, pose.pitch)
     owl.fly(pose.spread, pose.beat)

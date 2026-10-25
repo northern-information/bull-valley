@@ -1,8 +1,8 @@
 // Pure: the hunts of Jericho's great horned owl, on the shared clock with
 // nothing on the wire, so every raider at the castle sees the same bird
-// leave his shoulder at the same moment. Time is cut into rounds
+// leave his hood at the same moment. Time is cut into rounds
 // (`CONFIG.castle.yard.jericho.owl.cycle`); a share of them hold a hunt,
-// drawn from a seed of the round: it rises off his shoulder, circles high
+// drawn from a seed of the round: it rises off his hood, circles high
 // over the yard round a middle a little way out in front of him, dives to
 // the ground on something small no raider ever sees, sits on its kill a
 // moment, and flies home to land where it took off. Everything here is in
@@ -27,7 +27,7 @@ export interface Perch extends Vec {
   heading: number
 }
 
-// What the owl is doing: on his shoulder, beating up or home, gliding its
+// What the owl is doing: on his hood, beating up or home, gliding its
 // circle, folded in its dive, or mantled over its kill on the ground.
 export type OwlPhase = 'perched' | 'rise' | 'circle' | 'dive' | 'kill' | 'home'
 
@@ -76,7 +76,7 @@ export function huntOf(
   }
 }
 
-// How long a hunt takes, from leaving the shoulder to landing on it.
+// How long a hunt takes, from leaving his hood to landing on it.
 export function huntLength(
   cfg: OwlConfig = CONFIG.castle.yard.jericho.owl
 ): number {
@@ -85,7 +85,7 @@ export function huntLength(
 }
 
 // The hunt under way at shared time `t` (seconds), and how far into it,
-// or null while the owl is on his shoulder.
+// or null while the owl is on his hood.
 export function huntAt(
   t: number,
   cfg: OwlConfig = CONFIG.castle.yard.jericho.owl
@@ -145,9 +145,12 @@ function flightAt(
   })
   const end = from + omega * p.circle
   const ground: Vec = { x: kill.x, y: groundAt(kill.x, kill.z), z: kill.z }
-  // Off the shoulder: out from him and up.
-  const out = Math.hypot(perch.x, perch.z) || 1
-  const leave: Vec = { x: (perch.x / out) * 3, y: 3, z: (perch.z / out) * 3 }
+  // Off the hood: up, and on the way it faces.
+  const leave: Vec = {
+    x: Math.cos(perch.heading) * 3,
+    y: 3,
+    z: -Math.sin(perch.heading) * 3,
+  }
   let t = into
   if (t < p.rise) {
     return {
