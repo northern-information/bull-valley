@@ -272,6 +272,10 @@ lore = { text = "Cut from a hedge maze in an old film, corn over your head the w
 name = { text = "The Heart of the Maze", by = "ai" }
 lore = { text = "A ring of berry bushes round a door that opens back onto the gate. You can walk in. The maze decides when you leave.", by = "ai" }
 
+[book.drive-in]
+name = { text = "The Bull Valley Drive-In", by = "ai" }
+lore = { text = "Past the far end of the corn, a screen on rusted legs over four rows of cars that burned where they parked and never left. The projector in the booth still runs. Thread a reel and the whole valley watches it, over and over, until someone threads another.", by = "ai" }
+
 [book.keep]
 lore = { text = "A light on the hill to the north. The beacon burns whether anyone is home or not.", by = "ai" }
 

@@ -97,6 +97,12 @@ const NAMED: readonly BookEntry[] = [
     lore: copy('book.maze-heart.lore'),
   },
   {
+    id: 'drive-in',
+    chapter: 'places',
+    name: copy('book.drive-in.name'),
+    lore: copy('book.drive-in.lore'),
+  },
+  {
     id: 'keep',
     chapter: 'places',
     name: copy('places.keep'),
