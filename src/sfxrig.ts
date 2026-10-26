@@ -41,8 +41,9 @@ export interface XYZ {
 
 export interface Sfx {
   update(frame: SfxFrame): void
-  // A sound once: at a place in the valley, or in the head without one.
-  play(id: SfxId, at?: XYZ | null, rate?: number): void
+  // A sound once: at a place in the valley, or in the head without one;
+  // at a loudness against its own (0 to 1).
+  play(id: SfxId, at?: XYZ | null, rate?: number, gain?: number): void
   // One frame's cues, played, and its loops, held; `heightAt` stands each
   // on the ground at the height it sounds from.
   hear(
@@ -159,12 +160,12 @@ export function createSfx({
   const wander = (rate: number) =>
     rate * (1 + CONFIG.sfx.jitter * (jitter() * 2 - 1))
 
-  const play: Sfx['play'] = (id, at = null, rate = 1) => {
+  const play: Sfx['play'] = (id, at = null, rate = 1, loudness = 1) => {
     if (!ctx || !master) return
     const node = source(ctx, id)
     node.playbackRate.value = wander(rate)
     const gain = ctx.createGain()
-    gain.gain.value = SFX[id].gain
+    gain.gain.value = SFX[id].gain * loudness
     node.connect(gain)
     if (at && SFX[id].positional) {
       const panner = pannerAt(ctx, at)
@@ -212,7 +213,13 @@ export function createSfx({
         y: heightAt(x, z) + SOUND_HEIGHT,
         z,
       })
-      for (const cue of cues) play(cue.id, at(cue.x, cue.z), cue.rate)
+      for (const cue of cues) {
+        const where =
+          cue.y === undefined
+            ? at(cue.x, cue.z)
+            : { x: cue.x, y: cue.y, z: cue.z }
+        play(cue.id, where, cue.rate, cue.gain)
+      }
       const kept = new Set<string>()
       for (const hold of holds) {
         kept.add(hold.key)
