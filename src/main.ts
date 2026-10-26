@@ -434,6 +434,7 @@ async function boot() {
     moat: world.castle?.place ?? null,
     rings: world.rings,
     payphones: world.payphones.map(({ x, z }) => ({ x, z })),
+    celestial: world.celestial?.place ?? null,
   })
   wireKeys(game, actions, engagePointer)
 

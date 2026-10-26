@@ -62,6 +62,7 @@ import { inspectRefusal } from './inspect.ts'
 import { toInventory } from './inventory.ts'
 import { itemLabel, itemLine } from './itemcopy.ts'
 import { doseOf, healsOf } from './items.ts'
+import { unearthedLine } from './mechs.ts'
 import { outfitById } from './outfits.ts'
 import { partyLines, partyNews, partyRefusal } from './party.ts'
 import { barOf, levelUp } from './progression.ts'
@@ -559,6 +560,10 @@ export function applyFrame(
         ? news(done, cookedLine(msg), now, wall)
         : told(done, cookedLine(msg), wall)
     }
+    // Rule 42: a mech dug up in the 3D valley on this account (Dial-Up has
+    // no graveyard to dig); the pack frame follows with it.
+    case 'unearthed':
+      return told(s, unearthedLine(msg.mech), wall)
     // Rule 36: the angler as read, or after a dig, the rod or a catch; the
     // phone's own dig or rod is answered on the screen and in the log, as
     // the stand's is.

@@ -588,6 +588,10 @@ torch_taken = { text = "You take a torch out of the toolbox and strike it. The r
 torch_have = { text = "You already carry a torch.", by = "ai" }
 toolbox_far = { text = "You are too far from the toolbox.", by = "ai" }
 torch_refused = { text = "The torch gutters and does nothing.", by = "ai" }
+shovel_taken = { text = "You pull a shovel out of the heap. The earth on its blade is warm.", by = "ai" }
+shovel_have = { text = "You already carry a shovel.", by = "ai" }
+heap_far = { text = "You are too far from the heap of earth.", by = "ai" }
+digging = { text = "You drive the shovel into the angel's grave. The earth gives like something breathing.", by = "ai" }
 topiary_burned = { text = "The {animal} goes up like a haystack. The smell of burning hedge comes over the corn.", by = "ai" }
 topiary_burned_other = { text = "Somewhere in the maze a hedge goes up in flames.", by = "ai" }
 whistle_below = { text = "Your whistle dies in the stone. No one hears it up there.", by = "ai" }
@@ -697,6 +701,8 @@ inspect = { text = "E — Inspect {name}", by = "ai" }
 climb_tower = { text = "E — Climb the Lookout", by = "ai" }
 leave_tower = { text = "E — Climb Down", by = "ai" }
 toolbox = { text = "E — Take a Torch", by = "ai" }
+shovel = { text = "E — Take a Shovel", by = "ai" }
+exhume = { text = "E — Dig the Grave", by = "ai" }
 
 # The emotes (src/emotes.ts): what a raider is told doing one, and the
 # quiet line a raider near enough to see it gets.
@@ -1284,6 +1290,19 @@ says_2 = { text = "If you would like passage to Castle Entropy, I may be able to
 says_3 = { text = "You need a mech, specifically one constructed with nephilim or seraphim bones. Let me mark your map for the closest celestial graveyard.", by = "ai" }
 marked = { text = "Jericho marks {yard} on your map.", by = "ai" }
 
+# The mechs dug up from the weeping angel's grave (src/mechs.ts, both
+# apps): the rarity over the mech's name in the fanfare, and the log line.
+[mechs]
+common = { text = "Common Bones", by = "ai" }
+rare = { text = "Rare Bones", by = "ai" }
+legendary = { text = "Legendary Bones", by = "ai" }
+detail = { text = "Dug from the weeping angel's grave", by = "ai" }
+unearthed = { text = "The shovel strikes bone. You unearth the {mech} ({rarity}).", by = "ai" }
+dug_today = { text = "The grave has closed over again. She gives up one a day; come back tomorrow.", by = "ai" }
+no_shovel = { text = "You need a shovel. There is a heap of earth by the gate.", by = "ai" }
+too_far = { text = "You are too far from the angel's grave.", by = "ai" }
+refused = { text = "The earth will not give.", by = "ai" }
+
 [moab]
 says = { text = "Gold bullion.", by = "ai" }
 fanfare = { text = "Moab's word is gold!", by = "ai" }
@@ -1660,6 +1679,30 @@ buffalo = { text = "buffalo", by = "ai" }
 [items.torch]
 label = { text = "Torch", by = "ai" }
 blurb = { text = "A pine stake with a rag soaked in kerosene wired round the head, out of the red toolbox at the foot of the lookout. Select it and click to swing it. The hedge animals in the maze fear nothing else, and the shadows shrink from it up close.", by = "ai" }
+
+[items.shovel]
+label = { text = "Shovel", by = "ai" }
+blurb = { text = "A long-handled shovel, ash and steel, pulled out of the heap of earth by the celestial graveyard's gate. With it in the pack, E at the weeping angel's grave digs.", by = "ai" }
+
+[items.mech-grigori]
+label = { text = "Grigori Watcher", by = "ai" }
+blurb = { text = "A mech strung on the spine of one of the Watchers who came down, tall and thin, an eye lit in every vertebra. It will wake when mechs do.", by = "ai" }
+
+[items.mech-nephil]
+label = { text = "Nephil Ossuary", by = "ai" }
+blurb = { text = "A squat walker whose body is a nephil's ribcage, its heart a coal still burning red inside. It will wake when mechs do.", by = "ai" }
+
+[items.mech-anakim]
+label = { text = "Anakim Colossus", by = "ai" }
+blurb = { text = "The bones of one of the sons of Anak, the giants the spies saw in Canaan, built back into a hulk on stumps. It will wake when mechs do.", by = "ai" }
+
+[items.mech-seraph]
+label = { text = "Seraph Six-Wing", by = "ai" }
+blurb = { text = "A seraph's six wings of bone round a small bright body: two to cover the face, two the feet, and two to fly. It will wake when mechs do.", by = "ai" }
+
+[items.mech-ophanim]
+label = { text = "Ophanim Wheel", by = "ai" }
+blurb = { text = "A wheel within a wheel, its rims full of eyes, in gold. Whither the spirit was to go, it goes. It will wake when mechs do.", by = "ai" }
 
 [items.slurm-jar]
 label = { text = "Slurm Jar", by = "ai" }

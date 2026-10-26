@@ -2,6 +2,9 @@ import * as THREE from 'three'
 import { boundaryMaterial, buildLandmarkBeacon } from './assets.ts'
 import { bookSights } from './booksights.ts'
 import { buildCastleSite } from './castlesite.ts'
+import { jerichoSpot } from './castleyard.ts'
+import { placeCelestial } from './celestialmodel.ts'
+import { celestialPlaceOf, inPrecinct } from './celestialyard.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
 import { buildCornMaze, mazeFrame, mazeLamps, mazePlaceOf } from './cornmaze.ts'
@@ -76,6 +79,7 @@ import type { DishArray, PortalRig, Wreck } from './assets.ts'
 import type { Sight } from './book.ts'
 import type { CastleSite } from './castlesite.ts'
 import type { YardSpot } from './castleyard.ts'
+import type { CelestialRig } from './celestialmodel.ts'
 import type { DonutField } from './donuts.ts'
 import type { DriveInSite } from './driveinsite.ts'
 import type { GronRig, MoabRig, TylerRig } from './figure.ts'
@@ -179,6 +183,9 @@ export interface Spawn extends XZ {
 
 // Trees keep this far off the pond's landing.
 const POND_TREE_CLEAR = 6
+// Trees, and the survey's own small headstones, keep this far outside the
+// celestial graveyard's fence.
+const CELESTIAL_TREE_CLEAR = 6
 
 // What buildWorld returns: the scene group plus the gameplay anchors.
 export interface World {
@@ -218,6 +225,10 @@ export interface World {
   jericho: XZ | null
   jerichoRig: JerichoRig | null
   celestialYard: Yard | null
+  // The celestial graveyard in that yard (celestialyard.ts,
+  // sharedworld.ts rule 42): the shovel's heap, the weeping angel's grave,
+  // and update(t) for its fire. Null where celestialYard is.
+  celestial: CelestialRig | null
   // Where E opens the lockers in each back room (store.ts lockerSpot),
   // indexed like fuelPoints.
   lockers: XZ[]
@@ -461,6 +472,24 @@ export function buildWorld(
   }
   const onMoat = (x: number, z: number) =>
     moatAt ? onMoatGrounds(moatAt.place, x, z) : false
+  // The graveyard nearest Jericho, and the celestial precinct laid out in
+  // it with its gate toward him.
+  const jerichoAt = castlePlaceAt ? jerichoSpot(castlePlaceAt) : null
+  const celestialYard = jerichoAt
+    ? nearestYard(
+        jerichoAt,
+        geo.graveyards.map((yard) => ({
+          ...unitToWorld(yard.c[0], yard.c[1], metres),
+          name: yard.n,
+        }))
+      )
+    : null
+  const celestialAt =
+    celestialYard && jerichoAt
+      ? celestialPlaceOf(celestialYard, jerichoAt)
+      : null
+  const onPrecinct = (x: number, z: number, margin: number) =>
+    celestialAt ? inPrecinct(celestialAt, x, z, margin) : false
   const wreckAt = spawnStation
     ? toWorld(spawnStation, [CONFIG.wreck.at.x, 0, CONFIG.wreck.at.z])
     : null
@@ -530,6 +559,7 @@ export function buildWorld(
         // The lone pine stands alone among the dishes.
         (spawnStation ? insideDishArray(spawnStation, x, z) : false) ||
         onMoat(x, z) ||
+        onPrecinct(x, z, CELESTIAL_TREE_CLEAR) ||
         // No tree grows through a store or its back room.
         fuel.points.some((p) => onStoreGrounds(p, x, z, STORE_TREE_CLEAR)),
       pine ? [pine.tree] : []
@@ -558,7 +588,11 @@ export function buildWorld(
   )
   group.add(streetlights.group)
   group.add(buildReeds(geo, metres, ground.at, rng))
-  group.add(buildGraveyards(geo, metres, ground.at, rng))
+  group.add(
+    buildGraveyards(geo, metres, ground.at, rng, (x, z) =>
+      onPrecinct(x, z, CELESTIAL_TREE_CLEAR)
+    )
+  )
   group.add(fuel.group)
   const landmarks = buildLandmarks(geo, metres, ground.at)
   group.add(landmarks.group)
@@ -593,7 +627,7 @@ export function buildWorld(
           ...(industrial ? industrial.loot : []),
         ]
       : [],
-    onMoat
+    (x, z) => onMoat(x, z) || onPrecinct(x, z, 0)
   )
   group.add(pickupSet.group)
   let portal: MazePortal | null = null
@@ -632,6 +666,10 @@ export function buildWorld(
   if (castle) group.add(castle.group)
   const ponds = pondsAt.map((at) => placePond(at, ground, walls))
   for (const pond of ponds) group.add(pond.group)
+  const celestial = celestialAt
+    ? placeCelestial(celestialAt, ground, walls)
+    : null
+  if (celestial) group.add(celestial.group)
 
   return {
     group,
@@ -654,15 +692,8 @@ export function buildWorld(
     tylerRig,
     jericho: castle ? { x: castle.jericho.x, z: castle.jericho.z } : null,
     jerichoRig: castle ? castle.jerichoRig : null,
-    celestialYard: castle
-      ? nearestYard(
-          castle.jericho,
-          geo.graveyards.map((yard) => ({
-            ...unitToWorld(yard.c[0], yard.c[1], metres),
-            name: yard.n,
-          }))
-        )
-      : null,
+    celestialYard,
+    celestial,
     lockers: fuel.points.map(lockerSpot),
     laptops: fuel.points.map(laptopAt),
     rings: fuel.points.map((point) => {

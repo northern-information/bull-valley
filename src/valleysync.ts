@@ -45,6 +45,7 @@ import { inspectRefusal } from './inspect.ts'
 import { pickupLabel } from './interactions.ts'
 import { toInventory } from './inventory.ts'
 import { itemLabel } from './itemcopy.ts'
+import { exhumeRefusal, mechFanfare, unearthedLine } from './mechs.ts'
 import { partyNews, partyRefusal } from './party.ts'
 import { levelUp } from './progression.ts'
 import { CLOSE } from './protocol.ts'
@@ -614,6 +615,15 @@ export function wireValley(game: Game, actions: Actions): void {
               : 'log.torch_refused'
         )
       )
+    } else if (msg.re === 'shovel') {
+      // Rule 42: a shovel already carried, or out of reach.
+      hud.tell(
+        copy(msg.reason === 'has-shovel' ? 'log.shovel_have' : 'log.heap_far')
+      )
+    } else if (msg.re === 'exhume') {
+      // Rule 42: dug today already, no shovel, or out of reach.
+      s.pending.exhume = false
+      hud.tell(exhumeRefusal(msg.reason))
     } else if (msg.re.startsWith('laptop-')) {
       s.laptop?.refused(msg.reason)
     } else if (msg.re === 'portal') {
@@ -750,6 +760,16 @@ export function wireValley(game: Game, actions: Actions): void {
     } else if (msg.type === 'found') {
       // Rule 33: loose change, already in the wallet the pack frame says.
       hud.tell(foundLine(msg.dimes))
+    } else if (msg.type === 'unearthed') {
+      // Rule 42: a mech up out of the angel's grave, to every socket on the
+      // account; the pack frame after puts it in the pack.
+      s.pending.exhume = false
+      hud.tell(unearthedLine(msg.mech))
+      const fanfare = mechFanfare(msg.mech)
+      if (fanfare) {
+        hud.celebrateCatch(fanfare)
+        game.sfx?.play('fish-fanfare')
+      }
     } else if (msg.type === 'cooked') {
       // Rule 40: fish cooked, to every socket on the account; the pack
       // frame follows.
