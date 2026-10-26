@@ -610,14 +610,18 @@ export function openLaptopDialog(options: LaptopOptions): {
         save()
         return
       }
-      // Esc is the computer's own key, a step back inside it (the
-      // editor's status line names it); it never gets up from the table.
-      // E does, from the bare desktop, as it closes every dialog.
+      // Esc is a step back (the editor's status line names it): editor,
+      // start menu, window, and from the bare desktop up from the table,
+      // so no one has to find Turn Off Computer. Other dialogs leave Esc to
+      // the pointer (npcdialog.ts closesDialog); this one already walks
+      // back out on it, and the table is the last step. E gets up from the
+      // bare desktop too, as it closes every dialog.
       if (e.code === 'Escape') {
         e.preventDefault()
         if (!editor.hidden) leaveEditor()
         else if (!startMenu.hidden) startMenu.hidden = true
         else if (!explorer.hidden) closeExplorer()
+        else if (!e.repeat) close()
         return
       }
       if (editor.hidden && startMenu.hidden && explorer.hidden) {
