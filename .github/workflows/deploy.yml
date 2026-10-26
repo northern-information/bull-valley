@@ -59,15 +59,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           command: d1 migrations apply bull-valley-accounts --remote -c wrangler.jsonc
-      # The drive-in's films bucket (worker/films.ts) must stand before a
-      # Worker bound to it ships: made the first time, left alone after.
-      # The token needs R2 edit on the account for the first one.
-      - name: Make sure the films bucket is there
-        run: >-
-          npx wrangler r2 bucket info bull-valley-films -c wrangler.jsonc ||
-          npx wrangler r2 bucket create bull-valley-films -c wrangler.jsonc
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       # CLOUDFLARE_API_TOKEN is the northern-information organization secret;
       # the account is pinned in wrangler.jsonc.
       - uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3

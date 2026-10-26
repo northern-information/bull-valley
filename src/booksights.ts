@@ -1,4 +1,5 @@
 import { CONFIG } from './config.ts'
+import { driveInPlace } from './drivein.ts'
 import { KEEP } from './landmarks.ts'
 import { mazeToWorld } from './maze.ts'
 import { toWorld } from './store.ts'
@@ -15,12 +16,16 @@ import type { FuelPoint, LandmarkPoint, MazePortal } from './world.ts'
 // Bull Valley Plaza and the Undercroft under it, the industrial park behind
 // it (three rings down its length), the donut field, the corn
 // maze (three rings down its length, so the whole of it counts and little
-// past it) and its heart, the Keep, and Castle Entropy over its moat.
+// past it) and its heart, the drive-in past the maze's far end (from the
+// lot's middle out past its corners), the Keep, and Castle Entropy over
+// its moat.
 export function bookSights(at: {
   stations: readonly FuelPoint[]
   spawn: FuelPoint | null
   maze: MazeFrame | null
   portal: Pick<MazePortal, 'at'> | null
+  // Where the maze lies, for the drive-in past it, or null.
+  mazePlace: MazePlace | null
   donutField: DonutField | null
   wreck: XZ | null
   dishes: readonly XZ[]
@@ -85,6 +90,17 @@ export function bookSights(at: {
   }
   if (at.portal) {
     sights.push({ id: 'maze-heart', ...at.portal.at, reach: reach.heart })
+  }
+  // The drive-in stands in the maze's own frame (drivein.ts).
+  if (at.mazePlace) {
+    const { x, z } = driveInPlace(at.mazePlace)
+    const { half } = CONFIG.driveIn
+    sights.push({
+      id: 'drive-in',
+      x,
+      z,
+      reach: Math.hypot(half.x, half.z) + reach.driveIn,
+    })
   }
   for (const mark of at.landmarks) {
     if (mark.n === KEEP) {

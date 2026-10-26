@@ -60,6 +60,8 @@ export const CONFIG = {
       donutField: 4,
       // Past the corn, either side of the maze.
       maze: 8,
+      // Past the drive-in lot's corners, from its middle.
+      driveIn: 4,
       heart: 12,
       keep: 40,
       // Past the rim, from the island's middle.

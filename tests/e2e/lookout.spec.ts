@@ -126,4 +126,8 @@ test('climbs the lookout and back down, and takes a torch to a topiary', async (
   )
   await page.keyboard.press('KeyE')
   await expect(booth).toBeHidden()
+  // Standing on its lot wrote its page in the Book of Shadows.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.book.includes('drive-in')))
+    .toBe(true)
 })

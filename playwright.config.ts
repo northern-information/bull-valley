@@ -43,7 +43,7 @@ export default defineConfig({
     command: [
       'rm -rf .wrangler/state-test',
       'npx wrangler d1 migrations apply bull-valley-accounts --local --persist-to .wrangler/state-test -c wrangler.jsonc',
-      'npx wrangler r2 object put bull-valley-films/test-reel.mp4 --file tests/e2e/test-reel.mp4 --local --persist-to .wrangler/state-test -c wrangler.jsonc',
+      'npx wrangler r2 object put intertext/test-reel.mp4 --file tests/e2e/test-reel.mp4 --local --persist-to .wrangler/state-test -c wrangler.jsonc',
       `npx vite --port ${PORT} --strictPort --mode test`,
     ].join(' && '),
     url: `http://localhost:${PORT}`,

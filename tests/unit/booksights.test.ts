@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { bookSights } from '../../src/booksights.ts'
 import { CONFIG } from '../../src/config.ts'
+import { driveInPlace } from '../../src/drivein.ts'
 import { KEEP } from '../../src/landmarks.ts'
 import { toWorld } from '../../src/store.ts'
 import { UNDERCROFT } from '../../src/undercroft.ts'
@@ -15,6 +16,8 @@ const maze: MazeFrame = {
   covers: () => false,
 }
 
+const MAZE_PLACE = { x: 1000, z: 2000, yaw: 0.4 }
+
 describe('bookSights', () => {
   it('names only the Citgos when the survey has no spawn station', () => {
     const sights = bookSights({
@@ -22,6 +25,7 @@ describe('bookSights', () => {
       spawn: null,
       maze: null,
       portal: null,
+      mazePlace: null,
       donutField: null,
       wreck: null,
       dishes: [],
@@ -44,6 +48,7 @@ describe('bookSights', () => {
       spawn: station,
       maze,
       portal: { at: { x: 1010, z: 2020 } },
+      mazePlace: MAZE_PLACE,
       donutField: { x: 300, z: 400, radius: 20 },
       wreck: { x: 5, z: 6 },
       dishes: [
@@ -77,10 +82,22 @@ describe('bookSights', () => {
       'corn-maze',
       'corn-maze',
       'maze-heart',
+      'drive-in',
       'keep',
       'castle',
     ])
     const by = (id: string) => sights.filter((s) => s.id === id)
+    // The drive-in, from its lot's middle out past its corners.
+    const lot = driveInPlace(MAZE_PLACE)
+    const { half } = CONFIG.driveIn
+    expect(by('drive-in')).toEqual([
+      {
+        id: 'drive-in',
+        x: lot.x,
+        z: lot.z,
+        reach: Math.hypot(half.x, half.z) + reach.driveIn,
+      },
+    ])
     expect(by('castle')).toEqual([
       { id: 'castle', x: -50, z: -240, reach: reach.castle },
     ])

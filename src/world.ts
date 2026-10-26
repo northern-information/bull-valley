@@ -699,6 +699,7 @@ export function buildWorld(
       spawn: spawnStation,
       maze,
       portal,
+      mazePlace,
       donutField,
       wreck: wreckAt ? { x: wreckAt[0], z: wreckAt[2] } : null,
       dishes: dishSpots,

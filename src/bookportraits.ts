@@ -77,6 +77,7 @@ const PORTRAITS: Partial<Record<string, () => THREE.Object3D>> = {
   'donut-field': buildTruckMesh,
   'corn-maze': worldAsset('corn-maze-sign'),
   'maze-heart': worldAsset('portal'),
+  'drive-in': worldAsset('drive-in-screen'),
   keep: worldAsset('beacon-keep'),
   castle: worldAsset('castle-entropy'),
   shadowman,
