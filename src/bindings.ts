@@ -67,7 +67,8 @@ export const WORLD = {
   controls: { codes: ['KeyH'], key: 'H', labelKey: 'keys.controls' },
   // Esc frees the pointer (the browser's own, never bound), and a freed
   // pointer is the menu; the valley is live and never pauses. Esc does nothing else anywhere in the
-  // valley: every panel closes on the key that opened it.
+  // valley but the laptop, where it steps back out (laptopdialog.ts): every
+  // panel closes on the key that opened it.
   menu: { codes: [], key: 'Esc', labelKey: 'keys.menu' },
 } as const satisfies Record<string, Binding>
 

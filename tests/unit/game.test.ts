@@ -39,6 +39,7 @@ describe('freshPending', () => {
       stand: false,
       recycle: false,
       cook: false,
+      thread: false,
       fish: false,
       jar: false,
     })

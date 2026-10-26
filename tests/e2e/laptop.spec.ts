@@ -119,10 +119,11 @@ test('the bathroom laptop opens on the readme, and keeps what you write', async 
     el.setAttribute('aria-readonly', 'false')
   })
 
-  // Getting up and sitting down again finds the readme.
+  // Esc steps back out, editor, window, then the table; sitting down
+  // again finds the readme.
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
-  await page.keyboard.press('KeyE')
+  await page.keyboard.press('Escape')
   await expect
     .poll(() => page.evaluate(() => window.__bv?.laptopOpen))
     .toBe(false)

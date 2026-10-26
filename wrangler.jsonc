@@ -48,6 +48,11 @@
       "migrations_dir": "migrations",
     },
   ],
+  // The drive-in's films (worker/films.ts, src/drivein.ts): every .mp4 at
+  // the bucket's top level is one the booth's projector can thread. Upload
+  // with `npx wrangler r2 object put bull-valley-films/<name>.mp4 --file
+  // <path> --remote` (or `--local` for the dev server's copy).
+  "r2_buckets": [{ "binding": "FILMS", "bucket_name": "bull-valley-films" }],
   // Rate limits on the account routes (worker/ratelimit.ts): approximate,
   // counted per Cloudflare location, keyed by the account where there is
   // one. Strict for the routes that start a sign-in or change an account,
