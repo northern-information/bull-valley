@@ -67,6 +67,7 @@ export type WorksFinish =
   | 'car-blue'
   | 'car-white'
   | 'car-burnt'
+  | 'rust' // the fence's posts, rails and barbed wire
 
 // One box, centred at `center` with full `size`. `turn` (an Euler XYZ)
 // tips a box for things fallen or hung loose; a box that `blocks` never
@@ -2317,6 +2318,119 @@ export function propSigns(prop: WorksProp): WorksSign[] {
   ]
 }
 
+// The rusted chain-link round each truck court: down both sides from the
+// building's back corners (a return from each corner out to the line) to
+// the court's far edge, and across it there, a metre short of the next
+// row's parking, with a gate in the middle for the trucks: one leaf
+// swung out wide, the other gone. A side here and there torn open, its
+// mesh peeled back off the hole (`flap`). Every run blocks a body and
+// nothing else (worksWalls: low, as see-through as it is); a shadowman
+// walks through it as through every wall.
+export const FENCE = {
+  height: 2.2,
+  // The barbed wire's strands over the top rail, and how far apart posts
+  // stand.
+  barbs: [0.15, 0.3],
+  post: 3,
+  // Out past the building's sides, clear of the dumpster and the drums.
+  out: 3,
+  gate: 9,
+  hole: 1.8,
+}
+
+export interface FenceRun {
+  a: XZ
+  b: XZ
+  // A gate's leaf, swung open: drawn and blocking like any run.
+  leaf?: boolean
+}
+
+// A torn hole's mesh, peeled back from `at` off the run toward `to`.
+export interface FenceFlap {
+  at: XZ
+  to: XZ
+}
+
+// A run from a to b along one axis, broken by its gaps (each its middle
+// along the run and its width).
+function fenceRun(
+  a: XZ,
+  b: XZ,
+  gaps: readonly { at: number; width: number }[]
+): FenceRun[] {
+  const alongX = a.z === b.z
+  const lo = alongX ? Math.min(a.x, b.x) : Math.min(a.z, b.z)
+  const hi = alongX ? Math.max(a.x, b.x) : Math.max(a.z, b.z)
+  const fixed = alongX ? a.z : a.x
+  const point = (t: number): XZ =>
+    alongX ? { x: t, z: fixed } : { x: fixed, z: t }
+  const runs: FenceRun[] = []
+  let from = lo
+  for (const gap of [...gaps].sort((p, q) => p.at - q.at)) {
+    const g0 = gap.at - gap.width / 2
+    if (g0 > from) runs.push({ a: point(from), b: point(g0) })
+    from = gap.at + gap.width / 2
+  }
+  if (hi > from) runs.push({ a: point(from), b: point(hi) })
+  return runs
+}
+
+function fencesOf(): { runs: FenceRun[]; flaps: FenceFlap[] } {
+  const runs: FenceRun[] = []
+  const flaps: FenceFlap[] = []
+  const rng = mulberry32(0x1dfe9c)
+  BUILDING_LIST.forEach((b, i) => {
+    const p = placeOf(i, b)
+    const back = p.z - b.d / 2 - 0.3
+    // A metre short of the next row's parking.
+    const far = -(p.row + 1) * ROW + 1
+    const west = p.x - b.w / 2 - FENCE.out
+    const east = p.x + b.w / 2 + FENCE.out
+    // The returns from the building's back corners out to the line.
+    runs.push(
+      { a: { x: west, z: back }, b: { x: p.x - b.w / 2, z: back } },
+      { a: { x: p.x + b.w / 2, z: back }, b: { x: east, z: back } }
+    )
+    // Down each side; one of them now and then torn open.
+    const torn = rng() < 0.5 ? (rng() < 0.5 ? west : east) : null
+    for (const x of [west, east]) {
+      const gaps: { at: number; width: number }[] = []
+      if (x === torn) {
+        const at = range(rng, far + 4, back - 4)
+        gaps.push({ at, width: FENCE.hole })
+        const edge = at + FENCE.hole / 2
+        const out = x === west ? -1 : 1
+        flaps.push({
+          at: { x, z: edge },
+          to: { x: x + out * 0.8, z: edge - 0.9 },
+        })
+      }
+      runs.push(...fenceRun({ x, z: back }, { x, z: far }, gaps))
+    }
+    // Across the far edge, the gate in its middle.
+    runs.push(
+      ...fenceRun({ x: west, z: far }, { x: east, z: far }, [
+        { at: p.x, width: FENCE.gate },
+      ])
+    )
+    // Its west leaf swung out, shy of the next row's stalls; the other
+    // gone.
+    const hinge = p.x - FENCE.gate / 2
+    const swing = range(rng, 0.45, 0.65)
+    runs.push({
+      a: { x: hinge, z: far },
+      b: {
+        x: hinge + Math.cos(swing) * (FENCE.gate / 2),
+        z: far - Math.sin(swing) * (FENCE.gate / 2),
+      },
+      leaf: true,
+    })
+  })
+  return { runs, flaps }
+}
+
+const FENCES = fencesOf()
+
 function lampsOf(): (XZ & { toward: XZ })[] {
   const lamps: (XZ & { toward: XZ })[] = []
   LAMP_X.forEach((x, k) => {
@@ -2339,6 +2453,8 @@ export const INDUSTRIAL = {
   stains: stainsOf(),
   props: propsOf(),
   lamps: lampsOf(),
+  fences: FENCES.runs,
+  flaps: FENCES.flaps,
   wall: WALL,
   door: MAN_DOOR,
   bay: BAY,

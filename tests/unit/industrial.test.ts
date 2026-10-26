@@ -12,6 +12,7 @@ import {
   buildingSigns,
   CAR,
   DISK,
+  FENCE,
   GRAFFITI,
   GRAFFITI_LOW,
   inBuilding,
@@ -521,6 +522,101 @@ describe('the industrial park', () => {
           )
         ).toBe(false)
       }
+    }
+  })
+
+  it('fences each truck court in rusted chain-link, its gate open', () => {
+    const { fences, flaps, props, lamps, places, buildings } = INDUSTRIAL
+    // Points every quarter metre down a run.
+    const along = (run: { a: XZ; b: XZ }) => {
+      const n = Math.max(
+        1,
+        Math.ceil(Math.hypot(run.b.x - run.a.x, run.b.z - run.a.z) / 0.25)
+      )
+      return Array.from({ length: n + 1 }, (_, i) => ({
+        x: run.a.x + ((run.b.x - run.a.x) * i) / n,
+        z: run.a.z + ((run.b.z - run.a.z) * i) / n,
+      }))
+    }
+    const covers = (p: XZ, prop: (typeof props)[number], margin: number) => {
+      const size =
+        prop.kind === 'trailer'
+          ? TRAILER
+          : prop.kind === 'car'
+            ? CAR
+            : prop.kind === 'load'
+              ? LOAD
+              : { width: 2.2, length: 2.2 }
+      // Long side along z (every prop here stands near square to the park).
+      return (
+        Math.abs(p.x - prop.x) < size.width / 2 + margin &&
+        Math.abs(p.z - prop.z) < size.length / 2 + margin
+      )
+    }
+    // Whatever any run comes too near, named, collected once.
+    const clashes: string[] = []
+    for (const run of fences) {
+      for (const p of along(run)) {
+        if (p.x <= pad.x0 || p.x >= pad.x1 || p.z <= pad.z0 || p.z >= pad.z1) {
+          clashes.push(`off the pad at (${p.x}, ${p.z})`)
+        }
+        buildings.forEach((b, i) => {
+          if (
+            Math.abs(p.x - places[i].x) < b.w / 2 - 0.01 &&
+            Math.abs(p.z - places[i].z) < b.d / 2 - 0.01
+          ) {
+            clashes.push(`through ${b.id}`)
+          }
+        })
+        for (const prop of props) {
+          if (covers(p, prop, 0.3)) {
+            clashes.push(`${prop.kind} at (${prop.x}, ${prop.z})`)
+          }
+        }
+        for (const lamp of lamps) {
+          if (Math.hypot(p.x - lamp.x, p.z - lamp.z) <= 1) {
+            clashes.push(`lamp at (${lamp.x}, ${lamp.z})`)
+          }
+        }
+      }
+    }
+    expect([...new Set(clashes)]).toEqual([])
+    // Every court has its gate: a gap of FENCE.gate in its far run, the
+    // leaf swung out of it, away from the court.
+    buildings.forEach((b, i) => {
+      const p = places[i]
+      const far = -(p.row + 1) * 66 + 1
+      const span = b.w / 2 + FENCE.out + 0.01
+      const across = fences.filter(
+        (r) =>
+          !r.leaf &&
+          r.a.z === far &&
+          r.b.z === far &&
+          Math.abs(r.a.x - p.x) <= span &&
+          Math.abs(r.b.x - p.x) <= span
+      )
+      expect(across.length, b.id).toBe(2)
+      const gate = across
+        .flatMap((r) => [r.a.x, r.b.x])
+        .filter((x) => Math.abs(x - p.x) < FENCE.gate)
+      expect(Math.max(...gate) - Math.min(...gate), b.id).toBeCloseTo(
+        FENCE.gate
+      )
+      const leaf = fences.find(
+        (r) =>
+          r.leaf &&
+          Math.abs(r.a.x - (p.x - FENCE.gate / 2)) < 0.01 &&
+          r.a.z === far
+      )
+      expect(leaf, b.id).toBeDefined()
+      expect(leaf!.b.z).toBeLessThan(far)
+    })
+    // The torn holes, peeled out from the run.
+    expect(flaps.length).toBeGreaterThan(0)
+    for (const flap of flaps) {
+      expect(
+        fences.some((r) => r.a.x === flap.at.x && r.b.x === flap.at.x)
+      ).toBe(true)
     }
   })
 
