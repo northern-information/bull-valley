@@ -150,6 +150,32 @@ describe('the bed and the countdown', () => {
     })
   })
 
+  it('leaves no sooner than it is surely home from its donuts', () => {
+    // Back from the field: parked, but still on the road home.
+    const back: TruckState = {
+      leg: {
+        kind: 'parked',
+        at: T0,
+        from: { kind: 'donuts', at: T0 - 10 * SEC, cut: T0 },
+        leavesAt: null,
+      },
+      riders: [],
+    }
+    const home = homeAt(
+      back.leg as Extract<TruckState['leg'], { kind: 'parked' }>,
+      ROUTES
+    )
+    expect(home).toBe(T0 + donutHomeSeconds * SEC)
+    // Climbed in at once, a solo pick would send him off before he is home.
+    let truck = ok(board(back, 'a', T0))
+    truck = ok(charter(truck, 'a', null, T0, true))
+    expect(nextChange(truck, ROUTES)).toBe(home)
+    expect(settleTruck(truck, home - 1, ROUTES).changes).toEqual([])
+    const out = settleTruck(truck, home, ROUTES)
+    expect(out.changes).toEqual(['depart'])
+    expect(out.truck.leg).toEqual({ kind: 'joyride', at: home })
+  })
+
   it('cannot be boarded while it is away', () => {
     const donuts: TruckState = { leg: { kind: 'donuts', at: T0 }, riders: [] }
     expect(board(donuts, 'a', T0)).toEqual({ refused: 'gone' })

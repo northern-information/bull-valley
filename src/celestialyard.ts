@@ -6,7 +6,7 @@
 // him: the iron fence round it with the gate cut on +x, the avenue in
 // from the gate along z = 0 to the weeping angel facing back up it, her
 // grave at her feet (where a raider with a shovel digs up a mech,
-// sharedworld.ts rule 41), the heap of earth by the gate the shovel
+// sharedworld.ts rule 42), the heap of earth by the gate the shovel
 // stands in, the candelabra down the avenue in pairs, and the giant
 // monuments strewn round it all from one seed, the same for everyone.
 // No three.js, no DOM.

@@ -32,6 +32,7 @@ import {
 } from './dialstate.ts'
 import { text } from './dom.ts'
 import { fontsReady } from './fonts.ts'
+import { gronSays, openGronDialog } from './grondialog.ts'
 import { befriended, partied } from './inspect.ts'
 import { itemLine } from './itemcopy.ts'
 import { openMoabDialog } from './moabdialog.ts'
@@ -42,7 +43,7 @@ import { npcLine } from './npcs.ts'
 import { GRAIN_URL, imagesReady } from './preload.ts'
 import { levelOf } from './progression.ts'
 import { CLOSE } from './protocol.ts'
-import { dealerStep, roseLine, roseProgress } from './quests.ts'
+import { erwinQuest, gronQuest, questNow, questShown } from './quests.ts'
 import { openRecycleDialog } from './recycledialog.ts'
 import { createSettingsStore } from './settingsui.ts'
 import { createSfx } from './sfxrig.ts'
@@ -307,18 +308,41 @@ async function boot(): Promise<void> {
         pack: () => state.pack,
         pending: () => state.pending.deal,
         said: () => state.said?.text ?? null,
-        quest: () => ({
-          ...roseLine(state.quests.rose, state.pack),
-          step: roseProgress(state.quests.rose, state.pack),
-        }),
+        quest: () =>
+          questShown(
+            erwinQuest(state.quests),
+            state.quests,
+            state.pack,
+            'erwin'
+          ),
         icon: (kind) => shell?.icon(kind) ?? Promise.reject(new Error()),
         fanfare: tradeCheer,
         turntable,
         onDeal: (kind, offer) =>
           send({ type: 'deal', kind, offer }, { deal: true }),
         onQuest: () => {
-          const step = dealerStep(state.quests.rose)
-          if (step) send({ type: 'quest', quest: 'rose', step }, { deal: true })
+          const quest = erwinQuest(state.quests)
+          const step = questNow(quest, state.quests, state.pack, 'erwin').next
+          if (step) send({ type: 'quest', quest, step }, { deal: true })
+        },
+      }).then(() => shell?.render(state))
+    },
+    // Gron and the quest he gives, as at the bush (rule 26: dialed in, he
+    // is a call away).
+    openGron: () => {
+      void openGronDialog({
+        says: gronSays(),
+        open: () => state.world !== null,
+        quest: () => {
+          const quest = gronQuest(state.quests)
+          return questShown(quest, state.quests, state.pack, 'gron')
+        },
+        pending: () => state.pending.deal,
+        said: () => state.said?.text ?? null,
+        onStep: () => {
+          const quest = gronQuest(state.quests)
+          const step = questNow(quest, state.quests, state.pack, 'gron').next
+          if (step) send({ type: 'quest', quest, step }, { deal: true })
         },
       }).then(() => shell?.render(state))
     },

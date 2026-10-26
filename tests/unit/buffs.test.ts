@@ -94,6 +94,19 @@ describe("the valley's record of the wards", () => {
     expect(sobered(record, 'b')).toEqual({})
   })
 
+  it('keeps a trip that outlasts the high', () => {
+    // LSD's high is small beside its trip: once the high is gone the
+    // account is still tripping, and a dose of anyone else keeps it.
+    const fade = CONFIG.wards.fadePerSecond
+    const later = 0.25 / fade.high + 1
+    expect(1 / fade.tripping).toBeGreaterThan(later)
+    let record = dosed({}, 'a', { tripping: 1, high: 0.25 }, 0)
+    expect(levelsAt(wardsOf(record, 'a'), later).high).toBe(0)
+    expect(isSober(wardsOf(record, 'a'), later)).toBe(false)
+    record = dosed(record, 'b', { drunk: 0.2 }, later)
+    expect(levelsAt(wardsOf(record, 'a'), later).tripping).toBeGreaterThan(0)
+  })
+
   it('checks levels off the wire', () => {
     expect(isLevels(SOBER_LEVELS)).toBe(true)
     expect(isLevels(FULL)).toBe(true)

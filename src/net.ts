@@ -68,6 +68,10 @@ interface NetIdentity {
   metres: Metres
   // The spiders' lairs; see HelloMessage.
   lairs: Lair[]
+  // Where the lurkers keep; see HelloMessage.
+  lurks: XZ[]
+  // Where the floppy disk lies for Gron's last quest (rule 26), or null.
+  disk: XZ | null
   // Where the corn maze lies (the Caretaker's, rule 13), or null.
   maze: MazePlace | null
   // Where each berry bush stands; see HelloMessage.
@@ -83,6 +87,8 @@ interface NetIdentity {
   ponds: PondPlace[]
   // Where the squatter deals (rule 25), or null.
   dealer: XZ | null
+  // Where Gron stands (rule 26), or null.
+  gron: XZ | null
   // Where the Undercroft lies (rule 11: the tunnel shades), or null.
   undercroft: MazePlace | null
   // Where the moat lies (rule 11: the ground the shadowmen walk), or null.
@@ -91,7 +97,7 @@ interface NetIdentity {
   rings: XZ[]
   // Where each payphone stands (rule 28).
   payphones: XZ[]
-  // The celestial graveyard's frame (rule 41), or null.
+  // The celestial graveyard's frame (rule 42), or null.
   celestial: MazePlace | null
 }
 
@@ -287,6 +293,8 @@ export class NetClient {
           havens: identity.havens,
           metres: identity.metres,
           lairs: identity.lairs,
+          lurks: identity.lurks,
+          disk: identity.disk,
           maze: identity.maze,
           truck: identity.truck,
           stand: identity.stand,
@@ -294,6 +302,7 @@ export class NetClient {
           ponds: identity.ponds,
           bushes: identity.bushes,
           dealer: identity.dealer,
+          gron: identity.gron,
           undercroft: identity.undercroft,
           moat: identity.moat,
           rings: identity.rings,
@@ -304,7 +313,10 @@ export class NetClient {
       )
     })
     ws.addEventListener('message', (event: MessageEvent) => {
-      if (this.ws === ws) this.pingOutAt = null
+      // A socket let go (drop) is not ours: browsers stop its messages at
+      // close(), and nothing it says reaches the listeners regardless.
+      if (this.ws !== ws) return
+      this.pingOutAt = null
       if (typeof event.data !== 'string') return
       const msg = parseServerMessage(event.data)
       if (!msg) return

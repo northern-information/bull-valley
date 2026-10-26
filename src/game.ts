@@ -22,6 +22,7 @@ import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { TaskProgress } from './dailytask.ts'
 import type { DonutWake } from './donutwakerig.ts'
+import type { ReelPlayer } from './driveinrig.ts'
 import type { DropMeshes } from './dropmeshes.ts'
 import type { Drop } from './drops.ts'
 import type { Emoting } from './emotes.ts'
@@ -122,11 +123,13 @@ export interface Pending {
   recycle: boolean
   // Rule 40: fish cooked over the campfire.
   cook: boolean
+  // Rule 41: a film threaded on the drive-in's projector.
+  thread: boolean
   // Rule 36: a rod, a dig, a cast or a reel at the firefly pond, and a
   // slurm into the jar.
   fish: boolean
   jar: boolean
-  // Rule 41: the weeping angel's grave being dug.
+  // Rule 42: the weeping angel's grave being dug.
   exhume: boolean
 }
 
@@ -149,6 +152,7 @@ export function freshPending(): Pending {
     stand: false,
     recycle: false,
     cook: false,
+    thread: false,
     fish: false,
     jar: false,
     exhume: false,
@@ -243,7 +247,7 @@ export interface GameState {
   // The Book of Shadows is open over the valley, with the pointer free for
   // it, as the pack's is.
   bookOpen: boolean
-  // The stand's dialog, or the laptop, is open: the pointer is free for it,
+  // Gron's dialog, or the stand's, is open: the pointer is free for it,
   // and the game's keys, mouse look and menu overlay stand aside until it
   // closes.
   talking: boolean
@@ -298,6 +302,9 @@ export interface GameState {
   researchSaid: string | null
   // Rule 40: the last word on fish cooked, for the campfire's dialog.
   cookSaid: string | null
+  // Rule 41: the last word on a film threaded, for the projector's
+  // dialog.
+  reelSaid: string | null
   // Rule 36: the account's angler as the valley last sent it (asked for
   // as the tackle box opens); null before it has. The line in the water,
   // as cast (fishing.ts LineOut), and the last word on fishing.
@@ -430,6 +437,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     research: null,
     researchSaid: null,
     cookSaid: null,
+    reelSaid: null,
     angler: null,
     line: null,
     fishSaid: null,
@@ -458,7 +466,7 @@ export function createGameState(stations: number, hotbar: Hotbar): GameState {
     pendingBuys: new Set(),
     daily: null,
     onTruckRolls: [],
-    npcSaid: { marx: 0, carlsten: 0, moab: 0, tyler: 0, jericho: 0, gron: 0 },
+    npcSaid: { marx: 0, carlsten: 0, moab: 0, tyler: 0, jericho: 0 },
   }
 }
 
@@ -486,6 +494,9 @@ export interface Game {
   truck: Truck
   // Marx's radio while the truck rolls (truckradiorig.ts), none under e2e.
   radio: TruckRadio | null
+  // The drive-in's film (driveinrig.ts), unheard under e2e; null without
+  // a drive-in.
+  reel: ReelPlayer | null
   // The clods and ruts his donuts leave (donutwakerig.ts), none without a
   // donut field.
   donutWake: DonutWake | null

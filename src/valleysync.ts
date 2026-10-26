@@ -25,6 +25,7 @@ import { crewNews, crewRefusal } from './crews.ts'
 import { DAILY_TASK, taskLine, taskNews, taskOf } from './dailytask.ts'
 import { boughtLine, dealRefusal } from './dealer.ts'
 import { seenEmote } from './emotes.ts'
+import { threadedLine, threadRefusal } from './filmlines.ts'
 import { lineOutOf, toAnglerWire } from './fishing.ts'
 import {
   anglerNews,
@@ -71,6 +72,7 @@ import {
   newLeg,
   portalNews,
   reconcileBed,
+  reelNews,
   settledBy,
   toolsIn,
   topiaryNews,
@@ -458,12 +460,33 @@ export function wireValley(game: Game, actions: Actions): void {
         hud.tell(copy('log.topiary_burned_other'))
       }
     }
+
+    // Rule 41: a film threaded on the drive-in's projector. The one who
+    // did it is told, and so is anyone near enough to see the screen.
+    const reel = reelNews({ reason, ...detail }, wire, me)
+    if (reel?.mine) {
+      s.pending.thread = false
+      s.reelSaid = threadedLine(reel)
+      hud.tell(s.reelSaid)
+    } else if (reel && world.driveIn) {
+      const [sx, , sz] = world.driveIn.screen
+      if (
+        Math.hypot(sx - player.pos.x, sz - player.pos.z) <=
+        CONFIG.driveIn.loadRange
+      ) {
+        hud.tell(threadedLine(reel))
+      }
+    }
   }
 
   const applyNack = (msg: NackMessage) => {
     if (msg.re === 'take') {
       if (msg.index !== undefined) s.pending.takes.delete(msg.index)
-      if (msg.reason !== 'gone') return
+      // Out of reach, or out of its room: said as a drop's refusal is.
+      if (msg.reason !== 'gone') {
+        hud.tell(copy('log.drop_refused'))
+        return
+      }
       const pickup =
         msg.index === undefined ? undefined : world.pickups[msg.index]
       if (pickup) actions.markTaken(pickup)
@@ -562,6 +585,10 @@ export function wireValley(game: Game, actions: Actions): void {
       s.pending.cook = false
       s.cookSaid = cookRefusal(msg.reason)
       hud.tell(s.cookSaid)
+    } else if (msg.re === 'thread') {
+      s.pending.thread = false
+      s.reelSaid = threadRefusal(msg.reason)
+      hud.tell(s.reelSaid)
     } else if (msg.re === 'jar-slurm') {
       // Rule 36: gone, out of reach, or no jar with room in it.
       s.pending.jar = false
@@ -589,12 +616,12 @@ export function wireValley(game: Game, actions: Actions): void {
         )
       )
     } else if (msg.re === 'shovel') {
-      // Rule 41: a shovel already carried, or out of reach.
+      // Rule 42: a shovel already carried, or out of reach.
       hud.tell(
         copy(msg.reason === 'has-shovel' ? 'log.shovel_have' : 'log.heap_far')
       )
     } else if (msg.re === 'exhume') {
-      // Rule 41: dug today already, no shovel, or out of reach.
+      // Rule 42: dug today already, no shovel, or out of reach.
       s.pending.exhume = false
       hud.tell(exhumeRefusal(msg.reason))
     } else if (msg.re.startsWith('laptop-')) {
@@ -691,7 +718,7 @@ export function wireValley(game: Game, actions: Actions): void {
       if (!isQuest(msg.quest) || !isQuestStage(msg.stage)) return
       s.quests = { ...(s.quests ?? toQuests(null)), [msg.quest]: msg.stage }
       s.pendingQuest = false
-      s.dealSaid = stepNews(msg.step)
+      s.dealSaid = stepNews(msg.quest, msg.step)
       hud.tell(s.dealSaid)
     } else if (msg.type === 'book') {
       // Rule 20: written in the account's Book of Shadows.
@@ -734,7 +761,7 @@ export function wireValley(game: Game, actions: Actions): void {
       // Rule 33: loose change, already in the wallet the pack frame says.
       hud.tell(foundLine(msg.dimes))
     } else if (msg.type === 'unearthed') {
-      // Rule 41: a mech up out of the angel's grave, to every socket on the
+      // Rule 42: a mech up out of the angel's grave, to every socket on the
       // account; the pack frame after puts it in the pack.
       s.pending.exhume = false
       hud.tell(unearthedLine(msg.mech))

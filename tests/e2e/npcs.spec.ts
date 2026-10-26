@@ -202,7 +202,7 @@ test("Jericho marks the celestial graveyard, where a shovel digs a mech out of t
   expect(await page.evaluate(() => window.__bv!.waypoints.length)).toBe(count)
   expect(await pinned()).toBe(1)
 
-  // On to the graveyard he marked (sharedworld.ts rule 41): `back` metres
+  // On to the graveyard he marked (sharedworld.ts rule 42): `back` metres
   // toward the gate from the heap or the grave, looking at it.
   const before = (k: 'shovel' | 'grave', back: number, rise: number) =>
     page.evaluate(

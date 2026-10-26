@@ -871,6 +871,56 @@ function buildRose({ glow = true }: PickupOptions = {}): THREE.Group {
   return group
 }
 
+// The construction data out of the industrial park, for Gron (quests.ts): a
+// 3.5" floppy disk lying flat, navy plastic with its sliding metal shutter
+// and a white label. Drawn twice its size, as the key is, or the downscale
+// would lose it. Origin at ground level under its middle.
+function buildFloppyDisk({ glow = true }: PickupOptions = {}): THREE.Group {
+  const group = new THREE.Group()
+  group.name = 'floppy-disk'
+  const shell = lambert({
+    color: '#1c2a52',
+    emissive: new THREE.Color('#3a5aa8'),
+    emissiveIntensity: 0.35,
+  })
+  const metal = lambert({
+    color: '#9aa0a8',
+    emissive: new THREE.Color('#5a6068'),
+  })
+  const label = lambert({
+    color: '#e8e4d8',
+    emissive: new THREE.Color('#6a665c'),
+  })
+  // 90 by 94 mm, 3.3 thick.
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.0033, 0.094), shell)
+  body.position.y = 0.00165
+  group.add(body)
+  const shutter = new THREE.Mesh(
+    new THREE.BoxGeometry(0.048, 0.0037, 0.032),
+    metal
+  )
+  shutter.position.set(-0.004, 0.00185, -0.031)
+  group.add(shutter)
+  const sticker = new THREE.Mesh(
+    new THREE.BoxGeometry(0.07, 0.0036, 0.042),
+    label
+  )
+  sticker.position.set(0, 0.0018, 0.022)
+  group.add(sticker)
+  group.rotation.y = 0.3
+  group.scale.setScalar(2)
+  if (glow) {
+    const halo = makeGlowSprite(
+      makeGlowTexture('rgba(90, 130, 220, 0.45)'),
+      0.35
+    )
+    halo.position.y = 0.02
+    group.add(halo)
+  }
+  setPulseMaterials(group, [shell])
+  return group
+}
+
 // --- Empties -------------------------------------------------------------
 
 // What a use leaves behind (recycling.ts): a crushed can, a drained bottle
@@ -1140,6 +1190,7 @@ export function buildPickup(
   if (kind === 'lsd') return buildBlotter({ glow })
   if (kind === 'adderall') return buildAdderall({ glow })
   if (kind === 'rose') return buildRose({ glow })
+  if (kind === 'floppy-disk') return buildFloppyDisk({ glow })
   const empty = EMPTIES[kind]
   if (empty) return empty({ glow })
   if (isMedicine(kind)) return buildMedicine(kind, { glow })

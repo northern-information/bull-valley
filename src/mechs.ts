@@ -1,7 +1,7 @@
 // Pure: the mechs, for now a stub. A mech is built on the bones of the
 // nephilim or the seraphim, and a raider gets one by digging up the
 // weeping angel's grave in the celestial graveyard (celestialyard.ts,
-// sharedworld.ts rule 41): the valley rolls which, a gacha weighted by
+// sharedworld.ts rule 42): the valley rolls which, a gacha weighted by
 // rarity (`mechOf`), and it goes into the pack as a key item (items.ts),
 // kept by the valley with the pack. What a mech does is its own feature,
 // still to come; until then it is something to have, and to dig for

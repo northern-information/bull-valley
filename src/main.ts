@@ -15,6 +15,7 @@ import { createCorpseMeshes } from './corpsemeshes.ts'
 import { installDevHook } from './devhook.ts'
 import { donutRoute } from './donuts.ts'
 import { DonutWake } from './donutwakerig.ts'
+import { createReelPlayer } from './driveinrig.ts'
 import { createDropMeshes } from './dropmeshes.ts'
 import { finishById } from './finishes.ts'
 import { FishHud } from './fishhud.ts'
@@ -313,6 +314,7 @@ async function boot() {
     graph,
     truck,
     radio: SILENT ? null : createTruckRadio(),
+    reel: world.driveIn ? createReelPlayer(world.driveIn, SILENT) : null,
     donutWake: world.donutField
       ? new DonutWake({
           scene,
@@ -412,6 +414,9 @@ async function boot() {
     metres: geo.metres,
     // The spiders' lairs round the spawn Citgo, none without one.
     lairs: world.spawnStation ? lairsOf(world.spawnStation) : [],
+    // The lurks in the industrial park's buildings, none without it.
+    lurks: world.industrial ? world.industrial.lurks : [],
+    disk: world.industrial ? world.industrial.disk.at : null,
     maze: world.mazePlace,
     truck: truckRoutes,
     bushes: world.bushes.map(({ x, z }) => ({ x, z })),
@@ -424,6 +429,7 @@ async function boot() {
     stand: world.stand ? world.stand.at : null,
     recyclers: world.recyclers.map(({ at }) => at),
     dealer: world.plaza ? world.plaza.dealer.at : null,
+    gron: world.gron,
     undercroft: world.undercroft?.place ?? null,
     moat: world.castle?.place ?? null,
     rings: world.rings,

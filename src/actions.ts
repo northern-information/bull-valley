@@ -42,9 +42,11 @@ import {
   isCash,
   QUARTERS,
 } from './drops.ts'
+import { fetchFilms, openFilmDialog } from './filmdialog.ts'
 import { finishById } from './finishes.ts'
 import { openFishDialog } from './fishdialog.ts'
 import { inPond } from './fishing.ts'
+import { gronSays, openGronDialog } from './grondialog.ts'
 import { baitFor, inHand, useOf } from './held.ts'
 import {
   assign,
@@ -79,7 +81,13 @@ import { partyLines } from './party.ts'
 import { enteredAt, exitFrom, openAt } from './portals.ts'
 import { levelOf } from './progression.ts'
 import { normalizeChat } from './protocol.ts'
-import { dealerStep, roseLine, roseProgress } from './quests.ts'
+import {
+  erwinQuest,
+  gronQuest,
+  questNow,
+  questShown,
+  toQuests,
+} from './quests.ts'
 import { openRecycleDialog } from './recycledialog.ts'
 import { callRoute, nearestRoadPoint } from './roadgraph.ts'
 import { healSound, portalCues, wardSound } from './sfx.ts'
@@ -778,6 +786,32 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     )
   }
 
+  // E at the projector in the drive-in's booth: the films in the bucket,
+  // and the one on the screen, the pointer free for them as at the
+  // campfire (rule 41). The list is asked for as the dialog opens; the
+  // valley's answer to a thread shows in it as it lands.
+  const projector = () => {
+    if (s.talking || !s.world) return
+    s.reelSaid = null
+    let films: readonly string[] | null = null
+    void fetchFilms().then((list) => {
+      films = list
+    })
+    withDialog(() =>
+      openFilmDialog({
+        films: () => films,
+        showing: () => s.world?.reel?.film ?? null,
+        pending: () => s.pending.thread,
+        said: () => s.reelSaid,
+        onThread: (film) => {
+          s.pending.thread = true
+          s.reelSaid = null
+          net.send({ type: 'thread', film })
+        },
+      })
+    )
+  }
+
   // A frame to the valley about fishing, the last word on one cleared.
   const askFish = (msg: Parameters<typeof net.send>[0]) => {
     s.pending.fish = true
@@ -868,7 +902,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hud.tell(copy('log.torch_taken'))
   }
 
-  // Rule 41: E at the heap inside the celestial graveyard's gate: a shovel
+  // Rule 42: E at the heap inside the celestial graveyard's gate: a shovel
   // out of it; E at the weeping angel's grave: it dug. The pack frame after
   // puts the shovel in the pack, and the mech that came up; a refusal says
   // why.
@@ -980,10 +1014,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       said: () => s.dealSaid,
       quest: () =>
         s.quests
-          ? {
-              ...roseLine(s.quests.rose, s.inventory),
-              step: roseProgress(s.quests.rose, s.inventory),
-            }
+          ? questShown(erwinQuest(s.quests), s.quests, s.inventory, 'erwin')
           : null,
       icon: (kind) => Promise.resolve(game.thumbs.icon(kind)),
       fanfare: tradeCheer,
@@ -994,16 +1025,47 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         net.send({ type: 'deal', kind, offer })
       },
       onQuest: () => {
-        const step = s.quests ? dealerStep(s.quests.rose) : null
+        if (!s.quests) return
+        const quest = erwinQuest(s.quests)
+        const step = questNow(quest, s.quests, s.inventory, 'erwin').next
         if (!step) return
         s.pendingQuest = true
         s.dealSaid = null
-        net.send({ type: 'quest', quest: 'rose', step })
+        net.send({ type: 'quest', quest, step })
       },
     }).then(() => {
       s.talking = false
       engagePointer()
     })
+  }
+
+  // E beside Gron: his dialog, the quest he gives as it stands, with the
+  // pointer free, as at Erwin's (rule 26). Its last word is the deal's,
+  // since a quest's step is said there too.
+  const talkToGron = () => {
+    if (s.talking) return
+    s.dealSaid = null
+    withDialog(() =>
+      openGronDialog({
+        says: gronSays(),
+        open: () => s.world !== null && s.quests !== null,
+        quest: () => {
+          const stages = s.quests ?? toQuests(null)
+          return questShown(gronQuest(stages), stages, s.inventory, 'gron')
+        },
+        pending: () => s.pendingQuest,
+        said: () => s.dealSaid,
+        onStep: () => {
+          if (!s.quests) return
+          const quest = gronQuest(s.quests)
+          const step = questNow(quest, s.quests, s.inventory, 'gron').next
+          if (!step) return
+          s.pendingQuest = true
+          s.dealSaid = null
+          net.send({ type: 'quest', quest, step })
+        },
+      })
+    )
   }
 
   // E at the heart of the maze with Erwin's rose (rule 26): the valley
@@ -1012,6 +1074,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (!s.world || s.pendingQuest) return
     s.pendingQuest = true
     net.send({ type: 'quest', quest: 'rose', step: 'lay' })
+  }
+
+  // E at the floppy disk in the industrial park, on Gron's last quest
+  // (rule 26): the valley puts it in the pack.
+  const findDisk = () => {
+    if (!s.world || s.pendingQuest) return
+    s.pendingQuest = true
+    net.send({ type: 'quest', quest: 'gron-floppy', step: 'find' })
   }
 
   const stowKind = (kind: string, all: boolean) => restash(kind, all, true)
@@ -1500,7 +1570,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'talk':
         discover(['gron'])
-        speakTo('gron')
+        talkToGron()
         return
       case 'speak':
         discover([interaction.npc])
@@ -1539,6 +1609,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       case 'cook':
         cook()
         return
+      case 'projector':
+        projector()
+        return
       case 'fish':
         fish()
         return
@@ -1553,6 +1626,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         return
       case 'lay':
         layRose()
+        return
+      case 'find':
+        findDisk()
         return
       case 'descend':
       case 'ascend': {

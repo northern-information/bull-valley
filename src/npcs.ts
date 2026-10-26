@@ -1,15 +1,15 @@
-// Pure: what Matthew Marx, David Carlsten, Moab Coldë, Tyler Etters,
-// Jericho, the Candlebearer, and Gron say. Walk up to one and he glows; E
-// has him say his next line into the player's own chat log, and he starts
-// over after the last. interactions.ts decides who is in reach (Gron by
-// the bush, as `talk`).
+// Pure: what Matthew Marx, David Carlsten, Moab Coldë, Tyler Etters and
+// Jericho, the Candlebearer say. Walk up to one and he glows; E has him say
+// his next line into the player's own chat log, and he starts over after
+// the last. interactions.ts decides who is in reach. Gron is not here: his
+// dialog is grondialog.ts.
 
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { outfitById } from './outfits.ts'
 import type { XZ } from './interfaces.ts'
 
-export type NpcId = 'marx' | 'carlsten' | 'moab' | 'tyler' | 'jericho' | 'gron'
+export type NpcId = 'marx' | 'carlsten' | 'moab' | 'tyler' | 'jericho'
 
 // An NPC standing where E could reach him. A Moab stands at every station,
 // so his spot says which one (an index into the stations).
@@ -26,14 +26,13 @@ export function npcReach(id: NpcId): number {
   if (id === 'moab') return CONFIG.moab.reach
   if (id === 'tyler') return CONFIG.tyler.reach
   if (id === 'jericho') return CONFIG.castle.yard.jericho.reach
-  if (id === 'gron') return CONFIG.gron.reach
   return CONFIG.npcs.reach
 }
 
 // Marx recites the poem a stanza at a time; Carlsten makes small talk;
 // Moab has one thing to say; Tyler, hunched over his laptop, barely looks
 // up; Jericho greets you and tells you what passage to Castle Entropy
-// would take; Gron, under his raincloud, keeps his own counsel.
+// would take.
 const NPC_LINES: Record<NpcId, readonly string[]> = {
   marx: [
     copy('marx.stanza_1'),
@@ -53,7 +52,6 @@ const NPC_LINES: Record<NpcId, readonly string[]> = {
     copy('jericho.says_2'),
     copy('jericho.says_3'),
   ],
-  gron: [copy('gron.says_1'), copy('gron.says_2'), copy('gron.says_3')],
 }
 
 // The name his lines go under in the log: his outfit's, or, for Jericho,

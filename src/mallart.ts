@@ -443,8 +443,9 @@ function forLease(): CanvasArt {
   return art
 }
 
-// Spray paint: rough strokes in one color, flecked at the edges.
-function spray(
+// Spray paint: rough strokes in one color, flecked at the edges. The
+// industrial park's graffiti sprays the same way (industrialart.ts).
+export function spray(
   ctx: CanvasRenderingContext2D,
   rng: () => number,
   color: string,

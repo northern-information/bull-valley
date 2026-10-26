@@ -44,7 +44,7 @@ import type { Walls } from './walls.ts'
 // fence, white tears running down out of her fingers and a shaft of pale
 // light falling on her out of the sky. Her grave lies at her feet,
 // railed with a kerb of stone, and in a heap of earth by the gate stands
-// the shovel (sharedworld.ts rule 41). Everything stands on the ground
+// the shovel (sharedworld.ts rule 42). Everything stands on the ground
 // (world.ground.at); the monuments, the fence, the piers, the plinth and
 // the candelabra are walls.
 

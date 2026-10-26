@@ -10,6 +10,7 @@ import {
   newLeg,
   portalNews,
   reconcileBed,
+  reelNews,
   seatOf,
   settledBy,
   toolsIn,
@@ -33,6 +34,7 @@ const world = (leg: Leg, riders: string[] = []): WorldWire => ({
   truck: { leg, riders },
   members: [],
   topiaries: [],
+  reel: null,
 })
 const parked = (leavesAt: number | null = null): Leg => ({
   kind: 'parked',
@@ -375,5 +377,41 @@ describe('bodies', () => {
 
   it('drops one we have asked to take back', () => {
     expect(myBodies(all, [1, 3], new Set([1])).map((c) => c.id)).toEqual([3])
+  })
+})
+
+describe('the drive-in reel (rule 41)', () => {
+  const reel = { film: 'carnival of souls.mp4', since: T0 }
+  const wire = {
+    reel,
+    members: [
+      { id: 'a', name: 'Ana' },
+      { id: 'b', name: 'Bo' },
+    ],
+  }
+
+  it('says what was threaded, and whether it was ours', () => {
+    expect(reelNews({ reason: 'threaded', by: 'a' }, wire, 'a')).toEqual({
+      film: reel.film,
+      mine: true,
+      name: 'Ana',
+    })
+    expect(reelNews({ reason: 'threaded', by: 'b' }, wire, 'a')).toEqual({
+      film: reel.film,
+      mine: false,
+      name: 'Bo',
+    })
+    expect(reelNews({ reason: 'threaded', by: 'gone' }, wire, null)).toEqual({
+      film: reel.film,
+      mine: false,
+      name: '',
+    })
+  })
+
+  it('says nothing of any other snapshot, or of no reel', () => {
+    expect(reelNews({ reason: 'joined', by: 'a' }, wire, 'a')).toBeNull()
+    expect(
+      reelNews({ reason: 'threaded', by: 'a' }, { ...wire, reel: null }, 'a')
+    ).toBeNull()
   })
 })

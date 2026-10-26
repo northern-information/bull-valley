@@ -101,6 +101,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The tackle box on the firefly pond's landing: E opens it to fish
   // (rule 36).
   | { kind: 'fish' }
+  // The projector in the drive-in's booth: E opens the films to thread
+  // one (rule 42).
+  | { kind: 'projector' }
   // A slurm crawling on a Citgo's lot, a jar with room carried: E or the
   // click brings the jar to hand and catches it (rule 36).
   | { kind: 'jar-slurm'; station: number; slot: number; index: number }
@@ -115,6 +118,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The heart of the maze with Erwin's rose in the pack: E lays it
   // (quests.ts).
   | { kind: 'lay' }
+  // The floppy disk in the industrial park, for a raider on Gron's last
+  // quest without it: E takes it (quests.ts).
+  | { kind: 'find' }
   // The trapdoor in the Video Vault's office: E climbs down into the
   // Undercroft (undercroft.ts); the ladder's foot below: E climbs up.
   | { kind: 'descend' }
@@ -128,7 +134,7 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   | { kind: 'toolbox' }
   // The heap of earth inside the celestial graveyard's gate, the pack
   // holding no shovel: E takes one; the weeping angel's grave, a shovel in
-  // the pack: E digs it (sharedworld.ts rule 41).
+  // the pack: E digs it (sharedworld.ts rule 42).
   | { kind: 'shovel' }
   | { kind: 'exhume' }
   // Another raider in reach and in front (buffs.ts passTarget): E opens
@@ -198,6 +204,8 @@ export const SIGHTS = {
   recycler: { low: 0, high: 1.9, r: 0.6 },
   // The campfire, the stones to the flames' tips.
   campfire: { low: 0, high: 1, r: 0.8 },
+  // The projector on its pedestal, the reels over it.
+  projector: { low: 0, high: 2.2, r: 0.6 },
   hatch: { low: -0.2, high: 0.3, r: 0.7 },
   // A ladder going up from its foot, and down from its top.
   ladder: { low: 0, high: 3, r: 0.5 },
@@ -307,6 +315,8 @@ export interface InteractionInput<P extends PickupSpot> {
   campfires?: readonly XZ[]
   // The tackle box on the firefly pond's landing, or null.
   tackle?: XZ | null
+  // The projector in the drive-in's booth, or null.
+  projector?: XZ | null
   // The slurms crawling on the lot, while this raider holds a jar with
   // room in it; none otherwise.
   slurms?: readonly SlurmSpot[]
@@ -320,6 +330,9 @@ export interface InteractionInput<P extends PickupSpot> {
   // The heart of the maze, while this raider has a rose to lay there, or
   // null.
   heart?: XZ | null
+  // Where the floppy disk lies, while this raider is on Gron's last quest
+  // without it, or null.
+  disk?: XZ | null
   // The trapdoor down to the Undercroft, and the ladder's foot up out of
   // it, or null.
   trapdoor?: XZ | null
@@ -348,7 +361,7 @@ export interface InteractionInput<P extends PickupSpot> {
 // nearest NPC in his reach, unless a shelf unit is in view; climb into the
 // truck standing still beside you, when it is yours to climb into; buy off
 // a shelf; take your things back off your nearest body; open the lockers;
-// sit down at the laptop; tend the Cabbage Stand; deal with the squatter; take the nearest pickup
+// sit down at the laptop; tend the Cabbage Stand; thread the drive-in's projector; deal with the squatter; take the nearest pickup
 // in reach of a locked door, or else rattle it; Gron or the nearest berry
 // bush, whichever is nearer; inspect the raider in front; take the
 // nearest pickup.
@@ -482,6 +495,16 @@ export function resolveInteraction<P extends PickupSpot>(
     }
   }
 
+  const projector = input.projector
+  if (
+    projector &&
+    Math.hypot(projector.x - player.x, projector.z - player.z) <
+      CONFIG.driveIn.projectorReach &&
+    sees(projector, SIGHTS.projector)
+  ) {
+    return { kind: 'projector' }
+  }
+
   const tackle = input.tackle
   if (
     tackle &&
@@ -565,6 +588,16 @@ export function resolveInteraction<P extends PickupSpot>(
     sees(heart, SIGHTS.portal)
   ) {
     return { kind: 'lay' }
+  }
+
+  const disk = input.disk
+  if (
+    disk &&
+    Math.hypot(disk.x - player.x, disk.z - player.z) <
+      CONFIG.quests.takeReach &&
+    sees(disk, SIGHTS.thing)
+  ) {
+    return { kind: 'find' }
   }
 
   const locked = input.locked
@@ -797,6 +830,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.fish')
     case 'cook':
       return copy('prompts.cook')
+    case 'projector':
+      return copy('prompts.projector')
     case 'jar-slurm':
       return copy('prompts.jar_slurm')
     case 'cast':
@@ -814,6 +849,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.locked')
     case 'lay':
       return copy('prompts.lay')
+    case 'find':
+      return copy('prompts.find')
     case 'descend':
       return copy('prompts.descend')
     case 'ascend':

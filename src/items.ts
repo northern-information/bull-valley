@@ -602,6 +602,13 @@ export const ITEMS = [
     category: 'key-item',
     start: 0,
   },
+  // The construction data Gron sends a raider for (quests.ts), out of
+  // the industrial park (industrial.ts DISK).
+  {
+    id: 'floppy-disk',
+    category: 'key-item',
+    start: 0,
+  },
   // Out of the tackle box on the firefly pond's landing, one an account
   // (sharedworld.ts rule 36): nothing bites without it.
   {
@@ -638,7 +645,7 @@ export const ITEMS = [
     start: 0,
   },
   // Out of the heap of earth by the celestial graveyard's gate, one an
-  // account (sharedworld.ts rule 41): with it in the pack, E at the
+  // account (sharedworld.ts rule 42): with it in the pack, E at the
   // weeping angel's grave digs it up for a mech.
   {
     id: 'shovel',

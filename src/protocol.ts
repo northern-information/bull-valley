@@ -4,6 +4,7 @@
 // JSON text; every number the server stores is checked here first.
 
 import { USERNAME_MAX } from './account.ts'
+import { isFilmName } from './drivein.ts'
 import { EMOTE_IDS } from './emotes.ts'
 import { isFallHeight } from './fall.ts'
 import { isBait, toPondPlace } from './fishing.ts'
@@ -17,6 +18,7 @@ import type { CitgoLog } from './citgos.ts'
 import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { DealerStock } from './dealer.ts'
+import type { Reel } from './drivein.ts'
 import type { Drop } from './drops.ts'
 import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
 import type { Hurt } from './fall.ts'
@@ -46,7 +48,7 @@ import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 56
+export const PROTOCOL_VERSION = 60
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -202,6 +204,10 @@ export interface WorldWire {
   // Each topiary's health, and while it is burned away when it grows back
   // (sharedworld.ts rule 39), in topiaries.ts TOPIARIES order.
   topiaries: TopiaryHealth[]
+  // The film the drive-in shows and since when (server ms), or null
+  // before one was threaded (sharedworld.ts rule 41). Every client plays
+  // it from there on the valley's clock (drivein.ts reelSeconds).
+  reel: Reel | null
 }
 
 // Where an account last stood on foot, to come back to.
@@ -252,6 +258,7 @@ export type WorldReason =
   | 'topiary-hit'
   | 'topiary-burned'
   | 'topiary-back'
+  | 'threaded'
 
 // --- Client → server -------------------------------------------------------
 
@@ -275,6 +282,10 @@ export interface HelloMessage {
   // Bull Valley Plaza, or none; the shadow spiders come far more often
   // near them (rule 11).
   lairs: Lair[]
+  // Where the shadowmen that keep to one place lurk (industrial.ts: the
+  // industrial park's buildings), none or more: the valley forms one at
+  // each as a raider nears it (rule 11).
+  lurks: XZ[]
   // Where the corn maze lies, or null: the valley steps the Caretaker in
   // it (rule 13).
   maze: MazePlace | null
@@ -299,6 +310,12 @@ export interface HelloMessage {
   // Where the squatter in Bull Valley Plaza sits, or null: the valley
   // deals only with a raider beside him (rule 25).
   dealer: XZ | null
+  // Where Gron stands by the spawn Citgo's bush, or null: the valley takes
+  // a step of his quests only beside him (rule 26).
+  gron: XZ | null
+  // Where the floppy disk for Gron's last quest lies in the industrial
+  // park (industrial.ts parkDisk), or null: the valley gives it only there.
+  disk: XZ | null
   // Where the Undercroft lies (undercroft.ts), or null: the valley steps
   // its tunnel shades in it (rule 11).
   undercroft: MazePlace | null
@@ -313,7 +330,7 @@ export interface HelloMessage {
   payphones: XZ[]
   // The celestial graveyard's frame (celestialyard.ts celestialPlaceOf),
   // or null: where the shovel stands and the weeping angel's grave lies
-  // (rule 41).
+  // (rule 42).
   celestial: MazePlace | null
   // On a reconnect, the id this client had before the line dropped. The
   // valley may not have heard that socket close yet; it retires it if it is
@@ -482,12 +499,21 @@ type FishMessage =
 // ('topiary-hit' or 'topiary-burned') for everyone, or a nack.
 type TopiaryTendMessage = { type: 'toolbox' } | { type: 'torch'; index: number }
 
-// The celestial graveyard (sharedworld.ts rule 41): a shovel out of the
+// The celestial graveyard (sharedworld.ts rule 42): a shovel out of the
 // heap by the gate, or the weeping angel's grave dug. The valley checks
 // the raider's last state frame put them by the heap or the grave, and
 // the pack (and the day), and answers with an UnearthedMessage and a
 // PackMessage, a PackMessage alone, or a nack.
 type GraveyardTendMessage = { type: 'shovel' } | { type: 'exhume' }
+
+// The drive-in (sharedworld.ts rule 41): the film named (drivein.ts
+// isFilmName, a name in the films bucket) threaded on the projector. The
+// valley checks the raider's last state frame put them at it, and answers
+// with a world frame ('threaded') for everyone, or a nack.
+interface ThreadMessage {
+  type: 'thread'
+  film: string
+}
 
 // An expedition (sharedworld.ts rule 30): a run of `kind` sent out, or the
 // run home claimed. Dial-Up only; the valley answers with an
@@ -518,10 +544,10 @@ interface TradeMessage {
   offer: string
 }
 
-// One step of quest `quest` (sharedworld.ts rule 26): taking the rose
-// from Erwin, laying it at the heart of the maze, or coming back to him
-// for the key. The valley answers with a QuestFrame and a PackMessage,
-// or a nack.
+// One step of quest `quest` (sharedworld.ts rule 26): taking it on from
+// its giver, laying the rose at the heart of the maze, finding the floppy
+// disk where it lies, or finishing it. The valley answers with a
+// QuestFrame and a PackMessage, or a nack.
 interface QuestMessage {
   type: 'quest'
   quest: string
@@ -763,6 +789,7 @@ export type ClientMessage =
   | FishMessage
   | TopiaryTendMessage
   | GraveyardTendMessage
+  | ThreadMessage
   | ExpeditionTendMessage
   | TradeMessage
   | DealMessage
@@ -933,7 +960,7 @@ export interface CookedMessage {
   into: string
 }
 
-// A mech dug up out of the weeping angel's grave (rule 41), to every
+// A mech dug up out of the weeping angel's grave (rule 42), to every
 // socket signed in to the account, a pack frame following.
 export interface UnearthedMessage {
   type: 'unearthed'
@@ -1608,6 +1635,9 @@ function parseHavens(value: unknown, stations: number): XZ[] | null {
   return parseSpots(value, stations)
 }
 
+// The lurks a hello may place.
+const LURKS_MAX = 64
+
 // The spiders' lairs: at most LAIRS_MAX, each a place inside the survey
 // and a reach no wider than it.
 const LAIRS_MAX = 8
@@ -1728,6 +1758,7 @@ type HelloPlaces = Pick<
   | 'havens'
   | 'metres'
   | 'lairs'
+  | 'lurks'
   | 'maze'
   | 'truck'
   | 'stand'
@@ -1735,6 +1766,8 @@ type HelloPlaces = Pick<
   | 'ponds'
   | 'bushes'
   | 'dealer'
+  | 'gron'
+  | 'disk'
   | 'undercroft'
   | 'moat'
   | 'rings'
@@ -1748,6 +1781,7 @@ const NO_PLACES: HelloPlaces = {
   havens: [],
   metres: { width: 0, height: 0 },
   lairs: [],
+  lurks: [],
   maze: null,
   truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
   stand: null,
@@ -1755,6 +1789,8 @@ const NO_PLACES: HelloPlaces = {
   ponds: [],
   bushes: [],
   dealer: null,
+  gron: null,
+  disk: null,
   undercroft: null,
   moat: null,
   rings: [],
@@ -1776,15 +1812,18 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const havens = parseHavens(value.havens, stations)
   const metres = parseMetres(value.metres)
   const lairs = parseLairs(value.lairs)
+  const lurks = parseSpots(value.lurks, LURKS_MAX)
   const truck = parseRoutes(value.truck)
   const bushes = parseSpots(value.bushes, BUSHES_MAX)
   const rings = parseHavens(value.rings, stations)
   const recyclers = parseHavens(value.recyclers, stations)
   if (!havens || !metres || !lairs || !truck || !bushes || !rings) return null
-  if (!recyclers) return null
+  if (!recyclers || !lurks) return null
   const maze = nullable(value.maze, parseMazePlace)
   const stand = nullable(value.stand, parseXZ)
   const dealer = nullable(value.dealer, parseXZ)
+  const gron = nullable(value.gron, parseXZ)
+  const disk = nullable(value.disk, parseXZ)
   const undercroft = nullable(value.undercroft, parseMazePlace)
   const moat = nullable(value.moat, parseMazePlace)
   if (maze === undefined || stand === undefined) return null
@@ -1793,12 +1832,33 @@ function parseHelloPlaces(value: Fields, stations: number): HelloPlaces | null {
   const payphones = parseSpots(value.payphones, PAYPHONES_MAX)
   if (!payphones) return null
   if (dealer === undefined || undercroft === undefined) return null
+  if (gron === undefined || disk === undefined) return null
   if (moat === undefined) return null
   const celestial = nullable(value.celestial, parseMazePlace)
   if (celestial === undefined) return null
-  const places = { havens, metres, lairs, maze, truck, stand, bushes, dealer }
-  const more = { recyclers, ponds, undercroft, moat, rings, payphones }
-  return { ...places, ...more, celestial }
+  const places = {
+    havens,
+    metres,
+    lairs,
+    lurks,
+    maze,
+    truck,
+    stand,
+    bushes,
+    dealer,
+  }
+  return {
+    ...places,
+    gron,
+    disk,
+    recyclers,
+    ponds,
+    undercroft,
+    moat,
+    rings,
+    payphones,
+    celestial,
+  }
 }
 
 // A hello. The outfit is checked by the server (characters.ts
@@ -1923,6 +1983,8 @@ const CLIENT_PARSERS: ClientParsers = {
   exhume: bare('exhume'),
   // Which topiaries there are is the valley's to check.
   torch: ({ index }) => (isCount(index) ? { type: 'torch', index } : null),
+  // Which films there are is the bucket's; the name only has to be one.
+  thread: ({ film }) => (isFilmName(film) ? { type: 'thread', film } : null),
   dig: bare('dig'),
   cast: ({ bait }) => (isBait(bait) ? { type: 'cast', bait } : null),
   reel: ({ landed }) =>
