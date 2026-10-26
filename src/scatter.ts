@@ -321,11 +321,15 @@ export function buildReeds(
   return reeds
 }
 
+// `keepOut` leaves out the stones that would stand where it says (the
+// celestial graveyard's precinct); they are drawn all the same, so
+// everything drawn after them keeps its place.
 export function buildGraveyards(
   geo: Pick<Geo, 'graveyards'>,
   metres: Metres,
   heightAt: HeightAt,
-  rng: Rng
+  rng: Rng,
+  keepOut: (x: number, z: number) => boolean = () => false
 ): THREE.Group {
   const group = new THREE.Group()
   group.name = 'graveyards'
@@ -353,14 +357,9 @@ export function buildGraveyards(
   }
 
   const stone = gravestonePart()
-  const mesh = new THREE.InstancedMesh(
-    stone.geometry,
-    stone.material,
-    stones.length
-  )
+  const kept: THREE.Matrix4[] = []
   const dummy = new THREE.Object3D()
-  for (let i = 0; i < stones.length; i++) {
-    const [u, v] = stones[i]
+  for (const [u, v] of stones) {
     const { x, z } = unitToWorld(u, v, metres)
     dummy.position.set(x, heightAt(x, z), z)
     dummy.rotation.set(
@@ -370,8 +369,14 @@ export function buildGraveyards(
     )
     dummy.scale.setScalar(range(rng, 0.8, 1.3))
     dummy.updateMatrix()
-    mesh.setMatrixAt(i, dummy.matrix)
+    if (!keepOut(x, z)) kept.push(dummy.matrix.clone())
   }
+  const mesh = new THREE.InstancedMesh(
+    stone.geometry,
+    stone.material,
+    kept.length
+  )
+  kept.forEach((matrix, i) => mesh.setMatrixAt(i, matrix))
   mesh.instanceMatrix.needsUpdate = true
   group.add(mesh)
   return group

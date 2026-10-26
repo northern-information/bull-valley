@@ -902,6 +902,22 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hud.tell(copy('log.torch_taken'))
   }
 
+  // Rule 42: E at the heap inside the celestial graveyard's gate: a shovel
+  // out of it; E at the weeping angel's grave: it dug. The pack frame after
+  // puts the shovel in the pack, and the mech that came up; a refusal says
+  // why.
+  const takeShovel = () => {
+    net.send({ type: 'shovel' })
+    hud.tell(copy('log.shovel_taken'))
+  }
+  const exhume = () => {
+    if (s.pending.exhume) return
+    s.pending.exhume = true
+    net.send({ type: 'exhume' })
+    hud.tell(copy('log.digging'))
+    game.sfx?.play('dig')
+  }
+
   // Rule 39: the click with the torch in hand: a swing, at the topiary in
   // front within reach, if any. The blow is sent as it lands (loop.ts).
   const swingTorch = () => {
@@ -1640,6 +1656,12 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       }
       case 'toolbox':
         takeTorch()
+        return
+      case 'shovel':
+        takeShovel()
+        return
+      case 'exhume':
+        exhume()
         return
       case 'locked':
         hud.tell(copy('log.locked'))
