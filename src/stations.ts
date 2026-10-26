@@ -161,7 +161,8 @@ export function buildFuelStations(
       STORE_LAYOUT.pad.back,
       STORE_LAYOUT.front,
       STORE_LAYOUT.halfWidth,
-      storeY + STORE_LAYOUT.floor
+      storeY + STORE_LAYOUT.floor,
+      'tile'
     )
     for (const wall of storeWalls(origin)) {
       walls.addWall(wall.a, wall.b, wall.half, undefined, wall.low)

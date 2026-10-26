@@ -379,7 +379,7 @@ function placeLookout(
   const cos = Math.cos(place.yaw)
   const sin = Math.sin(place.yaw)
   const { half } = LOOKOUT
-  ground.addFloor(place.x, place.z, cos, sin, -half, half, half, deck)
+  ground.addFloor(place.x, place.z, cos, sin, -half, half, half, deck, 'wood')
   for (const w of lookoutWalls()) {
     walls.addWall(lookoutToWorld(maze, w.a), lookoutToWorld(maze, w.b), w.half)
   }

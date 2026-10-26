@@ -263,6 +263,35 @@ function bayNumber(n: number): CanvasArt {
   return art
 }
 
+// --- The fence -----------------------------------------------------------
+
+// One tile of rusted chain-link, see-through between its wires: the
+// diamonds woven corner to corner, the zinc long gone to rust in streaks.
+// industrialmodel.ts repeats it down every run.
+export function paintChainLink(): CanvasArt {
+  const art = canvas([64, 64])
+  const { ctx, w, h } = art
+  const rng = mulberry32(0xc4a1)
+  ctx.lineWidth = 3
+  ctx.lineCap = 'square'
+  for (let k = -w; k <= w; k += 16) {
+    for (const dir of [1, -1]) {
+      ctx.strokeStyle =
+        rng() < 0.3 ? '#9a6a44' : rng() < 0.5 ? '#6e4426' : '#7e7a72'
+      ctx.beginPath()
+      if (dir > 0) {
+        ctx.moveTo(k, 0)
+        ctx.lineTo(k + h, h)
+      } else {
+        ctx.moveTo(k + h, 0)
+        ctx.lineTo(k, h)
+      }
+      ctx.stroke()
+    }
+  }
+  return art
+}
+
 // --- Graffiti ------------------------------------------------------------
 
 // Paint run down from a stroke: a few drips, each from a point along it.
