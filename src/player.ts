@@ -228,7 +228,7 @@ export class Player {
     const speedNow = Math.hypot(this.vel.x, this.vel.z)
     const moving = speedNow > 0.3
 
-    this.bobPhase += speedNow * dt * 1.6
+    this.bobPhase += speedNow * dt * cfg.bobRate
     const bobSin = Math.sin(this.bobPhase)
 
     const jumping = this.wantJump

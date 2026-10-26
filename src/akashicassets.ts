@@ -63,6 +63,7 @@ import {
   buildTackleBox,
 } from './fishmodels.ts'
 import {
+  buildFenceStretch,
   buildForklift,
   buildWarehouse,
   buildWorksProp,
@@ -836,6 +837,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     label: 'A pallet of boxes left in an industrial park truck court',
     build: () =>
       buildWorksProp({ kind: 'load', x: 0, z: 0, yaw: 0, layers: 3 }),
+  },
+  {
+    id: 'chain-link',
+    label: 'The rusted chain-link round an industrial park truck court',
+    build: buildFenceStretch,
   },
   {
     id: 'semi-trailer',

@@ -274,7 +274,8 @@ export function buildPlaza(
     -STRIP_MALL.depth,
     STRIP_MALL.walk,
     STRIP_MALL.length / 2,
-    deck
+    deck,
+    'tile'
   )
   for (const wall of mallWalls(origin)) {
     walls.addWall(wall.a, wall.b, wall.half, undefined, wall.low)

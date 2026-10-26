@@ -177,7 +177,28 @@ export function buildIndustrialSite(
       walls.addWall(p, p, radius)
     }
   }
-  const works = buildIndustrial({ buildings: placed, props })
+  // The fence round the truck courts, each end on the ground under it;
+  // every run blocks a body but not the eye or the hand (low), as
+  // see-through as chain-link is.
+  const onGround = (q: { x: number; z: number }): Vec3 => {
+    const w = at(q.x, q.z)
+    return [q.x, ground.at(w.x, w.z), q.z]
+  }
+  const fences = INDUSTRIAL.fences.map((run) => {
+    walls.addWall(
+      at(run.a.x, run.a.z),
+      at(run.b.x, run.b.z),
+      0.05,
+      undefined,
+      true
+    )
+    return { a: onGround(run.a), b: onGround(run.b) }
+  })
+  const flaps = INDUSTRIAL.flaps.map((flap) => ({
+    a: onGround(flap.at),
+    b: onGround(flap.to),
+  }))
+  const works = buildIndustrial({ buildings: placed, props, fences, flaps })
   works.group.position.set(park.x, 0, park.z)
   works.group.rotation.y = -park.yaw
   group.add(works.group)

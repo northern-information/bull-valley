@@ -9,12 +9,17 @@ import {
 import {
   buildingBoxes,
   buildingSigns,
+  FENCE,
   forklift,
   INDUSTRIAL,
   propBoxes,
   propSigns,
 } from './industrial.ts'
-import { isWorksCutOut, paintWorksArt } from './industrialart.ts'
+import {
+  isWorksCutOut,
+  paintChainLink,
+  paintWorksArt,
+} from './industrialart.ts'
 import { applyPS1 } from './ps1.ts'
 import type {
   WorksArtId,
@@ -88,6 +93,7 @@ const WORKS_FINISH: Record<WorksFinish, () => THREE.Material> = {
   'car-blue': () => lambert({ color: '#26405e' }),
   'car-white': () => lambert({ color: '#c8c6be' }),
   'car-burnt': () => lambert({ color: '#2a2420' }),
+  rust: () => lambert({ color: '#6a3e24' }),
 }
 
 // A box as geometry, turned if it was tipped, then moved into the park by
@@ -162,6 +168,98 @@ function bayFlicker(t: number): number {
 export interface IndustrialPlacing {
   buildings: readonly (Vec3 | null)[]
   props: readonly { prop: WorksProp; at: Vec3 }[]
+  // The fence's runs and its peeled flaps, each end at the height of the
+  // ground under it.
+  fences?: readonly { a: Vec3; b: Vec3 }[]
+  flaps?: readonly { a: Vec3; b: Vec3 }[]
+}
+
+// The chain-link: a tile this many metres square, repeated down a run.
+const LINK_TILE = 1.0
+
+// A run's mesh as one quad from a to b, FENCE.height tall over the
+// ground at each end, its UVs counting tiles so the wire repeats.
+function linkQuad(a: Vec3, b: Vec3, height: number): THREE.BufferGeometry {
+  const len = Math.hypot(b[0] - a[0], b[2] - a[2])
+  const u = len / LINK_TILE
+  const v = height / LINK_TILE
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute(
+    'position',
+    new THREE.Float32BufferAttribute(
+      [
+        ...a,
+        ...b,
+        b[0],
+        b[1] + height,
+        b[2],
+        ...a,
+        b[0],
+        b[1] + height,
+        b[2],
+        a[0],
+        a[1] + height,
+        a[2],
+      ],
+      3
+    )
+  )
+  geometry.setAttribute(
+    'uv',
+    new THREE.Float32BufferAttribute([0, 0, u, 0, u, v, 0, 0, u, v, 0, v], 2)
+  )
+  geometry.computeVertexNormals()
+  return geometry
+}
+
+// A run's posts (at each end and never more than FENCE.post apart), its
+// top rail and its barbed wire, as boxes: each turned along the run, a
+// post now and then bent.
+function fenceBoxes(a: Vec3, b: Vec3, k: number): WorksBox[] {
+  const dx = b[0] - a[0]
+  const dz = b[2] - a[2]
+  const len = Math.hypot(dx, dz)
+  const turn = Math.atan2(-dz, dx)
+  const { height, barbs, post } = FENCE
+  const boxes: WorksBox[] = []
+  const n = Math.max(1, Math.ceil(len / post))
+  for (let i = 0; i <= n; i++) {
+    const t = i / n
+    const y = a[1] + (b[1] - a[1]) * t
+    const bent = (k * 7 + i) % 11 === 0
+    boxes.push({
+      name: `fence-${k}-post-${i}`,
+      center: [a[0] + dx * t, y + (height + 0.4) / 2, a[2] + dz * t],
+      size: [0.07, height + 0.4, 0.07],
+      finish: 'rust',
+      blocks: false,
+      turn: bent ? [0.18, turn, 0.1] : [0, turn, 0],
+    })
+  }
+  const mid = (o: number): Vec3 => [
+    (a[0] + b[0]) / 2,
+    (a[1] + b[1]) / 2 + o,
+    (a[2] + b[2]) / 2,
+  ]
+  boxes.push({
+    name: `fence-${k}-rail`,
+    center: mid(height),
+    size: [len, 0.05, 0.05],
+    finish: 'rust',
+    blocks: false,
+    turn: [0, turn, 0],
+  })
+  barbs.forEach((over, j) => {
+    boxes.push({
+      name: `fence-${k}-barb-${j}`,
+      center: mid(height + over),
+      size: [len, 0.015, 0.015],
+      finish: 'rust',
+      blocks: false,
+      turn: [0, turn, 0],
+    })
+  })
+  return boxes
 }
 
 // The park, every building and prop as placed.
@@ -216,6 +314,28 @@ export function buildIndustrial(placing: IndustrialPlacing): IndustrialRig {
     frame.rotation.y = prop.yaw
     for (const sign of signs) frame.add(signMesh(sign, [0, 0, 0], painted))
     group.add(frame)
+  }
+  // The fence: its posts, rails and wire with the rest, its mesh one
+  // see-through mesh down every run and every peeled flap.
+  const links: THREE.BufferGeometry[] = []
+  ;(placing.fences ?? []).forEach(({ a, b }, k) => {
+    for (const box of fenceBoxes(a, b, k)) add(box, new THREE.Matrix4())
+    links.push(linkQuad(a, b, FENCE.height))
+  })
+  for (const { a, b } of placing.flaps ?? []) {
+    links.push(linkQuad(a, b, FENCE.height * 0.8))
+  }
+  if (links.length > 0) {
+    const texture = artTexture(paintChainLink())
+    texture.wrapS = THREE.RepeatWrapping
+    texture.wrapT = THREE.RepeatWrapping
+    const mesh = new THREE.Mesh(
+      mergeGeometries(links),
+      lambert({ map: texture, alphaTest: 0.4, side: THREE.DoubleSide })
+    )
+    mesh.name = 'works-chain-link'
+    mesh.receiveShadow = true
+    group.add(mesh)
   }
   let tube: THREE.MeshBasicMaterial | null = null
   let flame: THREE.MeshBasicMaterial | null = null
@@ -279,6 +399,20 @@ export function buildForklift(): THREE.Group {
     group.add(mesh)
   }
   return group
+}
+
+// A stretch of the truck courts' fence, torn open in its middle and its
+// mesh peeled back, for Akashic.
+export function buildFenceStretch(): THREE.Group {
+  return buildIndustrial({
+    buildings: [],
+    props: [],
+    fences: [
+      { a: [-6, 0, 0], b: [-0.9, 0, 0] },
+      { a: [0.9, 0, 0], b: [6, 0, 0] },
+    ],
+    flaps: [{ a: [0.9, 0, 0], b: [1.7, 0, 0.9] }],
+  }).group
 }
 
 // One prop alone, for Akashic.
