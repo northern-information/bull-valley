@@ -106,6 +106,8 @@ export function createTargets(game: Game): Targets {
         return world.plaza?.door ?? null
       case 'lay':
         return world.portal?.rig.group ?? null
+      case 'find':
+        return world.industrial?.disk.object ?? null
       // What is not there glows as the real one would.
       case 'hallucination':
         return game.hallucinations.objectOf(action.id)
@@ -169,7 +171,7 @@ export function createTargets(game: Game): Targets {
         eye: [camera.position.x, camera.position.y, camera.position.z],
         dir: [look.x, look.y, look.z],
         feet: player.groundY,
-        groundAt: world.ground.at,
+        groundAt: world.ground.lieAt,
         heightOf,
       }
     },

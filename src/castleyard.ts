@@ -16,12 +16,13 @@
 import { CONFIG } from './config.ts'
 import { projectOnSegment } from './coords.ts'
 import { mix } from './crumble.ts'
-import { mazeToWorld } from './maze.ts'
+import { mazeToWorld, worldToMaze } from './maze.ts'
 import { craneSpots, inChannel, inflate, MOAT, onIsland } from './moat.ts'
 import { mulberry32, range } from './rng.ts'
 import type { Fragment } from './crumble.ts'
 import type { XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
+import type { CastlePlace } from './moat.ts'
 
 type CastleConfig = typeof CONFIG.castle
 type FloatConfig = typeof CONFIG.castle.yard.float
@@ -332,39 +333,92 @@ export function crumbAt(
   }
 }
 
-// The payphone: on its side of the rim, out on the concrete, its face
-// toward the valley (away from the moat), so a raider stands outside it.
-export function payphoneSpot(
-  place: MazePlace,
-  cfg: CastleConfig = CONFIG.castle
-): YardSpot {
+// Where the walk straight out of the spawn Citgo's door (castlePlace's
+// `door` and `walk`) first crosses the moat's outer edge: the side, how
+// far along it, and the walk's way in the moat's own frame. A walk that
+// misses the moat altogether comes to the side whose middle is nearest
+// the door.
+function crossing(place: CastlePlace): { s: Side; along: number; way: XZ } {
   const all = sides()
-  const P = cfg.yard.payphone
-  const s = all[P.side % all.length]
-  return {
-    ...onSide(place, s, s.len * P.along, P.out),
-    yaw: headingOf(turned(place, s.out)),
+  const d = worldToMaze(place, place.door)
+  const e = worldToMaze(place, {
+    x: place.door.x + place.walk.x,
+    z: place.door.z + place.walk.z,
+  })
+  const way = { x: e.x - d.x, z: e.z - d.z }
+  let best: { s: Side; along: number; t: number } | null = null
+  for (const s of all) {
+    const den = way.x * s.along.z - way.z * s.along.x
+    if (Math.abs(den) < 1e-9) continue
+    const ax = s.a.x - d.x
+    const az = s.a.z - d.z
+    const t = (ax * s.along.z - az * s.along.x) / den
+    const along = (ax * way.z - az * way.x) / den
+    if (t > 0 && along >= 0 && along <= s.len && (!best || t < best.t)) {
+      best = { s, along, t }
+    }
   }
+  if (best) return { s: best.s, along: best.along, way }
+  const middle = (s: Side) => ({
+    x: s.a.x + (s.along.x * s.len) / 2,
+    z: s.a.z + (s.along.z * s.len) / 2,
+  })
+  const near = all.reduce((a, b) =>
+    Math.hypot(middle(a).x - d.x, middle(a).z - d.z) <=
+    Math.hypot(middle(b).x - d.x, middle(b).z - d.z)
+      ? a
+      : b
+  )
+  return { s: near, along: near.len / 2, way }
 }
 
-// Jericho, the Candlebearer: sat a little along the side from the
-// payphone, a step further out, turned toward the phone's front,
-// where a raider stands at it.
+// Jericho, the Candlebearer: out on the concrete right where the walk
+// straight out of the spawn Citgo's door comes to the rim, `out` metres
+// from the edge, turned to face back up the walk toward the door, so a
+// raider who walks out the door and keeps on comes to him. Should that
+// spot crowd a fire escape's top or a crane's footing, he slides along
+// the side, the nearer way, until it does not.
 export function jerichoSpot(
-  place: MazePlace,
+  place: CastlePlace,
   cfg: CastleConfig = CONFIG.castle
 ): YardSpot {
-  const all = sides()
-  const P = cfg.yard.payphone
   const J = cfg.yard.jericho
-  const s = all[P.side % all.length]
-  const at = onSide(place, s, s.len * P.along + J.beside, J.out)
-  const phone = payphoneSpot(place, cfg)
-  const before = {
-    x: phone.x + Math.cos(phone.yaw) * 1.2,
-    z: phone.z + Math.sin(phone.yaw) * 1.2,
+  const crowded = crowding(place, cfg)
+  const { s, along, way } = crossing(place)
+  // Back up the walk from the edge until `out` from it.
+  const cos = -(way.x * s.out.x + way.z * s.out.z)
+  const back = J.out / Math.max(0.2, cos)
+  const hit = { x: s.a.x + s.along.x * along, z: s.a.z + s.along.z * along }
+  let at = mazeToWorld(place, {
+    x: hit.x - way.x * back,
+    z: hit.z - way.z * back,
+  })
+  for (let step = 1; crowded(at, J.spread) && step <= 40; step++) {
+    const off = Math.ceil(step / 2) * (step % 2 ? 1 : -1)
+    const d = Math.min(s.len - 1, Math.max(1, along + off))
+    at = onSide(place, s, d, J.out)
   }
-  return { ...at, yaw: headingOf({ x: before.x - at.x, z: before.z - at.z }) }
+  const toDoor = { x: place.door.x - at.x, z: place.door.z - at.z }
+  return { ...at, yaw: headingOf(toDoor) }
+}
+
+// The payphone: on Jericho's side of the rim, `beside` metres along it
+// from him (the other way, should that crowd the stairs or a crane), out
+// on the concrete, its face toward the valley (away from the moat), so a
+// raider stands outside it.
+export function payphoneSpot(
+  place: CastlePlace,
+  cfg: CastleConfig = CONFIG.castle
+): YardSpot {
+  const P = cfg.yard.payphone
+  const crowded = crowding(place, cfg)
+  const { s } = crossing(place)
+  const him = worldToMaze(place, jerichoSpot(place, cfg))
+  const along = (him.x - s.a.x) * s.along.x + (him.z - s.a.z) * s.along.z
+  const yaw = headingOf(turned(place, s.out))
+  const near = onSide(place, s, along + P.beside, P.out)
+  if (!crowded(near, 1)) return { ...near, yaw }
+  return { ...onSide(place, s, along - P.beside, P.out), yaw }
 }
 
 // How far short of the rim's lip a light tower's pool ends, so the
@@ -396,7 +450,7 @@ export function poolReach(place: MazePlace, c: XZ, p: XZ): XZ {
 // A light tower to each outer side, its lamps toward the island, at the
 // first of a few places along the side that crowds nothing.
 export function yardLamps(
-  place: MazePlace,
+  place: CastlePlace,
   cfg: CastleConfig = CONFIG.castle
 ): YardSpot[] {
   const crowded = crowding(place, cfg)
@@ -448,7 +502,7 @@ export interface Clutter extends YardSpot {
 }
 
 export function yardClutter(
-  place: MazePlace,
+  place: CastlePlace,
   cfg: CastleConfig = CONFIG.castle
 ): Clutter[] {
   const C = cfg.yard.clutter

@@ -8,7 +8,9 @@
 //
 // Where decks stack (the moat's fire escapes, flight over flight), the
 // highest is not always the one underfoot: standAt answers for feet at a
-// height, the highest deck they could step onto from there.
+// height, the highest deck they could step onto from there; lieAt the
+// same for whatever lies where a raider was (a drop, a body, a slurm on the
+// moat's floor under the pipes), from the height they stood at.
 //
 // Each surface says what it is underfoot (its tread: a road's asphalt, a
 // shoulder's dirt, a lot's concrete, a store's tile, a deck's wood, a fire
@@ -19,8 +21,9 @@
 // cells keeps a query to the few surfaces near the point, so the player and
 // the truck can ask every frame.
 
+import { CONFIG } from './config.ts'
 import { pointInPolygon, projectOnSegment } from './coords.ts'
-import type { HeightAt, XZ } from './interfaces.ts'
+import type { HeightAt, LieAt, XZ } from './interfaces.ts'
 
 // What a surface is underfoot.
 export type Tread =
@@ -101,6 +104,10 @@ type Surface = Segment | TrailSegment | Patch | Floor | Area
 export class Ground {
   // The height to stand on at (x, z). Bound, so it passes as a HeightAt.
   readonly at: HeightAt
+  // What a thing at (x, z) lies on: the deck under feet at `y` (standAt,
+  // as a raider would stand there), or with no `y` the highest (at).
+  // Bound too.
+  readonly lieAt: LieAt
   private readonly terrain: HeightAt
   private readonly cell: number
   private readonly cells = new Map<string, Surface[]>()
@@ -109,6 +116,10 @@ export class Ground {
     this.terrain = terrain
     this.cell = cell
     this.at = (x, z) => this.heightAt(x, z)
+    this.lieAt = (x, z, y) =>
+      y === undefined
+        ? this.heightAt(x, z)
+        : this.standAt(x, z, y, CONFIG.fall.climb)
   }
 
   // A ribbon (a road) along a centreline of points with heights, `width`

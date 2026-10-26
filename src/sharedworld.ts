@@ -16,7 +16,9 @@
 //    and Erwin's stock start afresh. A client on the world's protocol
 //    whose pickups or stations differ from the world's is turned away.
 // 2. A raider comes back where their account last stood on foot, or at the
-//    spawn Citgo the first time (Valley.places).
+//    spawn Citgo the first time (Valley.places). The valley keeps it as
+//    they walk (stand), not only when they leave, so a tab that vanished
+//    without closing still comes back near where it was.
 // 3. Matthew Marx's truck is the valley's (marx.ts): his reading and his
 //    donuts, his countdown once anyone is in the bed, the joyride out and
 //    home, and the whistle. Anyone arriving while he is at his donuts
@@ -43,8 +45,8 @@
 //    (1 to CONFIG.maze.bushes.count). The valley remembers only the
 //    accounts that have had today's berry off each. Two sockets signed in
 //    to one account share one berry a bush.
-// 9. Gron changes a raider's name and character at any time. The change
-//    touches only how they are shown.
+// 9. Your Name (in Settings) changes a raider's name, and Moab Coldë their
+//    character, at any time. The change touches only how they are shown.
 // 10. Every item a raider carries is their account's (the pack), kept by
 //    the valley and never by the client: a berry, a pickup (a cabbage
 //    included), a unit bought off a shelf (a pack or a bottle goes in
@@ -62,8 +64,12 @@
 //    dimes taken up are cash, into the taker's wallet (Reduced.earn), never
 //    the pack. Among them come the shadow spiders, twice the height, far
 //    more often near the lairs the world was opened with (lairs.ts: the
-//    dish array, Castle Entropy, Bull Valley Plaza),
+//    dish array, Castle Entropy, Bull Valley Plaza, the industrial park),
 //    twice as long to burn, and each leaves a $20 bill, cash the same way.
+//    And at each lurk the world was opened with (industrial.ts: the
+//    industrial park's buildings) a lurker forms as a raider nears, drifts
+//    round it and rushes like any shadowman (shadowmen.ts), forming again
+//    a while after it bursts.
 //    Marx's headlights burn them too, crediting no one: the valley never
 //    knows the roads, so it aims them from where a raider near the truck
 //    last said it stood (seeHeadlights), and only while that is fresh.
@@ -207,11 +213,17 @@
 //    the valley in D1 beside the pack. Erwin von Dutch gives a raider out
 //    of the bed beside him a rose (again, if it was lost); laid at the
 //    heart of the maze where the world was opened with it, he gives them
-//    the Video Vault's back-room key. Each step is judged against where
-//    the raider's last state frame put them and what the pack holds
+//    the Video Vault's back-room key. Gron, where the world was opened
+//    with him (SharedWorld.gron), gives his quests one after another, each
+//    once the last is done: bring him a berry, find Erwin (who finishes
+//    it), and bring him the floppy disk, which each raider on that quest
+//    finds for themselves where the world was opened with it
+//    (SharedWorld.disk, in the industrial park). Each
+//    step is judged against where the raider's last state frame put them,
+//    the account's stage on every quest and what the pack holds
 //    (ValleyContext.quest in, Reduced.quest out); the valley writes the
-//    stage and the pack together, or neither. The key earns quest XP
-//    (rule 22).
+//    stage and the pack together, or neither. Every quest finished earns
+//    quest XP (rule 22).
 // 27. Buffs (buffs.ts): every account's wards (wardlevels.ts) are kept
 //    by the valley (Valley.wards, on its clock in seconds, only the
 //    accounts not sober), dosed by each use once the pack has given the
@@ -407,6 +419,19 @@
 //    they cook into in together, or neither, as a barter with Erwin is
 //    written (ValleyContext.holdings in, Reduced.barter and Reduced.cooked
 //    out). Every socket on the account hears what cooked, then the pack.
+// 41. The drive-in past the corn maze's far end (drivein.ts): one reel
+//    for the whole valley (Valley.reel), the film and when it was
+//    threaded, so everyone sees the same frame at the same time on the
+//    valley's clock, round and round. A raider on foot, out of the bed,
+//    whose last state frame put them at the projector in the booth, where
+//    the world was opened with the maze (drivein.ts atProjector, with
+//    CONFIG.driveIn.slack), threads a film by its name in the films bucket
+//    (a `thread` action; drivein.ts isFilmName): it plays from its start
+//    for everyone, and everyone hears who threaded it ('threaded'). The
+//    reel is the valley's, not the world's: it outlasts the day's turn and
+//    a world opened afresh. Which films there are is the bucket's
+//    (worker/films.ts); the valley never reads it. Dialed in there is no
+//    booth (`dialup`).
 
 import { bountyOf, GIFTS } from './book.ts'
 import { dosed, inPassReach, scaled, sobered, wardsOf } from './buffs.ts'
@@ -419,11 +444,13 @@ import { corpseWire, isEmpty, keysOff, spilledDimes } from './corpses.ts'
 import { affords, cosmeticById, MOAB_OFFERS } from './cosmetics.ts'
 import { collectedToday, dayKey, nextMidnight } from './daily.ts'
 import { atDealer, deal, freshDealerStock } from './dealer.ts'
+import { atProjector, isFilmName } from './drivein.ts'
 import {
   centsOf,
   DIME_CENTS,
   DIMES,
   dropSpot,
+  feetOf,
   isCash,
   isPickupKind,
   takeUp,
@@ -508,7 +535,14 @@ import {
 } from './party.ts'
 import { fieldEnd, freeSlot, nextClose, openAt, ringEnd } from './portals.ts'
 import { PROTOCOL_VERSION } from './protocol.ts'
-import { atHeart, isQuest, QUESTS, questStep } from './quests.ts'
+import {
+  atDisk,
+  atGron,
+  atHeart,
+  isQuest,
+  QUESTS,
+  questStep,
+} from './quests.ts'
 import {
   affordsResearch,
   atRecycler,
@@ -543,6 +577,7 @@ import type { CitgoLog } from './citgos.ts'
 import type { Corpse } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { DealerStock } from './dealer.ts'
+import type { Reel } from './drivein.ts'
 import type { Drop, Facing, Spill } from './drops.ts'
 import type { ExpeditionOutcome, ExpeditionRun } from './expeditions.ts'
 import type { Hurt } from './fall.ts'
@@ -575,7 +610,7 @@ import type {
   WorldReason,
   WorldWire,
 } from './protocol.ts'
-import type { QuestId, QuestStage, QuestStep } from './quests.ts'
+import type { QuestId, QuestStage, QuestStages, QuestStep } from './quests.ts'
 import type { Research, ResearchLine } from './recycling.ts'
 import type { StandLedger } from './stand.ts'
 import type { TopiaryHealth } from './topiaries.ts'
@@ -622,6 +657,8 @@ interface SharedWorld {
   metres: Metres
   // The spiders' lairs (rule 11, lairs.ts).
   lairs: Lair[]
+  // Where the lurkers keep (rule 11, industrial.ts).
+  lurks: XZ[]
   maze: MazePlace | null
   routes: TruckRoutes
   // Where the Cabbage Stand stands, or null (rule 23).
@@ -637,6 +674,10 @@ interface SharedWorld {
   // 25).
   dealer: XZ | null
   dealerStock: DealerStock
+  // Where Gron stands, or null (rule 26: his quests are taken beside him),
+  // and where the floppy disk lies for his last, or null.
+  gron: XZ | null
+  disk: XZ | null
   // Where the Undercroft lies, or null (rule 11: the tunnel shades).
   undercroft: MazePlace | null
   // Where Castle Entropy's moat lies, or null (rule 11: the valley cuts it
@@ -709,6 +750,9 @@ export interface Valley {
   anglers: Record<string, Angler>
   lines: Record<string, Line>
   jarred: string[]
+  // Rule 41: the film the drive-in shows, and since when; null until one
+  // is threaded.
+  reel: Reel | null
 }
 
 // Rule 36: a line out with a fish (or the junk) on it: whose, what took
@@ -755,6 +799,7 @@ export type ValleyAction =
       havens: XZ[]
       metres: Metres
       lairs: Lair[]
+      lurks: XZ[]
       maze: MazePlace | null
       routes: TruckRoutes
       stand: XZ | null
@@ -762,6 +807,8 @@ export type ValleyAction =
       ponds: PondPlace[]
       bushes: XZ[]
       dealer: XZ | null
+      gron: XZ | null
+      disk: XZ | null
       undercroft: MazePlace | null
       moat: MazePlace | null
       rings: XZ[]
@@ -781,6 +828,8 @@ export type ValleyAction =
     }
   // at: where their last state frame put them, or null.
   | { type: 'leave'; id: string; at: PeerStateWire | null }
+  // Rule 2: where a raider still here stands, kept as they walk.
+  | { type: 'stand'; id: string; at: PeerStateWire }
   // In every action below, at: where the raider's last state frame put
   // them, or null when the valley has not heard one. The valley holds them
   // to it (CONFIG.valleyReach), never to where a frame says they are.
@@ -889,6 +938,9 @@ export type ValleyAction =
   // where the raider's last state frame put them, or null.
   | { type: 'toolbox'; id: string; at: XZ | null }
   | { type: 'torch'; id: string; index: number; at: XZ | null; roll: number }
+  // Rule 41: the film named threaded on the drive-in's projector. at:
+  // where the raider's last state frame put them, or null.
+  | { type: 'thread'; id: string; film: string; at: XZ | null }
   // Rule 36: slurm `index` of slot `slot`'s drop at `station`, into the
   // jar. at: where the raider's last state frame put them, or null.
   | {
@@ -971,9 +1023,9 @@ export interface ValleyContext {
   // a portal: the raider's pack and cosmetics, as the valley just read
   // them.
   holdings?: { pack: Inventory; cosmetics: readonly CosmeticId[] }
-  // For a quest's step: where the account stands on it, and its pack, as
-  // the valley just read them.
-  quest?: { stage: QuestStage; pack: Inventory }
+  // For a quest's step: where the account stands on every quest, and its
+  // pack, as the valley just read them.
+  quest?: { stages: QuestStages; pack: Inventory }
   // For tending the stand: the account's ledger, pack and wallet (cents),
   // as the valley just read them.
   stand?: { ledger: StandLedger; pack: Inventory; cash: number }
@@ -1015,7 +1067,7 @@ export interface Reduced {
     step: QuestStep
     from: QuestStage
     to: QuestStage
-    change: { kind: string; delta: number }
+    change: { kind: string; delta: number } | null
   }
   // Rule 25: a barter that stands once the valley has taken `give` (kind
   // -> units) out of the account's pack and put `take` in, together.
@@ -1180,6 +1232,7 @@ export function createValley(): Valley {
     anglers: {},
     lines: {},
     jarred: [],
+    reel: null,
   }
 }
 
@@ -1457,6 +1510,7 @@ export function toWire(valley: Valley): WorldWire | null {
       name,
     })),
     topiaries: world.topiaries,
+    reel: valley.reel,
   }
 }
 
@@ -1630,6 +1684,7 @@ const NEEDS_A_BODY: Partial<Record<ValleyAction['type'], NackRe>> = {
   'jar-slurm': 'jar-slurm',
   toolbox: 'toolbox',
   torch: 'torch',
+  thread: 'thread',
 }
 
 function bodiless(
@@ -1639,7 +1694,7 @@ function bodiless(
 ): Reduced | null {
   if (!('id' in action) || !valley.members[action.id]?.dialup) return null
   const re =
-    action.type === 'quest' && action.step === 'lay'
+    action.type === 'quest' && (action.step === 'lay' || action.step === 'find')
       ? 'quest'
       : NEEDS_A_BODY[action.type]
   if (!re) return null
@@ -1664,6 +1719,10 @@ function act(
       return onDial(valley, action, context)
     case 'leave':
       return onLeave(valley, action, context)
+    case 'stand':
+      return done(withPlace(valley, action.id, action.at), context.now, {
+        broadcast: [],
+      })
     case 'board':
     case 'hop-out':
     case 'call':
@@ -1734,6 +1793,8 @@ function act(
     case 'toolbox':
     case 'torch':
       return onTopiary(valley, action, context)
+    case 'thread':
+      return onThread(valley, action, context)
     case 'expedition-send':
     case 'expedition-claim':
       return onExpedition(valley, action, context)
@@ -1793,6 +1854,7 @@ function onJoin(
         havens: action.havens,
         metres: action.metres,
         lairs: action.lairs,
+        lurks: action.lurks,
         maze: action.maze,
         routes: action.routes,
         stand: action.stand,
@@ -1801,6 +1863,8 @@ function onJoin(
         bushes: action.bushes,
         dealer: action.dealer,
         dealerStock: freshDealerStock(),
+        gron: action.gron,
+        disk: action.disk,
         undercroft: action.undercroft,
         moat: action.moat,
         rings: action.rings,
@@ -1902,6 +1966,20 @@ function onDial(
   })
 }
 
+// Rule 2: the valley with where `id` stands kept as their account's
+// place, unless they ride in the bed or have no body here.
+function withPlace(valley: Valley, id: string, at: PeerStateWire): Valley {
+  const member = valley.members[id]
+  if (!member || member.dialup || inTheBed(valley, id)) return valley
+  return {
+    ...valley,
+    places: {
+      ...valley.places,
+      [member.account]: { x: at.x, z: at.z, yaw: at.yaw },
+    },
+  }
+}
+
 function onLeave(
   valley: Valley,
   action: ActionOf<'leave'>,
@@ -1921,19 +1999,14 @@ function onLeave(
   // Rule 36: a line left out goes with the socket.
   const lines = { ...valley.lines }
   delete lines[action.id]
-  let next: Valley = { ...valley, members, parties, lines }
-  const world = next.world
   // Rule 2: where they stood on foot is where they come back.
-  const at = action.at
-  if (at && !inTheBed(valley, action.id)) {
-    next = {
-      ...next,
-      places: {
-        ...next.places,
-        [member.account]: { x: at.x, z: at.z, yaw: at.yaw },
-      },
-    }
+  let next: Valley = {
+    ...(action.at ? withPlace(valley, action.id, action.at) : valley),
+    members,
+    parties,
+    lines,
   }
+  const world = next.world
   if (!world) {
     return done(next, now, { broadcast: [], ...partyFields(party, []) })
   }
@@ -2198,14 +2271,17 @@ function onQuest(
     : null
   const step = questStep(
     QUESTS[action.quest],
-    quest.stage,
+    quest.stages,
     action.step,
     quest.pack,
     {
-      // Rule 29: dialed in, Erwin is a call away; the heart of the maze
-      // is not (laying the rose takes a body, bodiless).
-      atDealer: !!member.dialup || atDealer(action.at, world.dealer),
+      // Rule 29: dialed in, Erwin and Gron are a call away; the heart of
+      // the maze and the floppy disk are not (laying the rose and finding
+      // the disk take a body, bodiless).
+      atErwin: !!member.dialup || atDealer(action.at, world.dealer),
+      atGron: !!member.dialup || atGron(action.at, world.gron),
       atHeart: atHeart(action.at, heart),
+      atDisk: atDisk(action.at, world.disk),
     }
   )
   if (!step.ok) return refuse(step.reason)
@@ -2215,7 +2291,7 @@ function onQuest(
       account: member.account,
       quest: action.quest,
       step: action.step,
-      from: quest.stage,
+      from: quest.stages[action.quest],
       to: step.stage,
       change: step.change,
     },
@@ -2381,7 +2457,13 @@ function onDrop(
   if (isKeyItem(kind)) return refuse('key-item')
   if (count < 1) return refuse('nothing')
   const id = world.nextDrop
-  const drop: Drop = { id, kind, count, ...dropSpot(action.at, id) }
+  const drop: Drop = {
+    id,
+    kind,
+    count,
+    ...dropSpot(action.at, id),
+    ...feetOf(action.at),
+  }
   const next = withWorld(valley, {
     ...world,
     drops: [...world.drops, drop],
@@ -2530,6 +2612,7 @@ function onFall(
           x,
           z,
           yaw,
+          ...feetOf(action.at),
           name: member.name,
           outfit: member.outfit,
           items: { ...action.items },
@@ -2547,6 +2630,7 @@ function onFall(
       count: dimes,
       x: action.at.x,
       z: action.at.z,
+      ...feetOf(action.at),
       spilled: true,
     }
     next = withWorld(next, {
@@ -3244,6 +3328,32 @@ function onTopiary(
         damage,
       }),
     ],
+  })
+}
+
+// Rule 41: a film threaded on the drive-in's projector, from its start for
+// everyone.
+function onThread(
+  valley: Valley,
+  action: ActionOf<'thread'>,
+  { now }: ValleyContext
+): Reduced {
+  const world = valley.world
+  const refuse = (reason: string): Reduced =>
+    done(valley, now, { broadcast: [], reply: nack('thread', reason) })
+  if (!valley.members[action.id] || !world) return refuse('not-in-valley')
+  if (isAboard(world.truck, action.id)) return refuse('aboard')
+  if (!isFilmName(action.film)) return refuse('no-film')
+  if (
+    !world.maze ||
+    !action.at ||
+    !atProjector(world.maze, action.at, CONFIG.driveIn.slack)
+  ) {
+    return refuse('too-far')
+  }
+  const next: Valley = { ...valley, reel: { film: action.film, since: now } }
+  return done(next, now, {
+    broadcast: [frame(next, 'threaded', { by: action.id })],
   })
 }
 

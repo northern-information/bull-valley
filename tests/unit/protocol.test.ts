@@ -44,6 +44,7 @@ const hello = {
   havens: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100, z: i })),
   metres: { width: 15059, height: 15038 },
   lairs: [],
+  lurks: [{ x: -30, z: -60 }],
   maze: { x: 120, z: -40, yaw: 0.5 },
   truck: { home: { x: 10, z: -20 }, joyrideMs: 600_000 },
   stand: { x: 6, z: -24 },
@@ -54,6 +55,8 @@ const hello = {
   ],
   bushes: [0, 1, 2].map((i) => ({ x: 6 + i, z: -30 })),
   dealer: { x: -10, z: -60 },
+  gron: { x: 4, z: -9 },
+  disk: { x: -150, z: -230 },
   undercroft: { x: -7000, z: -7000, yaw: 0 },
   moat: { x: 400, z: 30, yaw: 0.35 },
   rings: [0, 1, 2, 3, 4].map((i) => ({ x: i * 100 + 2, z: i + 14 })),
@@ -282,6 +285,7 @@ describe('parseClientMessage', () => {
       havens: _havens,
       metres: _metres,
       lairs: _lairs,
+      lurks: _lurks,
       maze: _maze,
       truck: _truck,
       stand: _stand,
@@ -289,6 +293,8 @@ describe('parseClientMessage', () => {
       ponds: _ponds,
       bushes: _bushes,
       dealer: _dealer,
+      gron: _gron,
+      disk: _disk,
       undercroft: _undercroft,
       moat: _moat,
       rings: _rings,
@@ -301,6 +307,7 @@ describe('parseClientMessage', () => {
       havens: [],
       metres: { width: 0, height: 0 },
       lairs: [],
+      lurks: [],
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
@@ -308,6 +315,8 @@ describe('parseClientMessage', () => {
       ponds: [],
       bushes: [],
       dealer: null,
+      gron: null,
+      disk: null,
       undercroft: null,
       moat: null,
       rings: [],
@@ -336,6 +345,7 @@ describe('parseClientMessage', () => {
       havens: [],
       metres: { width: 0, height: 0 },
       lairs: [],
+      lurks: [],
       maze: null,
       truck: { home: { x: 0, z: 0 }, joyrideMs: 0 },
       stand: null,
@@ -343,6 +353,8 @@ describe('parseClientMessage', () => {
       ponds: [],
       bushes: [],
       dealer: null,
+      gron: null,
+      disk: null,
       undercroft: null,
       moat: null,
       rings: [],
@@ -351,6 +363,9 @@ describe('parseClientMessage', () => {
     // The current version still requires them all.
     expect(parse({ ...older, v: PROTOCOL_VERSION })).toBeNull()
     expect(parse({ ...hello, dealer: 'wick' })).toBeNull()
+    expect(parse({ ...hello, gron: 'gron' })).toBeNull()
+    expect(parse({ ...hello, gron: null })).toEqual({ ...hello, gron: null })
+    expect(parse({ ...hello, disk: 'floppy' })).toBeNull()
     expect(
       parse({ ...hello, moat: { place: hello.maze, floor: 'deep' } })
     ).toBeNull()
@@ -540,6 +555,14 @@ describe('parseClientMessage', () => {
     expect(parse({ type: 'torch', index: -1 })).toBeNull()
     expect(parse({ type: 'torch', index: 1.5 })).toBeNull()
     expect(parse({ type: 'torch' })).toBeNull()
+    // A film threaded at the drive-in (rule 41), by a name it could show.
+    expect(parse({ type: 'thread', film: 'night.mp4' })).toEqual({
+      type: 'thread',
+      film: 'night.mp4',
+    })
+    expect(parse({ type: 'thread', film: 'a/b.mp4' })).toBeNull()
+    expect(parse({ type: 'thread', film: 3 })).toBeNull()
+    expect(parse({ type: 'thread' })).toBeNull()
     // A hello says where the stand stands, or that there is none.
     expect(parse({ ...hello, stand: null })).toEqual({ ...hello, stand: null })
     expect(parse({ ...hello, stand: { x: 'here' } })).toBeNull()
@@ -563,6 +586,13 @@ describe('parseClientMessage', () => {
     expect(parse({ ...hello, lairs: [{ ...lair, radius: 0 }] })).toBeNull()
     expect(parse({ ...hello, lairs: [{ ...lair, x: NaN }] })).toBeNull()
     expect(parse({ ...hello, lairs: Array(9).fill(lair) })).toBeNull()
+    // And the lurks, none or more, each a place (rule 11).
+    expect(parse({ ...hello, lurks: [] })).toEqual({ ...hello, lurks: [] })
+    expect(parse({ ...hello, lurks: null })).toBeNull()
+    expect(parse({ ...hello, lurks: [{ x: 1 }] })).toBeNull()
+    expect(
+      parse({ ...hello, lurks: Array(65).fill({ x: 1, z: 2 }) })
+    ).toBeNull()
     // A ring on every lot (rule 28), no fewer.
     expect(parse({ ...hello, rings: hello.rings.slice(1) })).toBeNull()
     // And where the squatter deals, or that there is none (rule 25).

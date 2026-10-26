@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import { jerichoSpot, payphoneSpot } from '../../src/castleyard.ts'
 import { surveyedStations } from '../../src/citgos.ts'
 import { CONFIG } from '../../src/config.ts'
 import { pointSegmentDistance, unitToWorld } from '../../src/coords.ts'
@@ -111,5 +112,22 @@ describe("Castle Entropy's place in the survey", () => {
     // frame.
     const [mx, , mz] = toWorld(spawn, [at.x + size.across, 0, at.z])
     expect(Math.hypot(mx - place.x, mz - place.z)).toBeGreaterThan(reach)
+  })
+
+  it('sets Jericho and the payphone where the walk out the door comes to the rim', () => {
+    const him = jerichoSpot(place)
+    const phone = payphoneSpot(place)
+    // Right on the walk straight out of the spawn Citgo's door, short of
+    // the moat, so walking out and keeping on finds him.
+    const off = Math.abs(
+      place.walk.x * (him.z - place.door.z) -
+        place.walk.z * (him.x - place.door.x)
+    )
+    expect(off).toBeLessThan(1e-6)
+    const along = (p: { x: number; z: number }) =>
+      (p.x - place.door.x) * place.walk.x + (p.z - place.door.z) * place.walk.z
+    expect(along(him)).toBeGreaterThan(0)
+    expect(along(him)).toBeLessThan(along(place))
+    expect(Math.hypot(phone.x - him.x, phone.z - him.z)).toBeLessThan(5)
   })
 })

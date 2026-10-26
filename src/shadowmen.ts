@@ -17,6 +17,12 @@
 // and one that bursts breaks into a brood of spiderlings, small and quick,
 // that rush whoever is near.
 //
+// And some keep to one place: the lurkers, one to each lurk the world was
+// opened with (industrial.ts: the industrial park's buildings), formed
+// there once a raider comes near (CONFIG.shadowmen.lurk), out in the fog,
+// drifting slowly round it and rushing whoever comes close like any
+// other. They are no one's bubble; one burst forms again a while later.
+//
 // They walk the ground (the valley's, heightmap.ts valleyGround) and never
 // through a wall. A shadowman at the moat's rim or the island's edge turns
 // along it (keepOffWalls), and goes down to the floor or up to the rim
@@ -146,6 +152,8 @@ export interface Shadowman {
   windup: number
   // Stood somewhere by a spec (placeStill), not crossing.
   placed?: boolean
+  // A lurker: the index of the lurk it keeps to (ShadowmenStep.lurks).
+  lurk?: number
   // The raider it is after at the other height (down on the moat's floor
   // under the rim it walks, or up on the rim over the floor), out of its
   // reach: a shadowman makes for a fire escape, a spider straight for them
@@ -224,6 +232,8 @@ export interface ShadowmenField {
   // Each raider's seconds until another may spawn round them. A raider
   // missing here is new, and their bubble is filled at once.
   cooldowns: Record<string, number>
+  // Each lurk's seconds until its lurker may form again, after a burst.
+  lurkWaits?: Record<number, number>
 }
 
 export interface ShadowmenStep {
@@ -242,6 +252,8 @@ export interface ShadowmenStep {
   // The spiders' lairs (lairs.ts): they come far more often near one.
   // None, and they come at their plain chance.
   lairs?: readonly Lair[]
+  // Where the lurkers keep (industrial.ts lurks). None, and none lurk.
+  lurks?: readonly XZ[]
   // The ground they walk (heightmap.ts valleyGround). None, and they have
   // no height: every raider is within reach up and down, and a beam finds
   // one at its holder's feet.
@@ -632,6 +644,7 @@ export function createShadowmen(): ShadowmenField {
 function near(field: ShadowmenField, p: XZ, cfg: ShadowmenConfig): number {
   let n = 0
   for (const s of field.shadowmen) {
+    if (s.lurk !== undefined) continue
     if (Math.hypot(s.x - p.x, s.z - p.z) <= cfg.despawnRadius) n++
   }
   return n
@@ -682,6 +695,7 @@ export function stepShadowmen(
     havens,
     calm = false,
     lairs = [],
+    lurks = [],
     lights = [],
     ground = null,
     stairs = [],
@@ -844,6 +858,29 @@ export function stepShadowmen(
     stand(s)
   }
 
+  // A lurker going nowhere: on at its drift, turning now and then, and
+  // back toward its lurk whenever it heads away from it past `roam`.
+  const drift = (s: Shadowman): void => {
+    const home = s.lurk === undefined ? undefined : lurks[s.lurk]
+    if (!home || s.target || s.hunt) return
+    const { roam, turnSeconds } = cfg.lurk
+    const hx = home.x - s.x
+    const hz = home.z - s.z
+    let turn: number | null = null
+    if (Math.hypot(hx, hz) > roam) {
+      if (hx * s.dirX + hz * s.dirZ < 0) {
+        turn = Math.atan2(hz, hx) + range(rng, -0.6, 0.6)
+      }
+    } else if (rng() < dt / turnSeconds) {
+      turn = rng() * Math.PI * 2
+    }
+    if (turn === null) return
+    s.dirX = Math.cos(turn)
+    s.dirZ = Math.sin(turn)
+  }
+
+  const waits: Record<number, number> = field.lurkWaits ?? {}
+  field.lurkWaits = waits
   const kept: Shadowman[] = []
   for (const s of field.shadowmen) {
     stand(s)
@@ -865,9 +902,13 @@ export function stepShadowmen(
         ? exposed.find((r) => r.id === s.target && reachesUp(s, r, cfg))
         : undefined
       if (s.target && !target) {
-        // Breaks off: keeps its heading, back to a crossing pace.
+        // Breaks off: keeps its heading, back to a crossing pace (a
+        // lurker to its drift, and back to its lurk).
         s.target = null
-        const [slow, fast] = speedRange(s.kind, cfg)
+        const [slow, fast] =
+          s.lurk !== undefined
+            ? [cfg.lurk.speedMin, cfg.lurk.speedMax]
+            : speedRange(s.kind, cfg)
         s.speed = range(rng, slow, fast)
       }
       if (!s.target && (!calm || s.placed)) {
@@ -915,7 +956,10 @@ export function stepShadowmen(
       } else {
         s.windup = 0
         if (s.stair?.on) descend(s)
-        else stride(s)
+        else {
+          drift(s)
+          stride(s)
+        }
       }
     }
     let nearest = Infinity
@@ -953,6 +997,7 @@ export function stepShadowmen(
       })
       if (s.kind === 'spider')
         brood.push(...broodOf(field, rng, s, ground, cfg))
+      if (s.lurk !== undefined) waits[s.lurk] = cfg.lurk.respawnSeconds
       continue
     }
     kept.push(s)
@@ -968,10 +1013,57 @@ export function stepShadowmen(
     )
     field.cooldowns[raider.id] = cfg.spawnInterval
   }
+  formLurkers(field, rng, raiders, lurks, dt, cfg)
   // Every one on the ground, the brood and the new arrivals among them.
   for (const s of field.shadowmen) stand(s)
 
   return { struck, strikers, lunges, bursts }
+}
+
+// Each lurk without its lurker forms one, once its wait after a burst is
+// out, while a raider is within `wake` of it and none within `clear`: in
+// the fog, never before anyone's eyes. Mutates field.
+function formLurkers(
+  field: ShadowmenField,
+  rng: Rng,
+  raiders: readonly Raider[],
+  lurks: readonly XZ[],
+  dt: number,
+  cfg: ShadowmenConfig
+): void {
+  if (lurks.length === 0) return
+  const waits = field.lurkWaits ?? {}
+  field.lurkWaits = waits
+  const kept = new Set<number>()
+  for (const s of field.shadowmen) {
+    if (s.lurk !== undefined) kept.add(s.lurk)
+  }
+  const { wake, clear, speedMin, speedMax } = cfg.lurk
+  lurks.forEach((home, i) => {
+    const wait = Math.max(0, (waits[i] ?? 0) - dt)
+    if (wait > 0) waits[i] = wait
+    else delete waits[i]
+    if (wait > 0 || kept.has(i)) return
+    let nearest = Infinity
+    for (const r of raiders) {
+      nearest = Math.min(nearest, Math.hypot(r.x - home.x, r.z - home.z))
+    }
+    if (nearest > wake || nearest < clear) return
+    const a = rng() * Math.PI * 2
+    field.shadowmen.push({
+      id: field.nextId++,
+      kind: 'man',
+      x: home.x,
+      z: home.z,
+      dirX: Math.cos(a),
+      dirZ: Math.sin(a),
+      speed: range(rng, speedMin, speedMax),
+      target: null,
+      burn: 0,
+      windup: 0,
+      lurk: i,
+    })
+  })
 }
 
 // A shadowman (or a spider, or a spiderling) standing still at (x, z), for

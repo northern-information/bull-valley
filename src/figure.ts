@@ -121,7 +121,7 @@ function decalMaterial(
   ids: readonly DecalId[],
   print = false
 ): THREE.MeshLambertMaterial {
-  const key = `${outfitId}|${ids.join('+')}`
+  const key = `${outfitId}|${ids.join('+')}|${print ? 'print' : 'face'}`
   let found = decals.get(key)
   if (!found) {
     found = lambert({

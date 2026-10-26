@@ -18,7 +18,7 @@ import type { LaptopFileRow } from '../src/laptop.ts'
 
 export interface Account {
   accountId: string
-  // Null until chosen; changed only at Gron.
+  // Null until chosen; changed only at Your Name, in Settings.
   username: string | null
   role: string
   // The providerKey whose display name and avatar stand for the account.
@@ -65,7 +65,7 @@ export interface AccountStore {
   providersOf(accountId: string): Promise<LinkedProvider[]>
   // Set once; `taken` is case-insensitive.
   setUsername(accountId: string, username: string): Promise<SetUsernameResult>
-  // A new username for an account that has one (Gron). `taken` is
+  // A new username for an account that has one (Your Name). `taken` is
   // case-insensitive and never the account's own name, so a raider can
   // change only the case of theirs.
   renameUsername(accountId: string, username: string): Promise<RenameResult>

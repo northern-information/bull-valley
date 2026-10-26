@@ -56,7 +56,7 @@ export const PROVIDER_COLORS: Record<Provider, string> = {
 }
 
 // A username is the account's public handle, unique across the valley
-// (case-insensitively), chosen at sign-up and changed only at Gron (PUT
+// (case-insensitively), chosen at sign-up and changed only at Your Name (PUT
 // /auth/username). Narrower than a typed name
 // (protocol.ts isValidName), since two lookalike handles would be two
 // raiders nobody could tell apart.
@@ -76,7 +76,7 @@ export const AUTH_PATH = '/auth'
 // --- Wire shapes -----------------------------------------------------------
 
 // How the account looks: the character and guitar finish chosen at the
-// select or at Gron (PUT /auth/look). Null until first chosen, when the
+// select or at Moab (PUT /auth/look). Null until first chosen, when the
 // client shows the defaults (characters.ts, finishes.ts).
 export interface LookWire {
   outfit: OutfitId | null

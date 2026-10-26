@@ -54,6 +54,9 @@ export const CONFIG = {
       wreck: 12,
       // From the middle of the plaza's building, out over its lot.
       plaza: 30,
+      // Past half the industrial park's width, from each of three
+      // points down its middle (industrial.ts parkRings).
+      industrial: 10,
       // From the middle of the array, which runs some 70 m a side.
       dishes: 45,
       // Past the field's own edge.
@@ -80,6 +83,22 @@ export const CONFIG = {
     speedMax: 10,
     // Respawns are spaced at least this far apart, in seconds.
     spawnInterval: 0.75,
+    // The shadowmen that keep to the industrial park's buildings
+    // (industrial.ts lurks, shadowmen.ts lurkers): one forms at each lurk
+    // once a raider comes within `wake` metres of it (out in the fog, no
+    // nearer than `clear`), drifts round it at speedMin to speedMax m/s,
+    // turning now and then (every turnSeconds or so) and back toward it
+    // past `roam`, and rushes like any other. One that bursts forms again
+    // respawnSeconds later, none in sight of it.
+    lurk: {
+      wake: 300,
+      clear: 40,
+      roam: 4,
+      speedMin: 0.5,
+      speedMax: 1.3,
+      turnSeconds: 4,
+      respawnSeconds: 90,
+    },
     // Shadowmen stay this far inside the survey edge.
     edgeInset: 30,
     // One that crosses within rushRadius of you turns and comes at rushSpeed,
@@ -625,6 +644,11 @@ export const CONFIG = {
     // before everyone hears them leave, so a reconnect inside it takes
     // their place back and no one sees them go.
     lingerMs: 20_000,
+    // Rule 2: where a raider on foot stands is kept this often as they
+    // walk (once they have moved this many metres), so a tab that closed
+    // without a word comes back near where it was.
+    placeEveryMs: 3000,
+    placeMoved: 1,
     // How long the "signed out" line sits in the chat log before the page
     // reloads to the sign-in card.
     signedOutReloadMs: 2500,
@@ -730,6 +754,9 @@ export const CONFIG = {
     // How close E must be to talk to him; when the bush is in reach too,
     // the nearer of the two answers.
     reach: 2.4,
+    // How far from him the valley takes a step of his quests (quests.ts
+    // atGron): past his reach, as the last state frame lags.
+    questReach: 4,
     // He blocks like a post this wide.
     radius: 0.4,
   },
@@ -914,16 +941,15 @@ export const CONFIG = {
       // The light towers, one to a side, this far out, each with a pool
       // of light this wide in front of it.
       lamps: { out: 6.4, pool: 10 },
-      // The payphone: on outer side `side`, `along` its length, `out` from
-      // the edge; a raider within `reach` of it stands at it.
-      payphone: { side: 1, along: 0.42, out: 5.6, reach: 3 },
-      // Jericho, the Candlebearer, sat beside it: `beside` metres further
-      // along the side than the payphone, `out` from the edge, turned
-      // toward where a raider stands at the phone; he blocks like a post
+      // The payphone: `beside` metres along the side from Jericho, `out`
+      // from the edge; a raider within `reach` of it stands at it.
+      payphone: { beside: 3.4, out: 5.6, reach: 3 },
+      // Jericho, the Candlebearer, where the walk straight out of the spawn
+      // Citgo's door comes to the rim (castleyard.ts jerichoSpot): `out`
+      // from the edge, facing back up the walk; he blocks like a post
       // `radius` wide, his torn hem lies out to `spread` (the supplies keep
       // off it), and E within `reach` of him talks to him.
       jericho: {
-        beside: 3.4,
         out: 6.6,
         radius: 0.9,
         spread: 2,
@@ -1278,6 +1304,15 @@ export const CONFIG = {
     // without the key only rattles it.
     doorReach: 2.5,
   },
+  industrial: {
+    // The industrial park behind Bull Valley Plaza (industrial.ts),
+    // station-local like the plaza: the corner of its asphalt, where the
+    // plaza's alley ends behind the Golden Wok. The park reaches back from
+    // it, away from the road, and down away from the dish array.
+    at: { x: -30, z: -46 },
+    // Trees keep this far off its asphalt.
+    treeClear: 6,
+  },
   dealer: {
     // How close Erwin von Dutch in the Golden Wok (dealer.ts, placed at
     // stripmall.ts STRIP_MALL.dealer) must be for E to deal with him.
@@ -1413,6 +1448,10 @@ export const CONFIG = {
     heartReach: 10,
     // How near the portal E lays it.
     layReach: 4,
+    // How close E must be to the floppy disk to take it, and how far from
+    // it the valley gives it (quests.ts atDisk), past that as frames lag.
+    takeReach: 2.2,
+    findReach: 5,
   },
   emotes: {
     // A raider within this many metres of one who emotes (emotes.ts) gets
@@ -1585,6 +1624,27 @@ export const CONFIG = {
     // foot climbs it, and at its top climbs back down. Trees and lamps keep
     // `clear` off its footprint.
     lookout: { at: { x: 61, z: -8 }, climbReach: 1.6, clear: 4 },
+  },
+  // The drive-in past the corn maze's far end (drivein.ts, sharedworld.ts
+  // rule 41), maze-local: the middle of its lot, on the grass between the
+  // road and the far pond, its screen at the end away from the maze. The
+  // lot runs `half.x` either side across and `half.z` along. Trees keep
+  // `treeClear` off the lot. E within `projectorReach` of the projector
+  // in the booth threads a film; the valley allows `slack` more for the
+  // frames' own jitter. The sound carries `hearRange` metres from the
+  // screen at the Music setting, and a reel more than `resyncSeconds` off
+  // the valley's clock is put back on it. The film is fetched only within
+  // `loadRange` of the screen (past the fog, so it is playing before it
+  // shows).
+  driveIn: {
+    at: { x: 50, z: 250 },
+    half: { x: 32, z: 30 },
+    treeClear: 6,
+    projectorReach: 2,
+    slack: 2,
+    hearRange: 70,
+    resyncSeconds: 2,
+    loadRange: 220,
   },
   // The topiaries (topiaries.ts): the hedge animals of The Shining's
   // Overlook, two lions, a dog, a rabbit and a buffalo, standing broadside

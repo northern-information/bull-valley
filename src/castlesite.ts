@@ -39,7 +39,7 @@ import type { Ground } from './ground.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
 import type { JerichoRig } from './jerichomodel.ts'
 import type { MazePlace } from './maze.ts'
-import type { FireEscape, MoatPipe } from './moat.ts'
+import type { CastlePlace, FireEscape, MoatPipe } from './moat.ts'
 import type { MoatSlurm, MoatSource } from './moatslurms.ts'
 import type { Cue } from './sfx.ts'
 import type { CrawlingSlurm } from './slurmrig.ts'
@@ -102,7 +102,7 @@ export interface CastleSite {
 }
 
 export function buildCastleSite(
-  place: MazePlace,
+  place: CastlePlace,
   raw: HeightAt,
   floor: number,
   ground: Ground,
@@ -310,6 +310,7 @@ export function buildCastleSite(
           slot: slurm.slot,
           index: slurm.index,
           x: slurm.x,
+          y: slurm.y,
           z: slurm.z,
           object: rig.group,
         })

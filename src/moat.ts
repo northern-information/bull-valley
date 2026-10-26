@@ -25,7 +25,7 @@ import { CONFIG } from './config.ts'
 import { pointInPolygon, projectOnSegment } from './coords.ts'
 import { mazeToWorld, worldToMaze } from './maze.ts'
 import { mulberry32 } from './rng.ts'
-import { toWorld } from './store.ts'
+import { STORE_LAYOUT, toWorld } from './store.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
 import type { StoreOrigin } from './store.ts'
@@ -97,14 +97,29 @@ const OUTER_RING = ring(MOAT.outer)
 // No point of the outer edge lies further than this from the middle.
 const OUTER_REACH = Math.max(...MOAT.outer.map((p) => Math.hypot(p.x, p.z)))
 
+// The castle's place, and where the spawn Citgo's front door stands and
+// the way straight out of it (station-local +x), in the world: the walk
+// that finds Jericho and the payphone (castleyard.ts).
+export interface CastlePlace extends MazePlace {
+  door: XZ
+  walk: XZ
+}
+
 // Where the moat lies: the island's middle at CONFIG.castle.at in the
 // spawn station's frame, straight out its door past the donut field.
 export function castlePlace(
   station: StoreOrigin,
   cfg = CONFIG.castle
-): MazePlace {
+): CastlePlace {
   const [x, , z] = toWorld(station, [cfg.at.x, 0, cfg.at.z])
-  return { x, z, yaw: cfg.yaw }
+  const [dx, , dz] = toWorld(station, [STORE_LAYOUT.front, 0, 0])
+  return {
+    x,
+    z,
+    yaw: cfg.yaw,
+    door: { x: dx, z: dz },
+    walk: { x: Math.cos(station.yaw), z: Math.sin(station.yaw) },
+  }
 }
 
 export function onIsland(place: MazePlace, x: number, z: number): boolean {

@@ -84,6 +84,7 @@ import {
   findsPay,
   giftsOwed,
   healthFor,
+  inTheBed,
   maxFor,
   placeOf,
   reduce,
@@ -99,6 +100,7 @@ import { D1PackStore } from './d1packs.ts'
 import type { CosmeticId } from '../src/cosmetics.ts'
 import type { CrewRow } from '../src/crews.ts'
 import type { TaskProgress } from '../src/dailytask.ts'
+import type { Facing } from '../src/drops.ts'
 import type { ExpeditionRun } from '../src/expeditions.ts'
 import type { FriendRow } from '../src/friends.ts'
 import type { HeightAt, Inventory, XZ } from '../src/interfaces.ts'
@@ -118,7 +120,7 @@ import type {
   ServerMessage,
   TaskWire,
 } from '../src/protocol.ts'
-import type { QuestId, QuestStage } from '../src/quests.ts'
+import type { QuestId, QuestStage, QuestStages } from '../src/quests.ts'
 import type { Research } from '../src/recycling.ts'
 import type { SeasonProgress } from '../src/season.ts'
 import type { StairPath } from '../src/shadowclimb.ts'
@@ -132,7 +134,7 @@ import type {
 } from '../src/sharedworld.ts'
 import type { StandLedger } from '../src/stand.ts'
 import type { ShadowHit } from '../src/wards.ts'
-import type { AccountStore } from './accounts.ts'
+import type { Account, AccountStore } from './accounts.ts'
 import type { CrewStore, Parted } from './crews.ts'
 import type { ExpeditionRead, Holdings, PackStore } from './packs.ts'
 
@@ -167,8 +169,8 @@ const INSPECT_LIMIT: RateLimit = { count: 10, ms: 10_000 }
 // opening folders and files, and saving.
 const LAPTOP_LIMIT: RateLimit = { count: 20, ms: 10_000 }
 
-// Changes at Gron one socket may make in ten seconds; each one rebuilds a
-// figure for everyone, so the rest are nacked.
+// Changes of character at Moab one socket may make in ten seconds; each
+// one rebuilds a figure for everyone, so the rest are nacked.
 const APPEARANCE_LIMIT: RateLimit = { count: 5, ms: 10_000 }
 // A trade with Moab: a change to the look, at its pace.
 const TRADE_LIMIT: RateLimit = APPEARANCE_LIMIT
@@ -223,6 +225,13 @@ export class ValleyDO extends DurableObject<Env> {
   private laptopRate = new WeakMap<WebSocket, RateWindow>()
   private inspectRate = new WeakMap<WebSocket, RateWindow>()
   private dropRate = new WeakMap<WebSocket, RateWindow>()
+  // Rule 2: when and where each socket's place was last kept, and
+  // whether the valley had it in the bed at its last state frame.
+  private placeKept = new WeakMap<
+    WebSocket,
+    { t: number; x: number; z: number }
+  >()
+  private rode = new WeakMap<WebSocket, boolean>()
   private discoverRate = new WeakMap<WebSocket, RateWindow>()
   private markRate = new WeakMap<WebSocket, RateWindow>()
   // Rules 11 and 13, in memory only: gone whenever the object sleeps.
@@ -247,6 +256,9 @@ export class ValleyDO extends DurableObject<Env> {
   // When each socket was last heard from, in memory only: a socket missing
   // here (after a wake) counts as heard now.
   private heard = new WeakMap<WebSocket, number>()
+  // Sockets whose hello is still reading D1: a second hello on one of them
+  // meanwhile is dropped, or both would join and the first stay a ghost.
+  private greeting = new WeakSet<WebSocket>()
   // Raiders whose socket went, still standing for everyone else until
   // CONFIG.net.lingerMs is up (then everyone hears them leave), so a
   // reconnect that names one of its own takes it back unseen. In memory
@@ -311,7 +323,13 @@ export class ValleyDO extends DurableObject<Env> {
     if (me) {
       await this.frame(ws, attachment, me, msg)
     } else if (msg.type === 'hello' || msg.type === 'dial') {
-      await this.hello(ws, attachment, msg)
+      if (this.greeting.has(ws)) return
+      this.greeting.add(ws)
+      try {
+        await this.hello(ws, attachment, msg)
+      } finally {
+        this.greeting.delete(ws)
+      }
     } else {
       ws.close(CLOSE.malformed, 'Expected hello first')
     }
@@ -348,9 +366,13 @@ export class ValleyDO extends DurableObject<Env> {
       case 'ping':
         send(ws, { type: 'pong', t: msg.t, serverNow: Date.now() })
         return
-      case 'hop-out':
+      case 'hop-out': {
+        const aboard = inTheBed(this.valley, id)
         await this.act(ws, { type: 'hop-out', id })
+        // Rule 2: where they land is kept with their next frame.
+        if (aboard && !inTheBed(this.valley, id)) this.rode.set(ws, true)
         return
+      }
       case 'board':
         await this.act(ws, { type: 'board', id, at })
         return
@@ -442,6 +464,10 @@ export class ValleyDO extends DurableObject<Env> {
       // Rule 39.
       case 'toolbox':
         await this.withPack(ws, account, { type: 'toolbox', id, at })
+        return
+      // Rule 41.
+      case 'thread':
+        await this.act(ws, { type: 'thread', id, film: msg.film, at })
         return
       case 'torch':
         await this.withPack(ws, account, {
@@ -782,9 +808,11 @@ export class ValleyDO extends DurableObject<Env> {
   protected tickShadows(): void {
     try {
       this.tickShadowsUnguarded()
+      this.tickFailed = false
     } catch (err) {
-      // A throw in a timer has no request to fail; say so once a step
-      // rather than every tenth of a second.
+      // A throw in a timer has no request to fail; say so once for a run
+      // of failing steps rather than every tenth of a second, and again
+      // for the next run after a step goes through.
       if (!this.tickFailed) console.error('The shadowmen could not step', err)
       this.tickFailed = true
     }
@@ -971,8 +999,7 @@ export class ValleyDO extends DurableObject<Env> {
     this.tellWards(reduced)
     if (!change.fatal) return
     const me = this.attachment(sockets[0]).me
-    const at = me?.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
-    await this.fallHeld(account, id, at)
+    await this.fallHeld(account, id, me ? facing(me) : null)
   }
 
   // Rule 24's draw for a touch's spread; the Worker tests replace it.
@@ -1131,7 +1158,7 @@ export class ValleyDO extends DurableObject<Env> {
   protected async fall(
     account: string,
     id: string,
-    at: { x: number; z: number; yaw: number } | null
+    at: Facing | null
   ): Promise<void> {
     await this.locked(() => this.fallHeld(account, id, at))
   }
@@ -1140,7 +1167,7 @@ export class ValleyDO extends DurableObject<Env> {
   private async fallHeld(
     account: string,
     id: string,
-    at: { x: number; z: number; yaw: number } | null
+    at: Facing | null
   ): Promise<void> {
     const packs = this.packs()
     let items: Inventory
@@ -1562,6 +1589,7 @@ export class ValleyDO extends DurableObject<Env> {
       // yet. Retire it first, so the roster never shows the raider their
       // own ghost.
       if (hello.was) await this.retire(ws, account, hello.was)
+      await this.keepPlacesOf(ws, account)
       back = hello.was ? this.takeBack(account, hello.was) : null
       if (back) id = back.id
       else this.letGo(account)
@@ -1587,6 +1615,7 @@ export class ValleyDO extends DurableObject<Env> {
               havens: hello.havens,
               metres: hello.metres,
               lairs: hello.lairs,
+              lurks: hello.lurks,
               maze: hello.maze,
               routes: hello.truck,
               stand: hello.stand,
@@ -1594,6 +1623,8 @@ export class ValleyDO extends DurableObject<Env> {
               ponds: hello.ponds,
               bushes: hello.bushes,
               dealer: hello.dealer,
+              gron: hello.gron,
+              disk: hello.disk,
               undercroft: hello.undercroft,
               moat: hello.moat,
               rings: hello.rings,
@@ -1682,6 +1713,56 @@ export class ValleyDO extends DurableObject<Env> {
     const next: PeerWire = { ...me, at }
     this.attach(ws, { ...attachment, me: next })
     this.broadcast({ type: 'peer-state', id: me.id, ...at, t: Date.now() }, ws)
+    this.keepPlace(ws, me.id, at)
+  }
+
+  // Rule 2: where a raider stands is kept as they walk, not only when
+  // their socket closes, so a tab that vanished without closing (or whose
+  // close lands after its next hello) comes back near where it was. At
+  // most every CONFIG.net.placeEveryMs, and only once they have moved.
+  private keepPlace(ws: WebSocket, id: string, at: PeerStateWire): void {
+    const now = Date.now()
+    const kept = this.placeKept.get(ws)
+    // Down off the truck (hopped out, or let off where it went): kept at
+    // once, wherever the last place was kept. The valley's bed says so,
+    // never the frame's word.
+    const aboard = inTheBed(this.valley, id)
+    const landed = this.rode.get(ws) === true && !aboard
+    this.rode.set(ws, aboard)
+    if (!landed && kept) {
+      if (now - kept.t < CONFIG.net.placeEveryMs) return
+      if (Math.hypot(at.x - kept.x, at.z - kept.z) < CONFIG.net.placeMoved) {
+        return
+      }
+    }
+    this.placeKept.set(ws, { t: now, x: at.x, z: at.z })
+    void this.locked(async () => {
+      // Gone since: the leave kept a fresher place.
+      if (this.attachment(ws).me?.id === id) await this.stand(id, at)
+    }).catch((err: unknown) => console.error('The place was not kept', err))
+  }
+
+  // Rule 2: where the account's other sockets stand, kept before a new
+  // arrival reads its place: the tab it reloaded from may not have closed
+  // here yet.
+  private async keepPlacesOf(ws: WebSocket, account: string): Promise<void> {
+    for (const socket of this.ctx.getWebSockets()) {
+      if (socket === ws) continue
+      const { account: theirs, me } = this.attachment(socket)
+      if (theirs !== account || !me?.at || me.dialup) continue
+      await this.stand(me.id, me.at)
+    }
+  }
+
+  // Rule 2: the place kept, with the lock held.
+  private async stand(id: string, at: PeerStateWire): Promise<void> {
+    const reduced = reduce(
+      this.valley,
+      { type: 'stand', id, at },
+      this.context()
+    )
+    await this.apply(reduced)
+    for (const msg of reduced.broadcast) this.broadcast(msg, null)
   }
 
   // A chat line to everyone, the sender included. Nothing is stored.
@@ -1885,10 +1966,10 @@ export class ValleyDO extends DurableObject<Env> {
           return
         }
       } else {
-        const result = await accounts.askFriend(
-          account,
-          other.accountId,
-          Date.now()
+        // Under the account's lock: the cap is read, then the row
+        // written, and two asks from one account must not interleave.
+        const result = await this.forAccount(account, () =>
+          accounts.askFriend(account, other.accountId, Date.now())
         )
         if (result !== 'requested' && result !== 'accepted') {
           send(ws, { type: 'nack', re: op, reason: result })
@@ -2040,7 +2121,7 @@ export class ValleyDO extends DurableObject<Env> {
     return undefined
   }
 
-  // A new character from Gron, for everyone to see.
+  // A new character from Moab, for everyone to see.
   private async restyle(
     ws: WebSocket,
     attachment: Attachment,
@@ -2063,7 +2144,7 @@ export class ValleyDO extends DurableObject<Env> {
     await this.reshowAccount(ws, attachment, me, { outfit })
   }
 
-  // A new username from Gron. The frame names nothing: the account's
+  // A new username from Your Name. The frame names nothing: the account's
   // username is read from the accounts database, which PUT /auth/username
   // has just changed, so no client can show itself under another name.
   private async rename(
@@ -2075,9 +2156,16 @@ export class ValleyDO extends DurableObject<Env> {
       send(ws, { type: 'nack', re: 'rename', reason: 'too-fast' })
       return
     }
-    const account = attachment.account
-      ? await this.accounts().get(attachment.account)
-      : null
+    let account: Account | null
+    try {
+      account = attachment.account
+        ? await this.accounts().get(attachment.account)
+        : null
+    } catch (err) {
+      console.error('The account could not be read', err)
+      send(ws, { type: 'nack', re: 'rename', reason: 'unavailable' })
+      return
+    }
     const name = normalizeName(account?.username ?? '')
     if (!isValidName(name)) {
       send(ws, { type: 'nack', re: 'rename', reason: 'no-username' })
@@ -2452,16 +2540,15 @@ export class ValleyDO extends DurableObject<Env> {
       refuse('no-such-quest')
       return
     }
-    const id = action.quest
     await this.locked(async () => {
       const packs = this.packs()
-      let quest: { stage: QuestStage; pack: Inventory }
+      let quest: { stages: QuestStages; pack: Inventory }
       try {
         const [stages, holdings] = await Promise.all([
           packs.quests(account),
           packs.get(account),
         ])
-        quest = { stage: stages[id], pack: holdings.pack }
+        quest = { stages, pack: holdings.pack }
       } catch (err) {
         console.error('The quest could not be read', err)
         refuse('unavailable')
@@ -2496,15 +2583,12 @@ export class ValleyDO extends DurableObject<Env> {
         return
       }
       await this.apply(reduced)
-      for (const socket of this.ctx.getWebSockets()) {
-        if (this.attachment(socket).account !== account) continue
-        send(socket, {
-          type: 'quest',
-          quest: step.quest,
-          step: step.step,
-          stage: step.to,
-        })
-      }
+      this.toAccount(account, {
+        type: 'quest',
+        quest: step.quest,
+        step: step.step,
+        stage: step.to,
+      })
       await this.repack(ws, null, account)
     })
   }
@@ -3380,8 +3464,10 @@ function standing(me: PeerWire): XZ | null {
 }
 
 // The same, and which way they face: where a drop or a portal goes.
-function facing(me: PeerWire): { x: number; z: number; yaw: number } | null {
-  return me.at ? { x: me.at.x, z: me.at.z, yaw: me.at.yaw } : null
+// Where `me` stands and faces, and the height of their feet: what a drop,
+// a portal or a body is laid from (drops.ts Facing).
+function facing(me: PeerWire): Facing | null {
+  return me.at ? { x: me.at.x, y: me.at.y, z: me.at.z, yaw: me.at.yaw } : null
 }
 
 function send(ws: WebSocket, msg: ServerMessage): void {

@@ -95,6 +95,9 @@ interface BvHook {
   readonly task: TaskProgress
   // The account's XP in all (progression.ts), as the valley last said.
   readonly xp: number
+  // Where the account stands on each quest (quests.ts), as the valley
+  // last said; null before the welcome.
+  readonly quests: Readonly<Record<string, string>> | null
   // The account's friends list, as the valley last sent it.
   readonly friends: readonly FriendWire[]
   // Rule 34: the party, as the valley last sent it.
@@ -297,6 +300,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     get xp() {
       return s.xp
     },
+    get quests() {
+      return s.quests
+    },
     get friends() {
       return s.friends
     },
@@ -476,6 +482,7 @@ export function installDevHook(game: Game, actions: Actions): void {
             time: s.time,
             tripping: levelsAt(s.wards, s.time).tripping,
             player: player.pos,
+            feet: player.groundY,
             yaw: player.yaw,
             blocked: game.world.walls.between,
           },

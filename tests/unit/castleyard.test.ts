@@ -262,28 +262,53 @@ describe('the supplies, the lamps and the payphone', () => {
 
 describe('Jericho, the Candlebearer', () => {
   const J = Y.jericho
+  // How far `p` lies off the walk straight out of the spawn Citgo's door.
+  const offWalk = (at: typeof place, p: XZ) =>
+    Math.abs(at.walk.x * (p.z - at.door.z) - at.walk.z * (p.x - at.door.x))
 
-  it('sits on the concrete beside the payphone, a step along from it', () => {
-    expect(inChannel(place, jericho.x, jericho.z)).toBe(false)
-    expect(onMoatGrounds(place, jericho.x, jericho.z)).toBe(true)
-    const d = dist(jericho, phone)
-    expect(d).toBeGreaterThan(Y.payphone.reach)
-    expect(d).toBeLessThan(5)
+  it('sits out of the door, facing it, clear of the stairs and the cranes', () => {
+    for (const yaw of [0, 0.4, 1.3, -2, 3]) {
+      const at = castlePlace({ ...station, yaw })
+      const him = jerichoSpot(at)
+      const ph = payphoneSpot(at)
+      expect(inChannel(at, him.x, him.z)).toBe(false)
+      expect(onMoatGrounds(at, him.x, him.z)).toBe(true)
+      const ahead = {
+        x: him.x + Math.cos(him.yaw) * 2,
+        z: him.z + Math.sin(him.yaw) * 2,
+      }
+      expect(dist(ahead, at.door)).toBeLessThan(dist(him, at.door))
+      for (const crane of craneSpots(at)) {
+        expect(dist(him, crane)).toBeGreaterThan(Y.clear)
+        expect(dist(ph, crane)).toBeGreaterThan(Y.clear)
+      }
+      // The payphone beside him, out of his reach and he out of its.
+      const d = dist(him, ph)
+      expect(d).toBeGreaterThan(Y.payphone.reach)
+      expect(d).toBeLessThan(5)
+    }
   })
 
-  it('turns toward where a raider stands at the phone', () => {
-    const before = {
-      x: phone.x + Math.cos(phone.yaw),
-      z: phone.z + Math.sin(phone.yaw),
-    }
-    const ahead = {
-      x: jericho.x + Math.cos(jericho.yaw) * 2,
-      z: jericho.z + Math.sin(jericho.yaw) * 2,
-    }
-    expect(dist(ahead, before)).toBeLessThan(dist(jericho, before))
+  it('sits right on the walk where nothing crowds it', () => {
+    const at = castlePlace({ ...station, yaw: 3 })
+    const him = jerichoSpot(at)
+    expect(offWalk(at, him)).toBeLessThan(1e-6)
+    // Between the door and the moat, on its near side.
+    const along = (p: XZ) =>
+      (p.x - at.door.x) * at.walk.x + (p.z - at.door.z) * at.walk.z
+    expect(along(him)).toBeGreaterThan(0)
+    expect(along(him)).toBeLessThan(along(at))
   })
 
-  it('keeps clear of the fence, the supplies, the lamps and the stairs', () => {
+  it('slides along the side off a fire escape the walk comes to', () => {
+    // This station's walk comes to the rim at a fire escape's top.
+    expect(offWalk(place, jericho)).toBeGreaterThan(1)
+    for (const top of stairTops) {
+      expect(dist(jericho, top)).toBeGreaterThan(Y.clear)
+    }
+  })
+
+  it('keeps clear of the fence, the supplies and the lamps', () => {
     // His hem lies on the concrete, short of the channel.
     for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
       const x = jericho.x + Math.cos(a) * J.spread
@@ -303,12 +328,6 @@ describe('Jericho, the Candlebearer', () => {
     }
     for (const lamp of lamps) {
       expect(dist(lamp, jericho)).toBeGreaterThan(J.radius + 1.2)
-    }
-    for (const top of stairTops) {
-      expect(dist(jericho, top)).toBeGreaterThan(Y.clear)
-    }
-    for (const crane of cranes) {
-      expect(dist(jericho, crane)).toBeGreaterThan(Y.clear)
     }
   })
 })

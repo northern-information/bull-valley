@@ -32,16 +32,18 @@ import {
 } from './dialstate.ts'
 import { text } from './dom.ts'
 import { fontsReady } from './fonts.ts'
+import { gronSays, openGronDialog } from './grondialog.ts'
 import { befriended, partied } from './inspect.ts'
 import { itemLine } from './itemcopy.ts'
 import { openMoabDialog } from './moabdialog.ts'
 import { mountModem } from './modemhud.ts'
+import { openNameDialog } from './namedialog.ts'
 import { NetClient, socketUrl } from './net.ts'
 import { npcLine } from './npcs.ts'
 import { GRAIN_URL, imagesReady } from './preload.ts'
 import { levelOf } from './progression.ts'
 import { CLOSE } from './protocol.ts'
-import { dealerStep, roseLine, roseProgress } from './quests.ts'
+import { erwinQuest, gronQuest, questNow, questShown } from './quests.ts'
 import { openRecycleDialog } from './recycledialog.ts'
 import { createSettingsStore } from './settingsui.ts'
 import { createSfx } from './sfxrig.ts'
@@ -249,7 +251,8 @@ async function boot(): Promise<void> {
     state = { ...state, said: { text, at: performance.now() } }
     shell?.render(state)
   }
-  // Who the raider is, as Gron leaves them, here or in the 3D valley.
+  // Who the raider is, as Your Name and Moab leave them, here or in the
+  // 3D valley.
   let username = account.username
   let look = pickOf(account.look)
   state = { ...state, name: username, outfit: look.outfit }
@@ -305,47 +308,54 @@ async function boot(): Promise<void> {
         pack: () => state.pack,
         pending: () => state.pending.deal,
         said: () => state.said?.text ?? null,
-        quest: () => ({
-          ...roseLine(state.quests.rose, state.pack),
-          step: roseProgress(state.quests.rose, state.pack),
-        }),
+        quest: () =>
+          questShown(
+            erwinQuest(state.quests),
+            state.quests,
+            state.pack,
+            'erwin'
+          ),
         icon: (kind) => shell?.icon(kind) ?? Promise.reject(new Error()),
         fanfare: tradeCheer,
         turntable,
         onDeal: (kind, offer) =>
           send({ type: 'deal', kind, offer }, { deal: true }),
         onQuest: () => {
-          const step = dealerStep(state.quests.rose)
-          if (step) send({ type: 'quest', quest: 'rose', step }, { deal: true })
+          const quest = erwinQuest(state.quests)
+          const step = questNow(quest, state.quests, state.pack, 'erwin').next
+          if (step) send({ type: 'quest', quest, step }, { deal: true })
         },
       }).then(() => shell?.render(state))
     },
+    // Gron and the quest he gives, as at the bush (rule 26: dialed in, he
+    // is a call away).
     openGron: () => {
-      void import('./dial3d.ts').then(({ openGronDialog }) =>
-        openGronDialog({
-          username,
-          outfit: look.outfit,
-          finish: look.finish,
-          cosmetics: state.cosmetics,
-          onRenamed: (name) => {
-            username = name
-            state = { ...state, name }
-            shell?.setName(name)
-            net.send({ type: 'rename' })
-          },
-          onBecome: (outfit, finish) => {
-            look = { outfit, finish }
-            state = { ...state, outfit }
-            void saveLook(look).then((saved) => {
-              if (!saved.ok) say(saved.error)
-            })
-            shell?.setLook(outfit, finish)
-            // A redial says hello in the new body too.
-            net.setOutfit(outfit)
-            net.send({ type: 'appearance', outfit })
-          },
-        })
-      )
+      void openGronDialog({
+        says: gronSays(),
+        open: () => state.world !== null,
+        quest: () => {
+          const quest = gronQuest(state.quests)
+          return questShown(quest, state.quests, state.pack, 'gron')
+        },
+        pending: () => state.pending.deal,
+        said: () => state.said?.text ?? null,
+        onStep: () => {
+          const quest = gronQuest(state.quests)
+          const step = questNow(quest, state.quests, state.pack, 'gron').next
+          if (step) send({ type: 'quest', quest, step }, { deal: true })
+        },
+      }).then(() => shell?.render(state))
+    },
+    openName: () => {
+      void openNameDialog({
+        username,
+        onRenamed: (name) => {
+          username = name
+          state = { ...state, name }
+          shell?.setName(name)
+          net.send({ type: 'rename' })
+        },
+      })
     },
     citgo: {
       open: (station, name) => {
@@ -380,6 +390,27 @@ async function boot(): Promise<void> {
           send({ type: 'trade', offer }, { trade: true, tradeOffer: offer }),
         fanfare: tradeCheer,
         turntable,
+        // Your Character, with its turntable, loads with the rest of the
+        // phone's 3D.
+        mountLook: (box) =>
+          import('./dial3d.ts').then(({ mountLookPanel }) =>
+            mountLookPanel(box, {
+              outfit: look.outfit,
+              finish: look.finish,
+              cosmetics: () => state.cosmetics,
+              onBecome: (outfit, finish) => {
+                look = { outfit, finish }
+                state = { ...state, outfit }
+                void saveLook(look).then((saved) => {
+                  if (!saved.ok) say(saved.error)
+                })
+                shell?.setLook(outfit, finish)
+                // A redial says hello in the new body too.
+                net.setOutfit(outfit)
+                net.send({ type: 'appearance', outfit })
+              },
+            })
+          ),
       }).then(() => shell?.render(state))
     },
     expeditions: {

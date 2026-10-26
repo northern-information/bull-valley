@@ -15,7 +15,7 @@ import type { CorpseWire } from './corpses.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { Bait } from './fishing.ts'
 import type { HallucinationShape } from './hallucinations.ts'
-import type { Vec3, XZ } from './interfaces.ts'
+import type { LieAt, Vec3, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
 import type { NpcId, NpcSpot } from './npcs.ts'
 import type { DailyWire } from './protocol.ts'
@@ -101,6 +101,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The tackle box on the firefly pond's landing: E opens it to fish
   // (rule 36).
   | { kind: 'fish' }
+  // The projector in the drive-in's booth: E opens the films to thread
+  // one (rule 41).
+  | { kind: 'projector' }
   // A slurm crawling on a Citgo's lot, a jar with room carried: E or the
   // click brings the jar to hand and catches it (rule 36).
   | { kind: 'jar-slurm'; station: number; slot: number; index: number }
@@ -115,6 +118,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // The heart of the maze with Erwin's rose in the pack: E lays it
   // (quests.ts).
   | { kind: 'lay' }
+  // The floppy disk in the industrial park, for a raider on Gron's last
+  // quest without it: E takes it (quests.ts).
+  | { kind: 'find' }
   // The trapdoor in the Video Vault's office: E climbs down into the
   // Undercroft (undercroft.ts); the ladder's foot below: E climbs up.
   | { kind: 'descend' }
@@ -140,14 +146,24 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
     }
 
 // What the eye sees: the eye, the unit look direction, the feet's height,
-// the ground (or the floor) under any point, and how high each pickup
-// stands (its middle).
+// the ground (or the floor) under any point, the deck under a height
+// where one is given (ground.ts lieAt), and how high each pickup stands
+// (its middle).
 export interface View<P extends PickupSpot> {
   eye: Vec3
   dir: Vec3
   feet: number
-  groundAt: (x: number, z: number) => number
+  groundAt: LieAt
   heightOf: (pickup: P) => number
+}
+
+// Where a thing E answers stands, and the height it was set down from
+// (a raider's feet, for a body or a hallucination; the floor, for a slurm
+// on the moat's) where decks stack and the highest is not its own: its
+// sight stands on the deck under that (ground.ts lieAt). Left out, on the
+// highest ground there.
+export interface Spot extends XZ {
+  y?: number
 }
 
 // What a thing E answers is to the eye: a column from `low` to `high`
@@ -183,6 +199,8 @@ export const SIGHTS = {
   recycler: { low: 0, high: 1.9, r: 0.6 },
   // The campfire, the stones to the flames' tips.
   campfire: { low: 0, high: 1, r: 0.8 },
+  // The projector on its pedestal, the reels over it.
+  projector: { low: 0, high: 2.2, r: 0.6 },
   hatch: { low: -0.2, high: 0.3, r: 0.7 },
   // A ladder going up from its foot, and down from its top.
   ladder: { low: 0, high: 3, r: 0.5 },
@@ -224,7 +242,7 @@ export function sightAngle(
 }
 
 // A hallucination as the resolver sees it.
-export interface HallucinationSpot extends XZ {
+export interface HallucinationSpot extends Spot {
   id: number
   shape: HallucinationShape
   item?: string
@@ -236,8 +254,9 @@ export interface LockerSpot extends XZ {
   station: number
 }
 
-// A slurm a jar could catch (slurmrig.ts): which, and where it crawls.
-export interface SlurmSpot extends XZ {
+// A slurm a jar could catch (slurmrig.ts): which, and where it crawls,
+// with the floor under it (Spot).
+export interface SlurmSpot extends Spot {
   station: number
   slot: number
   index: number
@@ -287,6 +306,8 @@ export interface InteractionInput<P extends PickupSpot> {
   campfires?: readonly XZ[]
   // The tackle box on the firefly pond's landing, or null.
   tackle?: XZ | null
+  // The projector in the drive-in's booth, or null.
+  projector?: XZ | null
   // The slurms crawling on the lot, while this raider holds a jar with
   // room in it; none otherwise.
   slurms?: readonly SlurmSpot[]
@@ -300,6 +321,9 @@ export interface InteractionInput<P extends PickupSpot> {
   // The heart of the maze, while this raider has a rose to lay there, or
   // null.
   heart?: XZ | null
+  // Where the floppy disk lies, while this raider is on Gron's last quest
+  // without it, or null.
+  disk?: XZ | null
   // The trapdoor down to the Undercroft, and the ladder's foot up out of
   // it, or null.
   trapdoor?: XZ | null
@@ -324,7 +348,7 @@ export interface InteractionInput<P extends PickupSpot> {
 // nearest NPC in his reach, unless a shelf unit is in view; climb into the
 // truck standing still beside you, when it is yours to climb into; buy off
 // a shelf; take your things back off your nearest body; open the lockers;
-// sit down at the laptop; tend the Cabbage Stand; deal with the squatter; take the nearest pickup
+// sit down at the laptop; tend the Cabbage Stand; thread the drive-in's projector; deal with the squatter; take the nearest pickup
 // in reach of a locked door, or else rattle it; Gron or the nearest berry
 // bush, whichever is nearer; inspect the raider in front; take the
 // nearest pickup.
@@ -335,9 +359,9 @@ export function resolveInteraction<P extends PickupSpot>(
   if (input.riding) return { kind: 'hopOut' }
   // Whatever stands at `spot` as `sight` is to the eye: in view, about the
   // raider's own level, with no wall between.
-  const sees = (spot: XZ, sight: Sight) =>
+  const sees = (spot: Spot, sight: Sight) =>
     (!view ||
-      sightAngle(view, spot, view.groundAt(spot.x, spot.z), sight) <=
+      sightAngle(view, spot, view.groundAt(spot.x, spot.z, spot.y), sight) <=
         CONFIG.player.pickupCone) &&
     !walled?.(player, spot)
   const seen = nearestHallucination(
@@ -458,6 +482,16 @@ export function resolveInteraction<P extends PickupSpot>(
     }
   }
 
+  const projector = input.projector
+  if (
+    projector &&
+    Math.hypot(projector.x - player.x, projector.z - player.z) <
+      CONFIG.driveIn.projectorReach &&
+    sees(projector, SIGHTS.projector)
+  ) {
+    return { kind: 'projector' }
+  }
+
   const tackle = input.tackle
   if (
     tackle &&
@@ -521,6 +555,16 @@ export function resolveInteraction<P extends PickupSpot>(
     sees(heart, SIGHTS.portal)
   ) {
     return { kind: 'lay' }
+  }
+
+  const disk = input.disk
+  if (
+    disk &&
+    Math.hypot(disk.x - player.x, disk.z - player.z) <
+      CONFIG.quests.takeReach &&
+    sees(disk, SIGHTS.thing)
+  ) {
+    return { kind: 'find' }
   }
 
   const locked = input.locked
@@ -753,6 +797,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.fish')
     case 'cook':
       return copy('prompts.cook')
+    case 'projector':
+      return copy('prompts.projector')
     case 'jar-slurm':
       return copy('prompts.jar_slurm')
     case 'cast':
@@ -770,6 +816,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.locked')
     case 'lay':
       return copy('prompts.lay')
+    case 'find':
+      return copy('prompts.find')
     case 'descend':
       return copy('prompts.descend')
     case 'ascend':

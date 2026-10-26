@@ -107,6 +107,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     world,
     truck,
     radio,
+    reel,
     donutWake,
     music,
     sfx,
@@ -339,6 +340,17 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       distance: truck.distanceTo(player.pos.x, player.pos.z),
       aboard: s.aboard,
     })
+    // The drive-in's film, on the valley's reel and clock, heard from the
+    // screen at the music setting (rule 41).
+    reel?.update({
+      reel: s.world?.reel ?? null,
+      now: net.clock.serverNow(now),
+      t: now / 1000,
+      x: player.pos.x,
+      z: player.pos.z,
+      started: s.started,
+      setting: settings.current.music,
+    })
     // The valley's sounds, heard from the camera at the raider's setting.
     sfx?.update({
       started: s.started,
@@ -518,6 +530,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       time,
       tripping: levelsAt(s.wards, time).tripping,
       player: player.pos,
+      feet: player.groundY,
       yaw: player.yaw,
       blocked: world.walls.between,
     })
@@ -539,6 +552,13 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     if (world.tylerRig && world.tyler && live(world.tyler)) {
       world.tylerRig.update(time)
     }
+    // The floppy disk lies in the park for a raider on Gron's last quest
+    // who has not found it (rule 26).
+    if (world.industrial) {
+      world.industrial.disk.object.visible =
+        s.quests?.['gron-floppy'] === 'given' &&
+        (s.inventory['floppy-disk'] ?? 0) < 1
+    }
     // Erwin's rose lies at the heart for a raider who laid it (rule 26).
     if (world.portal) {
       const stage = s.quests?.rose
@@ -557,6 +577,8 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       // The building is long: its tube and candles flicker from a way off.
       if (live(plaza.doorAt, 60)) plaza.update(time)
     }
+    // The industrial park's last lit high bays and its fires in drums.
+    world.industrial?.update(time)
     // The topiaries move on the valley's clock, but only while this raider
     // looks at neither where one stands nor where it is going.
     if (topiaries) {
@@ -871,6 +893,16 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       ? world.portal.at
       : null
 
+  // Where the floppy disk lies, while the raider is on Gron's last quest
+  // without it (rule 26).
+  const diskSpot = () =>
+    world.industrial &&
+    s.quests?.['gron-floppy'] === 'given' &&
+    (s.inventory['floppy-disk'] ?? 0) < 1 &&
+    !s.pendingQuest
+      ? world.industrial.disk.at
+      : null
+
   // The office's door, while it will not let this raider through.
   const lockedDoor = () =>
     world.plaza &&
@@ -913,6 +945,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       slurms:
         s.held === 'jar' && jarRoom(s.inventory) ? crawlingSlurms(world) : [],
       campfires: world.ponds.map((pond) => pond.campfire.at),
+      projector: world.driveIn?.projector ?? null,
       tackle: nearestLanding(
         world.ponds.map((pond) => pond.place),
         player.pos
@@ -937,6 +970,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
           ? world.lookout.toolbox
           : null,
       heart: heartSpot(),
+      disk: diskSpot(),
       locked: lockedDoor(),
       hallucinations: s.aboard ? [] : game.hallucinations.spots(),
       raider: s.aboard
@@ -1012,9 +1046,10 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       scene.updateMatrixWorld()
       camera.updateMatrixWorld()
     }
-    // While Gron talks, his dialog covers the view and draws its own
-    // turntable; the valley runs on behind it undrawn, holding its last
-    // frame, so the page is not drawing two scenes at once.
+    // While a dialog is open it covers the view (Moab's Your Character
+    // draws its own turntable); the valley runs on behind it undrawn,
+    // holding its last frame, so the page is not drawing two scenes at
+    // once.
   }
 
   // Our steps and every peer's as drawn, heard with the shadows' on the

@@ -111,6 +111,11 @@ export interface Drop extends XZ {
   id: number
   kind: string
   count: number
+  // The height of the feet it was set down from (a raider's, as their
+  // last state frame said), so it lies on the deck they stood on and not
+  // on one over their head (ground.ts lieAt). Missing for what a shadow
+  // left, and for drops from before it was kept: those lie on ground.at.
+  y?: number
   // Left by the valley itself (dimes, a spider's bill, gold bullion), not
   // set down out of a raider's pack: taking it up earns XP
   // (progression.ts).
@@ -121,9 +126,17 @@ export interface Drop extends XZ {
   burst?: true
 }
 
-// Where a raider stands and faces, as their last state frame said.
+// Where a raider stands and faces, as their last state frame said, and
+// the height of their feet when it said so.
 export interface Facing extends XZ {
   yaw: number
+  y?: number
+}
+
+// A drop's or a body's `y` from `at`: present only when the valley heard
+// it, so the wire carries no undefined.
+export function feetOf(at: Facing): { y?: number } {
+  return at.y === undefined ? {} : { y: at.y }
 }
 
 // How many of `kind` one drop takes out of `held`: the whole stack, or

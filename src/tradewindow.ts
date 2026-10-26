@@ -10,7 +10,8 @@
 // (no trader makes change: barter.ts), and offers Clear, Even Up (the
 // offer filled out of the pack and trimmed) and Trade, lit once the offer
 // is even. A trader with a quest has it on a tab beside the trade, marked
-// while it has a step to take with him. The caller sends the frames; the
+// while it has a step to take with him; a trader with more to do than
+// trade has it on a tab of its own (Moab's Your Character, lookpanel.ts). The caller sends the frames; the
 // window reads the game's state again every tick, so the valley's answers
 // show as they land. The item picked, or the row under the pointer,
 // turns in the table as the pack's card turns the hovered one
@@ -27,12 +28,16 @@ import {
   closesDialog,
   npcFooter,
   npcHeader,
+  questParts,
+  questSection,
   sectionHead,
   setPips,
+  showQuest,
 } from './npcdialog.ts'
 import type { WorthOf } from './barter.ts'
 import type { Fanfare } from './catchfanfare.ts'
 import type { Inventory } from './interfaces.ts'
+import type { QuestShown } from './npcdialog.ts'
 
 // One of the trader's goods.
 export interface TradeGood {
@@ -50,16 +55,19 @@ export interface TradeGood {
   out: () => string | null
 }
 
-// The trader's quest, as its tab shows it.
+// The trader's quest, as its tab shows it: read every tick (null with
+// none to show), so the quest he speaks of can change while it is open.
 interface TradeQuest {
-  title: string
-  prize: string
-  // Each step: its name and where it happens.
-  steps: readonly (readonly [string, string])[]
-  // Read every tick (null with none to show): his line, the button that
-  // takes the next step, and the step under way.
-  now: () => { line: string; button: string | null; step: number } | null
+  now: () => QuestShown | null
   onStep: () => void
+}
+
+// A tab of the trader's own beside the trade: its name, and what fills
+// its box the first time it is picked, returning what takes it down as the
+// window closes (a promise, for a panel loaded on its own: dial3d.ts).
+export interface TradePanel {
+  tab: string
+  mount: (box: HTMLElement) => Promise<() => void>
 }
 
 export interface TradeWindowOptions {
@@ -100,6 +108,7 @@ export interface TradeWindowOptions {
   icon: (kind: string) => Promise<string>
   onTrade: (good: string, offer: Inventory) => void
   quest?: TradeQuest
+  panel?: TradePanel
   // The last trade made a big deal of: a new one sweeps its banner
   // across the window, bursts fireflies over it and is cheered. One
   // already there as the window opens is old news.
@@ -164,34 +173,22 @@ function sameOffer(a: Inventory, b: Inventory): boolean {
 
 // Mounts the window over everything and resolves once it is closed.
 export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
-  const { worthOf, format, quest } = options
+  const { worthOf, format, quest, panel } = options
   const root = document.createElement('div')
   root.className = `bv-account bv-npc bv-trade ${options.name}`
   if (options.cash) root.classList.add('bv-trade--cash')
   root.setAttribute('role', 'dialog')
   root.setAttribute('aria-modal', 'true')
   root.setAttribute('aria-labelledby', 'bv-trade-title')
-  const steps = (quest?.steps ?? [])
-    .map(
-      ([name, where]) => `
-        <div class="bv-npc-step">
-          <span class="bv-npc-label">${name}</span>
-          <span class="bv-npc-where">${where}</span>
-        </div>`
-    )
-    .join('')
   const questTab = quest
     ? `<button type="button" class="bv-bag-tab" role="tab" data-bv="trade-tab-quest">${copy('trade.tab_quest')}<span class="bv-trade-due" data-bv="trade-due"></span></button>`
     : ''
-  const questSection = quest
-    ? `<section class="bv-npc-section bv-trade-quest" data-bv="trade-quest">
-        ${sectionHead(quest.title, 'trade-prize')}
-        <div class="bv-npc-steps" data-bv="trade-steps">${steps}</div>
-        <div class="bv-npc-grid">
-          <p class="bv-npc-say bv-npc-c8" data-bv="trade-quest-line"></p>
-          <button type="button" class="bv-btn bv-npc-btn bv-btn--primary bv-npc-c4" data-bv="trade-quest-go"></button>
-        </div>
-      </section>`
+  const questBox = quest ? questSection('trade') : ''
+  const panelTab = panel
+    ? `<button type="button" class="bv-bag-tab" role="tab" data-bv="trade-tab-panel">${panel.tab}</button>`
+    : ''
+  const panelSection = panel
+    ? `<section class="bv-npc-section bv-trade-panel" data-bv="trade-panel" hidden></section>`
     : ''
   root.innerHTML = `
     <div class="bv-npc-ui bv-npc-ui--wide">
@@ -206,6 +203,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
       <div class="bv-bag-tabs bv-trade-tabs" role="tablist" aria-label="${options.title}">
         <button type="button" class="bv-bag-tab" role="tab" data-bv="trade-tab-trade">${options.tab}</button>
         ${questTab}
+        ${panelTab}
       </div>
       <section class="bv-npc-section" data-bv="trade-mine">
         ${sectionHead(copy('trade.your_side'), 'trade-mine-meta')}
@@ -243,7 +241,8 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
           </div>
         </div>
       </section>
-      ${questSection}
+      ${questBox}
+      ${panelSection}
       ${npcFooter('trade-said', 'trade-close', copy('trade.close'))}
     </div>`
   // The banner a big deal sweeps across the window (fanfare).
@@ -282,45 +281,66 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
   const mine = find<HTMLElement>('[data-bv="trade-mine"]')
   const his = find<HTMLElement>('[data-bv="trade-his"]')
 
-  // The trade, or his quest: one shows at a time.
-  let tab: 'trade' | 'quest' = 'trade'
+  // The trade, his quest, or his own tab: one shows at a time.
+  let tab: 'trade' | 'quest' | 'panel' = 'trade'
   tradeTab.addEventListener('click', () => {
     tab = 'trade'
     refresh()
   })
-  const questParts = quest && {
+  const questBits = quest && {
     tab: find<HTMLButtonElement>('[data-bv="trade-tab-quest"]'),
     due: find<HTMLElement>('[data-bv="trade-due"]'),
-    box: find<HTMLElement>('[data-bv="trade-quest"]'),
-    steps: find<HTMLDivElement>('[data-bv="trade-steps"]'),
-    line: find<HTMLParagraphElement>('[data-bv="trade-quest-line"]'),
-    go: find<HTMLButtonElement>('[data-bv="trade-quest-go"]'),
+    parts: questParts(root, 'trade'),
   }
-  if (quest && questParts) {
-    find<HTMLElement>('[data-bv="trade-prize"]').textContent = quest.prize
-    questParts.tab.addEventListener('click', () => {
+  if (quest && questBits) {
+    questBits.tab.addEventListener('click', () => {
       tab = 'quest'
       refresh()
     })
-    questParts.go.addEventListener('click', () => {
+    questBits.parts.go.addEventListener('click', () => {
       if (!options.pending()) quest.onStep()
       refresh()
     })
   }
 
-  // The item under the pointer turns in place of the one picked.
-  let hovered: string | null = null
+  // His own tab, filled the first time it is picked and taken down as the
+  // window closes, even if it is still loading then.
+  let closed = false
+  let unmount: (() => void) | null = null
+  const panelParts = panel && {
+    tab: find<HTMLButtonElement>('[data-bv="trade-tab-panel"]'),
+    box: find<HTMLElement>('[data-bv="trade-panel"]'),
+  }
+  if (panel && panelParts) {
+    let mounting = false
+    panelParts.tab.addEventListener('click', () => {
+      tab = 'panel'
+      refresh()
+      if (mounting) return
+      mounting = true
+      void panel.mount(panelParts.box).then((down) => {
+        if (closed) down()
+        else unmount = down
+      })
+    })
+  }
+
+  // The item under the pointer turns in place of the one picked. A row
+  // taken off the page (the pay side redrawn after a trade) never hears
+  // the pointer leave, so it turns nothing once it is gone.
+  let hovered: { row: HTMLElement; kind: string } | null = null
   const turnsOnHover = (row: HTMLElement, kind: string | undefined) => {
     if (!kind) return
     row.addEventListener('pointerenter', () => {
-      hovered = kind
+      hovered = { row, kind }
       refresh()
     })
     row.addEventListener('pointerleave', () => {
-      if (hovered === kind) hovered = null
+      if (hovered?.row === row) hovered = null
       refresh()
     })
   }
+  const hoveredKind = () => (hovered?.row.isConnected ? hovered.kind : null)
 
   // His side: a row per good, picked as a radio.
   const goodRows = options.goods.map((good) => {
@@ -395,9 +415,12 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
     offerList.replaceChildren(...offerRows.map((r) => r.row))
   }
 
-  // What is wanted, and what is on the table for it.
+  // What is wanted, and what is on the table for it: nothing, when he has
+  // no goods at all (a shelf not yet heard of).
   const firstOpen = () =>
-    options.goods.find((g) => g.out() === null)?.id ?? options.goods[0].id
+    options.goods.find((g) => g.out() === null)?.id ??
+    options.goods[0]?.id ??
+    ''
   let want: string = options.pick ?? firstOpen()
   let offer: Inventory = {}
   let shown: string | null = null
@@ -480,7 +503,7 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
 
     // The table, the item in it turning.
     const good = options.goods.find((g) => g.id === want) ?? null
-    turn(hovered ?? good?.kind ?? null)
+    turn(hoveredKind() ?? good?.kind ?? null)
     const out = good?.out() ?? null
     const need = good?.worth ?? 0
     const worth = cash ? Math.min(held, need) : offerWorth(offer, worthOf)
@@ -526,25 +549,20 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
 
     // His quest, on its own tab, marked while it has a step to take here.
     const now = quest?.now() ?? null
-    if (now === null) tab = 'trade'
+    if (now === null && tab === 'quest') tab = 'trade'
     tradeTab.setAttribute('aria-selected', String(tab === 'trade'))
     mine.hidden = tab !== 'trade'
     his.hidden = tab !== 'trade'
-    if (questParts) {
-      questParts.tab.hidden = now === null
-      questParts.due.hidden = now?.button == null
-      questParts.tab.setAttribute('aria-selected', String(tab === 'quest'))
-      questParts.box.hidden = tab !== 'quest'
-      if (now) {
-        Array.from(questParts.steps.children).forEach((step, i) => {
-          step.classList.toggle('bv-npc-step--done', i < now.step)
-          step.classList.toggle('bv-npc-step--now', i === now.step)
-        })
-        questParts.line.textContent = now.line
-        questParts.go.hidden = now.button === null
-        questParts.go.textContent = now.button ?? ''
-        questParts.go.disabled = pending
-      }
+    if (questBits) {
+      questBits.tab.hidden = now === null
+      questBits.due.hidden = now?.button == null
+      questBits.tab.setAttribute('aria-selected', String(tab === 'quest'))
+      questBits.parts.box.hidden = tab !== 'quest'
+      if (now) showQuest(questBits.parts, now, pending)
+    }
+    if (panelParts) {
+      panelParts.tab.setAttribute('aria-selected', String(tab === 'panel'))
+      panelParts.box.hidden = tab !== 'panel'
     }
   }
 
@@ -562,6 +580,8 @@ export function openTradeWindow(options: TradeWindowOptions): Promise<void> {
     function close(): void {
       clearInterval(timer)
       options.turntable.stop()
+      closed = true
+      unmount?.()
       document.removeEventListener('keydown', onKey)
       root.remove()
       resolve()

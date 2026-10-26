@@ -136,8 +136,8 @@ export interface CrewState {
 export interface DialState {
   // Our id in the valley, from the welcome; null before it.
   id: string | null
-  // The account's name and body, as Gron leaves them here or in the 3D
-  // valley (the valley shows our own peer back to us).
+  // The account's name and body, as Your Name and Moab leave them here or in
+  // the 3D valley (the valley shows our own peer back to us).
   name: string
   outfit: OutfitId | null
   pack: Inventory
@@ -358,7 +358,7 @@ function shownAs(
   if (peer.name !== s.name) {
     next = news(
       { ...next, name: peer.name },
-      copy('gron.renamed', { name: peer.name }),
+      copy('name.renamed', { name: peer.name }),
       now,
       wall
     )
@@ -366,7 +366,7 @@ function shownAs(
   if (peer.outfit !== s.outfit) {
     next = news(
       { ...next, outfit: peer.outfit },
-      copy('gron.became', { name: outfitById(peer.outfit).label }),
+      copy('moab.became', { name: outfitById(peer.outfit).label }),
       now,
       wall
     )
@@ -630,7 +630,7 @@ export function applyFrame(
         quests: { ...s.quests, [msg.quest]: msg.stage },
         pending: { ...s.pending, deal: false },
       }
-      return news(next, stepNews(msg.step), now, wall)
+      return news(next, stepNews(msg.quest, msg.step), now, wall)
     }
     case 'expedition': {
       const next: DialState = {
@@ -675,8 +675,9 @@ export function applyFrame(
         ...s,
         peers: s.peers.map((p) => (p.id === msg.peer.id ? msg.peer : p)),
       }
-      // Our own comes back too: from Gron here, said already, or from the
-      // account's Gron in the 3D valley, which we take on and say.
+      // Our own comes back too: from Your Name or Moab here, said already,
+      // or from the account's Your Name or Moab in the 3D valley, which we
+      // take on and say.
       if (msg.peer.id === s.id) return shownAs(next, msg.peer, now, wall)
       // The account in the 3D valley (a username is one account's): its
       // news is ours, and said already.

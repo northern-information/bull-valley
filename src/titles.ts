@@ -12,6 +12,7 @@ import { copy } from './copy.ts'
 import { toCosmetics } from './cosmetics.ts'
 import { toHotbar } from './hotbar.ts'
 import { mountMainMenu } from './mainmenu.ts'
+import { openNameDialog } from './namedialog.ts'
 import { mountAccountStep } from './signin.ts'
 import { COLOPHON, EPIGRAPH, LOGO, showSplash, skipTitles } from './splash.ts'
 import type { BvAudio } from './audio.ts'
@@ -129,12 +130,27 @@ export async function showTitles(
     onSignOut: signOutAndReload,
   })
   const account = mountAccountStep()
+  // Who is signed in, as the menu last asked; Your Name in its Settings
+  // (shown only signed in) changes the username the select and the valley
+  // will use.
+  let known: Awaited<typeof me> = null
+  const changeName = () => {
+    const signed = known?.account
+    if (!signed?.username) return
+    void openNameDialog({
+      username: signed.username,
+      onRenamed: (name) => {
+        signed.username = name
+      },
+    })
+  }
   const menu = mountMainMenu({
     audio,
     config: LOGO,
     downscale: CONFIG.render.downscale,
     settings,
     music,
+    onName: changeName,
     onAccount: openAccount,
     onSignOut: signOutAndReload,
   })
@@ -148,7 +164,7 @@ export async function showTitles(
       onLift: () => menu.underlay(),
     })
   }
-  let known = await me
+  known = await me
   const signedIn = !!known?.account?.username
   // A round trip that has not yet ended in an account goes back to it, and
   // a failed one shows why on the sign-in card.

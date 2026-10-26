@@ -12,6 +12,12 @@ export interface XZ {
 // The ground height in metres at a world point.
 export type HeightAt = (x: number, z: number) => number
 
+// The height a thing lies at, at a world point: given `y`, the height of
+// the feet it was set down from (or the floor it crawls on), the deck
+// under them where decks stack (ground.ts lieAt); without, the highest
+// ground there. A HeightAt passes for one.
+export type LieAt = (x: number, z: number, y?: number) => number
+
 // Three numbers as [x, y, z]: a position, a scale, a size, or an Euler
 // rotation in radians.
 export type Vec3 = [number, number, number]

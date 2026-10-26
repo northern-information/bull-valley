@@ -10,7 +10,7 @@
 // GET  /auth/me                             who is signed in (always 200)
 // POST /auth/confirm-signup                 say the magic word; create the account
 // POST /auth/username                       choose the username, once
-// PUT  /auth/username                       change it (Gron)
+// PUT  /auth/username                       change it (Your Name)
 // PUT  /auth/look                           the character and guitar finish
 // PUT  /auth/hotbar                         the number keys' items
 // PUT  /auth/settings                       the music and sound volumes
@@ -297,11 +297,17 @@ class AuthHandler {
 
   async route(): Promise<Response> {
     const { method } = this.request
-    const parts = this.url.pathname
-      .slice(AUTH_PATH.length)
-      .split('/')
-      .filter(Boolean)
-      .map(decodeURIComponent)
+    // A path that is not good percent-encoding names no route.
+    let parts: string[]
+    try {
+      parts = this.url.pathname
+        .slice(AUTH_PATH.length)
+        .split('/')
+        .filter(Boolean)
+        .map(decodeURIComponent)
+    } catch {
+      return notFound()
+    }
 
     // SameSite=Lax keeps the cookies off cross-site POSTs already; the
     // Origin check is belt and braces for the mutations.
@@ -590,7 +596,23 @@ class AuthHandler {
   private async callback(provider: OAuthProvider): Promise<Response> {
     const query = this.url.searchParams
     const error = query.get('error')
-    if (error) return this.landing({ error })
+    if (error) {
+      // Our own round trip (its state matches) is spent here as at every
+      // other end; a forged error link clears nothing of a sign-in under way.
+      const ours =
+        !!this.cookies[COOKIE.state] &&
+        this.cookies[COOKIE.state] === query.get('state')
+      return withCookies(
+        this.landing({ error }),
+        ours
+          ? [
+              this.clear(COOKIE.state),
+              this.clear(COOKIE.pkce),
+              this.clear(COOKIE.link),
+            ]
+          : []
+      )
+    }
     const code = query.get('code')
     if (!code) return json({ error: copy('auth.missing_code') }, 400)
     const state = this.cookies[COOKIE.state]
@@ -781,7 +803,7 @@ class AuthHandler {
     ])
   }
 
-  // POST chooses the first username, once; PUT (`rename`, from Gron)
+  // POST chooses the first username, once; PUT (`rename`, from Your Name)
   // changes it, any time.
   private setUsername(rename = false): Promise<Response> {
     return this.signedIn(async (claims) => {
@@ -817,7 +839,7 @@ class AuthHandler {
     })
   }
 
-  // The character and guitar finish chosen at the select or at Gron.
+  // The character and guitar finish chosen at the select or at Moab.
   private setLook(): Promise<Response> {
     return this.signedIn(async (claims) => {
       const body = await this.body()

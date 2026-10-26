@@ -86,14 +86,18 @@ async function inflate(parts: readonly Uint8Array[]): Promise<Uint8Array> {
   const zipped = join(parts)
   const stream = new DecompressionStream('deflate')
   const writer = stream.writable.getWriter()
-  void writer.write(zipped).then(() => writer.close())
   const reader = stream.readable.getReader()
   const out: Uint8Array[] = []
-  for (;;) {
-    const { done, value } = await reader.read()
-    if (done) break
-    out.push(value)
+  const read = async () => {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) return
+      out.push(value)
+    }
   }
+  // Written and read at once (the stream backs up otherwise), and a bad
+  // write fails the decode rather than going unheard.
+  await Promise.all([writer.write(zipped).then(() => writer.close()), read()])
   return join(out)
 }
 

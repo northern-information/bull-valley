@@ -41,6 +41,14 @@ import { ruinsAt } from './crumble.ts'
 import { dayKey } from './daily.ts'
 import { buildDishArray } from './dishes.ts'
 import { buildDrink } from './drinkmodels.ts'
+import { CAR_KINDS, DRIVE_IN, PROJECTOR_AT } from './drivein.ts'
+import {
+  buildBurntCar,
+  buildDriveInBooth,
+  buildDriveInScreen,
+  buildProjector,
+  buildSpeakerPost,
+} from './driveinmodel.ts'
 import { buildTyler } from './figure.ts'
 import { buildFireRoots, buildRaincloud } from './fire.ts'
 import {
@@ -52,6 +60,11 @@ import {
   buildStringer,
   buildTackleBox,
 } from './fishmodels.ts'
+import {
+  buildForklift,
+  buildWarehouse,
+  buildWorksProp,
+} from './industrialmodel.ts'
 import { itemLabel } from './itemcopy.ts'
 import { ITEMS } from './items.ts'
 import { buildJeep, buildRadarDish } from './jeep.ts'
@@ -470,6 +483,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   { id: 'adderall', label: 'Adderall', build: () => buildPickup('adderall') },
   { id: 'rose', label: "Erwin's rose", build: () => buildPickup('rose') },
   {
+    id: 'floppy-disk',
+    label: "Gron's floppy disk",
+    build: () => buildPickup('floppy-disk'),
+  },
+  {
     id: 'flashlight-item',
     label: 'Flashlight (in the pack)',
     build: () => buildPickup('flashlight'),
@@ -682,6 +700,37 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildLookout(),
   },
   {
+    id: 'drive-in-screen',
+    label: 'The drive-in’s screen, past the corn maze',
+    build: () => buildDriveInScreen().group,
+  },
+  {
+    id: 'drive-in-booth',
+    label: 'The drive-in’s projection booth, the projector inside',
+    build: () => {
+      const booth = buildDriveInBooth().group
+      const projector = buildProjector().group
+      projector.position.set(0, 0.12, PROJECTOR_AT.z - DRIVE_IN.booth.z)
+      booth.add(projector)
+      return booth
+    },
+  },
+  {
+    id: 'projector',
+    label: 'The drive-in’s 35mm projector',
+    build: () => buildProjector().group,
+  },
+  ...CAR_KINDS.map((kind) => ({
+    id: `burnt-${kind}`,
+    label: `A burnt-out ${kind} at the drive-in`,
+    build: () => buildBurntCar(kind, 7),
+  })),
+  {
+    id: 'speaker-post',
+    label: 'A drive-in speaker post',
+    build: () => buildSpeakerPost(3),
+  },
+  {
     id: 'castle-entropy',
     label: 'Castle Entropy, as it stands today',
     build: () => sampleCastle(0),
@@ -742,6 +791,36 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildUndercroft().group,
   },
   { id: 'trapdoor', label: 'The trapdoor in the office', build: buildTrapdoor },
+  {
+    id: 'warehouse',
+    label: 'Bull Valley Box & Carton, in the industrial park',
+    build: () => {
+      const rig = buildWarehouse(4)
+      setMotion(rig.group, (t) => rig.update(t))
+      return rig.group
+    },
+  },
+  {
+    id: 'park-sign',
+    label: 'The sign out front of Bull Valley Industrial Park #4',
+    build: () => buildWorksProp({ kind: 'sign', x: 0, z: 0, yaw: 0 }),
+  },
+  {
+    id: 'forklift',
+    label: 'A dead forklift in an industrial park warehouse',
+    build: buildForklift,
+  },
+  {
+    id: 'pallet-load',
+    label: 'A pallet of boxes left in an industrial park truck court',
+    build: () =>
+      buildWorksProp({ kind: 'load', x: 0, z: 0, yaw: 0, layers: 3 }),
+  },
+  {
+    id: 'semi-trailer',
+    label: 'A semi trailer left at a bay in the industrial park',
+    build: () => buildWorksProp({ kind: 'trailer', x: 0, z: 0, yaw: 0 }),
+  },
   {
     id: 'tunnel-shade',
     label: 'A tunnel shade',

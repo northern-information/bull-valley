@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { NO_TASK } from '../../src/dailytask.ts'
 import { STARTING_INVENTORY, toInventory } from '../../src/inventory.ts'
 import { isKeyItem } from '../../src/items.ts'
+import { toQuests } from '../../src/quests.ts'
 import { FRESH_RESEARCH } from '../../src/recycling.ts'
 import { NO_PROGRESS } from '../../src/season.ts'
 import { FRESH_STAND } from '../../src/stand.ts'
@@ -78,7 +79,7 @@ function packContract(makeStore: () => PackStore): void {
       task: NO_TASK,
       xp: 0,
       stand: FRESH_STAND,
-      quests: { rose: 'none' },
+      quests: toQuests(null),
       expedition: null,
     })
     await store.change('a1', OTHER, 2)
@@ -233,6 +234,21 @@ function packContract(makeStore: () => PackStore): void {
     const after = await store.get('a1')
     expect(after.cash).toBe(before.cash + 100_00)
     expect(after.pack[OTHER]).toBe(before.pack[OTHER] + 200)
+  })
+
+  it('pays a reward into a wallet never opened from the starting cash', async () => {
+    const store = makeStore()
+    await store.score(
+      'a1',
+      's',
+      { kills: 2, claimed: true },
+      { cash: 100_00, kind: OTHER, count: 1 }
+    )
+    expect((await store.get('a1')).cash).toBe(STARTING_CASH + 100_00)
+    const tasked = makeStore()
+    const day = '2026-01-01'
+    await tasked.scoreTask('a1', 't', { day, count: 5, claimed: true }, 5_00)
+    expect((await tasked.get('a1')).cash).toBe(STARTING_CASH + 5_00)
   })
 
   it('writes each Book of Shadows entry once, in the order found', async () => {

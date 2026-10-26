@@ -61,9 +61,12 @@ export type HallucinationShape = HallucinationLook['shape']
 
 export interface Hallucination {
   id: number
-  // Where it stands; the rig stands it on ground.at.
+  // Where it stands, and the height of the raider's feet when it came:
+  // the rig stands it on the deck under them (ground.ts lieAt), so one
+  // seen on the moat's floor is not stood up on the pipes over it.
   x: number
   z: number
+  y?: number
   // Which way it faces (Three's rotation.y for a figure facing +Z): toward
   // the raider as they stood when it came.
   yaw: number
@@ -92,6 +95,9 @@ export interface Seeing {
   // The tripping ward right now, 0 to 1.
   tripping: number
   player: XZ
+  // The height of the raider's feet; left out, what comes stands on the
+  // highest ground.
+  feet?: number
   // The raider's yaw: they face (-sin yaw, -cos yaw).
   yaw: number
   // Whether a wall stands between two points (walls.ts between): nothing
@@ -131,6 +137,11 @@ export function lookOf(rng: Rng): HallucinationLook {
     name: rng(),
   }
 }
+
+// The height a new one stands from: the raider's feet, when the step was
+// told them.
+const feetOf = ({ feet }: Seeing): { y?: number } =>
+  feet === undefined ? {} : { y: feet }
 
 // A spot out ahead of the raider for `look`, in view and clear of walls
 // and of the others; null when every try is blocked.
@@ -193,6 +204,7 @@ export function stepHallucinations(
           {
             id: next,
             ...at,
+            ...feetOf(seeing),
             yaw: Math.atan2(player.x - at.x, player.z - at.z),
             born: time,
             ends: time + range(rng, cfg.lifeSeconds.min, cfg.lifeSeconds.max),
@@ -226,6 +238,7 @@ export function conjure(
   const made: Hallucination = {
     id: state.next,
     ...at,
+    ...feetOf(seeing),
     yaw: Math.atan2(player.x - at.x, player.z - at.z),
     born: time,
     ends: time + range(rng, cfg.lifeSeconds.min, cfg.lifeSeconds.max),

@@ -5,8 +5,12 @@ import { buildCastleSite } from './castlesite.ts'
 import { CONFIG } from './config.ts'
 import { unitToWorld } from './coords.ts'
 import { buildCornMaze, mazeFrame, mazeLamps, mazePlaceOf } from './cornmaze.ts'
+import { onDriveIn } from './drivein.ts'
+import { buildDriveIn } from './driveinsite.ts'
 import { pondsOf } from './fishing.ts'
 import { Ground } from './ground.ts'
+import { onParkGrounds, parkRings } from './industrial.ts'
+import { buildIndustrialSite } from './industrialsite.ts'
 import { KEEP, landmarkWorldPositions } from './landmarks.ts'
 import { LOOKOUT, onLookout } from './lookout.ts'
 import { mazeToWorld } from './maze.ts'
@@ -73,6 +77,7 @@ import type { Sight } from './book.ts'
 import type { CastleSite } from './castlesite.ts'
 import type { YardSpot } from './castleyard.ts'
 import type { DonutField } from './donuts.ts'
+import type { DriveInSite } from './driveinsite.ts'
 import type { GronRig, MoabRig, TylerRig } from './figure.ts'
 import type { Geo, HeightAt, Metres, ShopStock, XZ } from './interfaces.ts'
 import type { PickupKind } from './items.ts'
@@ -244,6 +249,15 @@ export interface World {
   // The Undercroft under it, through the office's trapdoor; null without
   // the plaza.
   undercroft: CroftRig | null
+  // The industrial park behind the plaza (industrialsite.ts): where its
+  // lurkers keep (the hello's lurks), the floppy disk for Gron's last
+  // quest, and the flicker of what still burns inside; null without a
+  // spawn station.
+  industrial: {
+    lurks: XZ[]
+    disk: { at: XZ; object: THREE.Object3D }
+    update(t: number): void
+  } | null
   // What to stand on anywhere: the terrain, or the road or lot over it.
   ground: Ground
   // What stops you: the store walls and fixtures, the berry bush, Gron,
@@ -261,6 +275,9 @@ export interface World {
   // The hedge animals in the corn maze (topiaries.ts), update(t) on the
   // valley's clock; null without a spawn station.
   topiaries: TopiaryRig | null
+  // The drive-in past the maze's far end (driveinsite.ts), its film run
+  // by driveinrig.ts; null without a spawn station.
+  driveIn: DriveInSite | null
   // Where the corn maze lies, for the Caretaker (caretaker.ts); null
   // without a spawn station.
   mazePlace: MazePlace | null
@@ -461,6 +478,11 @@ export function buildWorld(
     ? buildCroft(plaza, metres, heightAt, ground, walls)
     : null
   if (croft) group.add(croft.group)
+  // The industrial park behind the plaza (industrialsite.ts).
+  const industrial = spawnStation
+    ? buildIndustrialSite(spawnStation, heightAt, ground, walls)
+    : null
+  if (industrial) group.add(industrial.group)
   group.add(
     buildTrees(
       geo,
@@ -470,6 +492,13 @@ export function buildWorld(
       rng,
       (x, z) =>
         (maze ? maze.covers(x, z, CONFIG.maze.treeClear) : false) ||
+        (spawnStation
+          ? onDriveIn(
+              mazePlaceOf(spawnStation),
+              { x, z },
+              CONFIG.driveIn.treeClear
+            )
+          : false) ||
         (spawnStation
           ? onLookout(
               mazePlaceOf(spawnStation),
@@ -495,6 +524,9 @@ export function buildWorld(
         (croft
           ? inUndercroft(croft.rig.place, { x, z }, CROFT_TREE_CLEAR)
           : false) ||
+        (industrial
+          ? onParkGrounds(industrial.origin, x, z, CONFIG.industrial.treeClear)
+          : false) ||
         // The lone pine stands alone among the dishes.
         (spawnStation ? insideDishArray(spawnStation, x, z) : false) ||
         onMoat(x, z) ||
@@ -519,6 +551,7 @@ export function buildWorld(
       ...roadside.lamps,
       ...stationLamps(fuel.points),
       ...(spawnStation && maze ? mazeLamps(maze, spawnStation) : []),
+      ...(industrial ? industrial.lamps : []),
     ],
     ground,
     walls
@@ -556,6 +589,8 @@ export function buildWorld(
                 count: spot.count,
               }))
             : []),
+          // And the industrial park's, building by building.
+          ...(industrial ? industrial.loot : []),
         ]
       : [],
     onMoat
@@ -571,6 +606,10 @@ export function buildWorld(
     lookout = corn.lookout
     topiaries = corn.topiaries
   }
+  const driveIn = spawnStation
+    ? buildDriveIn(mazePlaceOf(spawnStation), heightAt, ground, walls)
+    : null
+  if (driveIn) group.add(driveIn.group)
 
   const spawn: Spawn = spawnStation
     ? { x: spawnStation.x + 5, z: spawnStation.z + 5, yaw: 0 }
@@ -637,6 +676,13 @@ export function buildWorld(
     dishes,
     plaza: plaza ? plaza.rig : null,
     undercroft: croft ? croft.rig : null,
+    industrial: industrial
+      ? {
+          lurks: industrial.lurks,
+          disk: industrial.disk,
+          update: (t) => industrial.update(t),
+        }
+      : null,
     ground,
     walls,
     facings: fuel.points.map(worldFacings),
@@ -645,6 +691,7 @@ export function buildWorld(
     portal,
     lookout,
     topiaries,
+    driveIn,
     mazePlace,
     donutField,
     sights: bookSights({
@@ -657,6 +704,7 @@ export function buildWorld(
       dishes: dishSpots,
       plaza: plaza ? mallCenter(plaza.origin) : null,
       undercroft: croft ? croft.rig.place : null,
+      industrial: industrial ? parkRings(industrial.origin) : [],
       landmarks: landmarks.points,
       castle: castle ? castle.middle : null,
     }),
