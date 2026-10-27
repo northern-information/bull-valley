@@ -1067,10 +1067,26 @@ function buildFacings(): Facing[] {
   return facings
 }
 
-// The canopy over the pump island, centred on it: `width` along local X,
-// `depth` along Z, its slab `thickness` deep and centred at `height`.
-// assets.ts draws it; the slurms (slurms.ts) drip off its edges.
-export const CANOPY = { width: 9, thickness: 0.45, depth: 6.5, height: 4.6 }
+// The pump islands, two pumps each, in a row along local Z: each one's
+// middle, ISLAND_PITCH apart and centred on the station's origin, which
+// stays the forecourt's middle (what "the pump island" means elsewhere).
+const ISLAND_PITCH = 8
+export const PUMP_ISLANDS: readonly number[] = [-1.5, -0.5, 0.5, 1.5].map(
+  (k) => k * ISLAND_PITCH
+)
+// One island's stretch of canopy along Z.
+const ISLAND_CANOPY = 6.5
+
+// The canopy over the pump islands, one slab centred on them all: `width`
+// along local X, `depth` along Z, its slab `thickness` deep and centred at
+// `height`. assets.ts draws it; the slurms (slurms.ts) drip off its edges.
+export const CANOPY = {
+  width: 9,
+  thickness: 0.45,
+  depth:
+    PUMP_ISLANDS[PUMP_ISLANDS.length - 1] - PUMP_ISLANDS[0] + ISLAND_CANOPY,
+  height: 4.6,
+}
 
 export const STORE_LAYOUT = {
   back: BACK,

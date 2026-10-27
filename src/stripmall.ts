@@ -147,7 +147,7 @@ const HOLE = { x0: -4.4, x1: -3.0, height: 1.9 }
 const ALLEY = 8
 const END = 6
 const LOT_FRONT = 1.5
-const LOT_REACH = 40
+const LOT_REACH = 34
 
 // The back room behind the Video Vault: the wall across the shop at
 // `wall` (its shop-side face at wall + WALL), and the locked door in it,
