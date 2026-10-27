@@ -7,7 +7,8 @@ import { outfitById } from './outfits.ts'
 // last Citgo the raider stood at (portals.ts, sharedworld.ts rule 28), the
 // screen filling as it goes, then says the portal is open and goes down again.
 // While one of ours is open the screen says how long it has left. Q again
-// while it dials hangs up.
+// while it dials hangs up. Below ground (the Undercroft) it finds no
+// signal: the screen says so under a big red X, and it goes down again.
 //
 // The phone, the hand that holds it and the screen all draw into one small
 // canvas that CSS upscales with image-rendering: pixelated, so the prop has
@@ -18,6 +19,8 @@ import { outfitById } from './outfits.ts'
 // The portal's blue, as Citgo portals burn (assets.ts CITGO_PORTAL).
 const BLUE = '#6aa8ff'
 const DIM = 'rgba(106, 168, 255, 0.3)'
+// The no-signal X.
+const RED = '#ef4444'
 // The hand is the player's: same skin and sleeve as the player outfit, with
 // the shadow facet a darker tone of the skin. The torch's grip
 // (torchhand.ts) is the same hand.
@@ -103,6 +106,8 @@ function mmss(seconds: number): string {
 // How long the screen says OPEN after the portal opens, before the phone
 // goes down.
 const OPEN_HOLD = 1.2
+// How long the screen says NO SIGNAL before the phone goes down.
+const DEAD_HOLD = 1.6
 
 // What draw() needs each frame: whole seconds left on our own open portal,
 // or null with none.
@@ -119,6 +124,8 @@ export class Phone {
   dialing: number | null
   // Seconds the screen still says OPEN, once the dial went through.
   holding: number
+  // Whether the screen says NO SIGNAL, held as long as holding.
+  dead: boolean
   spin: number
   clock: string
   clockAge: number
@@ -131,6 +138,7 @@ export class Phone {
     this.raised = false
     this.dialing = null
     this.holding = 0
+    this.dead = false
     this.spin = 0
     this.clock = ''
     this.clockAge = Infinity
@@ -151,6 +159,21 @@ export class Phone {
     }
     this.dialing = 0
     this.holding = 0
+    this.dead = false
+    this.raise(true)
+    return true
+  }
+
+  // Q where no call carries: up with NO SIGNAL, then down again. Q again
+  // while it says so puts it down. Whether it is now up.
+  noSignal(): boolean {
+    if (this.dead && this.raised) {
+      this.hangUp()
+      return false
+    }
+    this.dialing = null
+    this.holding = DEAD_HOLD
+    this.dead = true
     this.raise(true)
     return true
   }
@@ -159,6 +182,7 @@ export class Phone {
   hangUp(): void {
     this.dialing = null
     this.holding = 0
+    this.dead = false
     this.raise(false)
   }
 
@@ -175,7 +199,7 @@ export class Phone {
       }
     } else if (this.holding > 0) {
       this.holding -= dt
-      if (this.holding <= 0) this.raise(false)
+      if (this.holding <= 0) this.hangUp()
     }
     if (this.raised) this.draw(dt, frame)
     return through
@@ -213,10 +237,16 @@ export class Phone {
     ctx.fillStyle = BLUE
     ctx.fillText(copy('phone.title'), c, SY + 32)
 
-    // The portal: a ring that fills as it dials, and a swirl inside that
-    // grows with it.
     const cy = SY + 98
     const r = 40
+    if (this.dead) {
+      this.drawNoSignal(c, cy, r, px)
+      fillPolys(ctx, FRONT)
+      return
+    }
+
+    // The portal: a ring that fills as it dials, and a swirl inside that
+    // grows with it.
     const charge =
       this.dialing !== null
         ? Math.min(1, this.dialing / CONFIG.portal.dialSeconds)
@@ -255,5 +285,23 @@ export class Phone {
     }
 
     fillPolys(ctx, FRONT)
+  }
+
+  // No signal: a big red X where the portal would open, and the words.
+  private drawNoSignal(c: number, cy: number, r: number, px: number): void {
+    const ctx = this.ctx
+    const arm = r * 0.8
+    ctx.strokeStyle = RED
+    ctx.lineWidth = 5 * px
+    ctx.lineCap = 'square'
+    ctx.beginPath()
+    ctx.moveTo(c - arm, cy - arm)
+    ctx.lineTo(c + arm, cy + arm)
+    ctx.moveTo(c + arm, cy - arm)
+    ctx.lineTo(c - arm, cy + arm)
+    ctx.stroke()
+    ctx.lineCap = 'butt'
+    ctx.fillStyle = RED
+    ctx.fillText(copy('phone.no_signal'), c, cy + r + 14)
   }
 }

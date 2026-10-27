@@ -615,6 +615,7 @@ portal_citgo = { text = "Cold blue light, then the Citgo hum.", by = "ai" }
 portal_through = { text = "Cold blue light, then {name}'s side of the valley.", by = "ai" }
 portal_back = { text = "Cold blue light, then back where you dialed from.", by = "ai" }
 portal_aboard = { text = "No signal from the truck bed.", by = "ai" }
+portal_below = { text = "No signal down here. The call dies in the stone.", by = "ai" }
 portal_at_citgo = { text = "You are already at your Citgo.", by = "ai" }
 portal_no_citgo = { text = "No Citgo to call yet. Stand on a forecourt first.", by = "ai" }
 portal_busy = { text = "Every line to that Citgo is busy.", by = "ai" }
@@ -646,6 +647,7 @@ title = { text = "PORTAL PHONE", by = "ai" }
 dialing = { text = "DIALING", by = "ai" }
 open = { text = "PORTAL OPEN", by = "ai" }
 left = { text = "{clock} LEFT", by = "ai" }
+no_signal = { text = "NO SIGNAL", by = "ai" }
 
 # The map (src/citgomap.ts): the valley's Citgos, the ones visited, the
 # last, the portal phones known, and fast travel to them. A Citgo is named

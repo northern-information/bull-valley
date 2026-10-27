@@ -503,7 +503,13 @@ export function wireValley(game: Game, actions: Actions): void {
       hud.tell(s.shopSaid)
     } else if (msg.re === 'call') {
       hud.tell(
-        copy(msg.reason === 'no-whistle' ? 'log.no_whistle' : 'log.truck_busy')
+        copy(
+          msg.reason === 'no-whistle'
+            ? 'log.no_whistle'
+            : msg.reason === 'below'
+              ? 'log.whistle_below'
+              : 'log.truck_busy'
+        )
       )
     } else if (msg.re === 'collect') {
       s.pending.collect = false

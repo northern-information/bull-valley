@@ -937,6 +937,19 @@ describe('rule 5: the whistle', () => {
   const from = { x: 10, z: 10 }
   const to = { x: 400, z: 900 }
 
+  it('carries no whistle up out of the Undercroft', () => {
+    const croft = { x: -7000, z: -7000, yaw: 0 }
+    const v = valleyWith({ ...join('a'), undercroft: croft } as ValleyAction)
+    const deep = { x: croft.x + 4, z: croft.z + 4 }
+    expect(
+      v.step({ type: 'call', id: 'a', from, at: deep }).reply?.reason
+    ).toBe('below')
+    expect(v.valley.world?.truck.leg.kind).not.toBe('called')
+    expect(reasons(v.step({ type: 'call', id: 'a', from, at: to }))).toEqual([
+      'called',
+    ])
+  })
+
   it('brings the empty truck to the whistler, and takes them home', () => {
     const v = valleyWith(join('a'), join('b'))
     const r = v.step({ type: 'call', id: 'a', from, at: to })
@@ -1751,7 +1764,7 @@ describe('rule 28: Citgos, and Citgo portals', () => {
     ])
   })
 
-  it('refuses with no Citgo, at it, with no place, from the bed, or with its ring full', () => {
+  it('refuses with no Citgo, at it, with no place, from the bed, below ground, or with its ring full', () => {
     const v = valleyWith(join('a'))
     expect(v.step(open('a')).reply).toEqual({
       type: 'nack',
@@ -1766,6 +1779,16 @@ describe('rule 28: Citgos, and Citgo portals', () => {
     expect(v.step(open('z')).reply?.reason).toBe('not-in-valley')
     v.step({ type: 'board', id: 'a', at: HERE })
     expect(v.step(open('a')).reply?.reason).toBe('aboard')
+
+    // No call carries up out of the Undercroft.
+    const croft = { x: -7000, z: -7000, yaw: 0 }
+    const deep = valleyWith({ ...join('d'), undercroft: croft } as ValleyAction)
+    deep.step({ type: 'visit', id: 'd', station: 0 })
+    expect(
+      deep.step(open('d', { x: croft.x + 4, z: croft.z + 4, yaw: 0 })).reply
+        ?.reason
+    ).toBe('below')
+    expect(deep.step(open('d')).reply?.reason).not.toBe('below')
 
     const ids = Array.from({ length: CONFIG.portal.slots + 1 }, (_, i) =>
       String.fromCharCode(98 + i)

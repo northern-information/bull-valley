@@ -31,7 +31,8 @@
 //    standing in it.
 // 5. One whistle at a time, and only an empty truck answers it: it drives
 //    to the whistler, who climbs in and is driven home to the Citgo. A
-//    whistler who leaves sends it home empty.
+//    whistler who leaves sends it home empty. No whistle carries up out of
+//    the Undercroft.
 // 6. The day turns at midnight Central (daily.ts): every pickup is back,
 //    the shelves are full again, and what lay dropped is gone (the
 //    tombstones stay, rule 17).
@@ -249,8 +250,8 @@
 //    (citgoVisits). The first time an account stands at a Citgo, past the
 //    first it ever stood at (the spawn Citgo), it pays
 //    CONFIG.bounties.citgo into the wallet (Reduced.earn) and earns citgo
-//    XP (rule 22). A raider on foot, out of the bed and away from their
-//    last Citgo, opens a Citgo portal with the portal phone: it stands a little
+//    XP (rule 22). A raider on foot, out of the bed, above ground (no call
+//    carries up out of the Undercroft) and away from their last Citgo, opens a Citgo portal with the portal phone: it stands a little
 //    ahead of where their last state frame put them, its twin in a free
 //    slot of the ring on that Citgo's lot, where the world was opened with
 //    it (SharedWorld.rings). Anyone walking into either end comes out of
@@ -579,6 +580,7 @@ import {
   torchDamage,
 } from './topiaries.ts'
 import { vehicleDamage } from './traffic.ts'
+import { inUndercroft } from './undercroft.ts'
 import { levelsAt } from './wardlevels.ts'
 import { damageOf } from './wards.ts'
 import { cleanWaypoints, NO_WAYPOINTS, sameWaypoints } from './waypoints.ts'
@@ -2048,6 +2050,15 @@ function onTruck(
   // Rule 38: no whistle, no call.
   if (action.type === 'call' && !carries(holdings, 'marx-whistle')) {
     return done(valley, now, { broadcast: [], reply: nack(re, 'no-whistle') })
+  }
+  // No whistle carries up out of the Undercroft.
+  if (
+    action.type === 'call' &&
+    action.at &&
+    world.undercroft &&
+    inUndercroft(world.undercroft, action.at)
+  ) {
+    return done(valley, now, { broadcast: [], reply: nack(re, 'below') })
   }
   // Where the bed is to climb into: parked at home, or come to a
   // whistle; and a whistle only from where the valley heard the
@@ -3816,6 +3827,9 @@ function onOpenPortal(
   if (!carries(holdings, 'citgo-phone')) return refuse('no-phone')
   if (isAboard(world.truck, action.id)) return refuse('aboard')
   if (!action.at) return refuse('no-position')
+  if (world.undercroft && inUndercroft(world.undercroft, action.at)) {
+    return refuse('below')
+  }
   const station = citgosFor(valley, member.account).last
   const ring = station === null ? undefined : world.rings[station]
   if (station === null || !ring) return refuse('no-citgo')

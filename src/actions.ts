@@ -1870,10 +1870,14 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   // The click with the phone in hand. It dials first; aboard it has no
-  // signal.
+  // signal, and below ground the screen says so too.
   const dialPortal = () => {
     if (s.aboard) {
       hud.tell(copy('log.portal_aboard'))
+      return
+    }
+    if (world.undercroft?.inside(player.pos.x, player.pos.z)) {
+      if (game.phone.noSignal()) hud.tell(copy('log.portal_below'))
       return
     }
     if (game.phone.dial()) game.sfx?.play('phone-dial')
@@ -1884,6 +1888,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     switch (reason) {
       case 'aboard':
         return copy('log.portal_aboard')
+      case 'below':
+        return copy('log.portal_below')
       case 'at-citgo':
         return copy('log.portal_at_citgo')
       case 'no-citgo':
