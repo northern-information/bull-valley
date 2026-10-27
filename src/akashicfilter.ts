@@ -124,6 +124,7 @@ const EFFECTS = new Set([
   'raincloud',
   'shadow-burst',
   'fire-roots',
+  'fog-wall',
 ])
 
 // What an asset is, by its id; anything named nowhere is a prop.
@@ -235,7 +236,7 @@ const PLACE_IDS: Record<Exclude<Place, 'elsewhere'>, readonly string[]> = {
     'dumpster-fallen',
     'shopping-cart',
   ],
-  undercroft: ['undercroft', 'trapdoor', 'shadow-rat', 'warden'],
+  undercroft: ['undercroft', 'trapdoor', 'shadow-rat', 'warden', 'fog-wall'],
   industrial: [
     'warehouse',
     'park-sign',

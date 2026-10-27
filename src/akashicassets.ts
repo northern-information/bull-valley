@@ -60,6 +60,8 @@ import {
   buildStringer,
   buildTackleBox,
 } from './fishmodels.ts'
+import { FOG_WALL } from './fogwall.ts'
+import { buildFogWall } from './fogwallrig.ts'
 import {
   buildFenceStretch,
   buildForklift,
@@ -837,6 +839,17 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   { id: 'trapdoor', label: 'The trapdoor in the office', build: buildTrapdoor },
   {
+    id: 'fog-wall',
+    label: "The fog wall in the Warden's door, while it stands",
+    build: () => {
+      const width = FOG_WALL.b.z - FOG_WALL.a.z
+      const fog = buildFogWall(width, FOG_WALL.height)
+      fog.set(true)
+      setMotion(fog.group, (t) => fog.update(t))
+      return fog.group
+    },
+  },
+  {
     id: 'warehouse',
     label: 'Bull Valley Box & Carton, in the industrial park',
     build: () => {
@@ -965,7 +978,10 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   ...(['rat', 'warden'] as const).map((kind) => ({
     id: `${kind === 'rat' ? 'shadow-rat' : 'warden'}-burning`,
-    label: `${kind === 'rat' ? 'A shadow rat' : 'The Warden'}: burning in a beam, thrashing`,
+    label:
+      kind === 'rat'
+        ? 'A shadow rat: burning in a beam, thrashing'
+        : 'The Warden: burning in a beam, convulsing',
     build: () => {
       const rig = kind === 'rat' ? buildRat() : buildWarden()
       setMotion(rig.group, (t) => {

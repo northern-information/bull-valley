@@ -49,6 +49,7 @@ describe('kindOf', () => {
   it('sorts the weather and the light into effects', () => {
     expect(kindOf('mist')).toBe('effects')
     expect(kindOf('citgo-portal')).toBe('effects')
+    expect(kindOf('fog-wall')).toBe('effects')
   })
 
   it('calls anything it does not name a prop', () => {
@@ -78,6 +79,7 @@ describe('placeOf', () => {
   it('takes a name doing something, and the longest name', () => {
     expect(placeOf('castle-entropy-crumbling')).toBe('castle')
     expect(placeOf('warden-burning')).toBe('undercroft')
+    expect(placeOf('fog-wall')).toBe('undercroft')
     expect(placeOf('zebco-33-racked')).toBe('pond')
     expect(placeOf('cabbage-stand-3')).toBe('roadside')
     expect(placeOf('citgo-portal')).toBe('citgo')
