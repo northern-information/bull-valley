@@ -872,10 +872,12 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   {
     id: 'tunnel-shade',
-    label: 'A tunnel shade',
+    label: 'A shadow rat: a tunnel shade, scurrying',
     build: () => {
       const rig = buildTunnelShade('shade')
-      setMotion(rig.group, (t) => rig.update(t))
+      setMotion(rig.group, (t) =>
+        rig.update(t, CONFIG.tunnel.shade.patrolSpeed)
+      )
       return rig.group
     },
   },
@@ -964,7 +966,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   ...(['shade', 'warden'] as const).map((kind) => ({
     id: `${kind === 'shade' ? 'tunnel-shade' : 'warden'}-burning`,
-    label: `${kind === 'shade' ? 'A tunnel shade' : 'The Warden'}: burning in a beam, thrashing`,
+    label: `${kind === 'shade' ? 'A shadow rat' : 'The Warden'}: burning in a beam, thrashing`,
     build: () => {
       const rig = buildTunnelShade(kind)
       setMotion(rig.group, (t) => {

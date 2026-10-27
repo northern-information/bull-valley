@@ -3421,10 +3421,14 @@ describe('rule 11, below: the tunnel shades walk the Undercroft', () => {
     let shade = first?.message.tunnel[0]
     if (!shade) throw new Error('no shade')
     for (let i = 1; i < 100 && bursts.length === 0; i++) {
-      // A step off the shade, its light on it.
+      // A step off the shade, its light down on it.
       const from = { x: shade.x + 1.5, z: shade.z }
       const yaw = Math.atan2(shade.x - from.x, shade.z - from.z) + Math.PI
-      const at = { ...state(from), yaw, pitch: -0.15, light: true }
+      const pitch = -Math.atan2(
+        CONFIG.player.eyeHeight - CONFIG.tunnel.shade.chestHeight,
+        1.5
+      )
+      const at = { ...state(from), yaw, pitch, light: true }
       const out = stepShadows(v, shadows, [{ id: 'a', at }], mulberry32(i), {
         now: T0 + i * 100,
         dt: 0.1,

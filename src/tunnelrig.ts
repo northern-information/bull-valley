@@ -1,6 +1,7 @@
 // The tunnel shades as seen (tunnelshades.ts): one body each (assets.ts
-// buildTunnelShade) walking the Undercroft's floor, turned to face the
-// player, paling and shaking as a beam burns it, its health bar over it
+// buildTunnelShade), a shadow rat or the Warden, walking the Undercroft's
+// floor, a rat turned the way it runs and the Warden (or a rat standing
+// still) to face the player, paling and shaking as a beam burns it, its health bar over it
 // once it is hurt (enemybars.ts; the Warden's counts the hits it has
 // taken). They are the valley's
 // (sharedworld.ts rule 11): they ride in the shadowmen frames and are
@@ -133,7 +134,6 @@ export class TunnelShades {
         this.groundAt(s.x, s.z),
         s.z + range(this.rng, -shake, shake)
       )
-      rig.group.rotation.y = Math.atan2(player.x - s.x, player.z - s.z)
       // Its wounds pale it for good, a beam on it the rest of the way.
       rig.setBurn(Math.min(1, s.hurt * 0.45 + burn * (1 - s.hurt * 0.45)))
       const was = this.last.get(s.id)
@@ -141,6 +141,10 @@ export class TunnelShades {
       const speed =
         was && dt > 0 ? Math.hypot(s.x - was.x, s.z - was.z) / dt : 0
       this.last.set(s.id, { x: s.x, z: s.z, time })
+      rig.group.rotation.y =
+        was && s.kind === 'shade' && speed > 0.2
+          ? Math.atan2(s.x - was.x, s.z - was.z)
+          : Math.atan2(player.x - s.x, player.z - s.z)
       rig.update(time, speed)
     }
     for (const [id, rig] of this.rigs) {
@@ -149,9 +153,10 @@ export class TunnelShades {
   }
 }
 
-// The scale of the burst a shade leaves: the Warden's is far bigger.
+// The scale of the burst a shade leaves: a rat's is small, the Warden's
+// far bigger.
 export function burstScale(kind: TunnelBurstWire['kind']): number {
-  return kind === 'warden' ? 2.5 : 1
+  return kind === 'warden' ? 2.5 : 0.6
 }
 
 // How high its chest stands, where the burst blooms.

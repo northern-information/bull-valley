@@ -4,16 +4,18 @@ import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
 import type { Vec3 } from './interfaces.ts'
 
-// A tunnel shade (tunnelshades.ts): a hunched black shape low to the
-// stone, its long arms hanging, two pale eyes; or the Warden, a head and
+// A tunnel shade (tunnelshades.ts), seen as a shadow rat: a black rat
+// the size of a dog, low to the stone, its back humped, its naked tail
+// trailing, two pale pinprick eyes and two pale teeth; or the Warden, a head and
 // a half taller than any raider and twice as broad, its face shut in a
 // riveted iron helm with one red slit and a padlock at the jaw, a black
 // coat over a butcher's apron, grey arms hanging past its knees, a
 // rusted cleaver dragged in one hand and a hooked chain in the other.
 // Origin at the floor under it, facing +Z. update takes how fast it is
-// walking (m/s): the Warden's heavy step is drawn from it, never a run.
-// setBurn pales it and shakes it as a beam burns it, and its arms (the
-// Warden's legs and trunk too) thrash, wilder the nearer it is to bursting.
+// walking (m/s): the rat's scurry and the Warden's heavy step are drawn
+// from it. setBurn pales it and shakes it as a beam burns it, and it
+// thrashes, wilder the nearer it is to bursting: the rat's legs flail and
+// its body bucks, the Warden's arms, legs and trunk heave.
 export interface TunnelShadeRig {
   group: THREE.Group
   update(t: number, speed?: number): void
@@ -57,48 +59,180 @@ export function buildTunnelShade(
   return kind === 'warden' ? buildWarden(seed) : buildShade()
 }
 
+// How far one scurry of the rat carries it.
+const SCURRY = 0.55
+
 function buildShade(): TunnelShadeRig {
   const group = new THREE.Group()
-  group.name = 'tunnel-shade'
+  group.name = 'shadow-rat'
   const body = new THREE.MeshBasicMaterial({
     color: SHADE_BODY,
     transparent: true,
     opacity: 0.94,
   })
   applyPS1(body)
-  const eyes = applyPS1(new THREE.MeshBasicMaterial({ color: '#d8e4ea' }))
+  const pale = applyPS1(new THREE.MeshBasicMaterial({ color: '#d8e4ea' }))
   const add = adder(group)
-  const sway: THREE.Mesh[] = []
-  // Hunched: a long tilted body, the head thrust forward low.
-  add(new THREE.ConeGeometry(0.42, 1.3, 6), body, [0, 0.65, -0.1], [0.5, 0, 0])
-  add(new THREE.IcosahedronGeometry(0.2, 0), body, [0, 1.15, 0.38])
-  for (const x of [-0.12, 0.12]) {
-    add(new THREE.BoxGeometry(0.05, 0.03, 0.02), eyes, [x * 0.6, 1.18, 0.56])
-  }
-  for (const x of [-0.32, 0.32]) {
-    sway.push(
+
+  // Everything but the legs rides on `trunk`, which bucks with the scurry.
+  const trunk = joint(group, [0, 0, 0], 'rat-trunk')
+  // The long body, humped over the haunches, the shoulders lower.
+  const belly = add(
+    new THREE.IcosahedronGeometry(0.3, 1),
+    body,
+    [0, 0.34, -0.05],
+    [0, 0, 0],
+    trunk
+  )
+  belly.scale.set(0.85, 0.75, 1.55)
+  const haunch = add(
+    new THREE.IcosahedronGeometry(0.26, 1),
+    body,
+    [0, 0.42, -0.3],
+    [0, 0, 0],
+    trunk
+  )
+  haunch.scale.set(1, 0.9, 1.1)
+
+  // The head on its neck, a long snout to the front, sniffing.
+  const head = joint(trunk, [0, 0.36, 0.38], 'rat-head')
+  add(
+    new THREE.ConeGeometry(0.16, 0.48, 6),
+    body,
+    [0, 0, 0.18],
+    [Math.PI / 2, 0, 0],
+    head
+  )
+  for (const x of [-0.1, 0.1]) {
+    // Round ears, set back, and the eyes before them.
+    add(
+      new THREE.CylinderGeometry(0.09, 0.09, 0.015, 6),
+      body,
+      [x, 0.13, -0.02],
+      [Math.PI / 2 - 0.3, 0, x < 0 ? 0.4 : -0.4],
+      head
+    )
+    add(
+      new THREE.BoxGeometry(0.03, 0.025, 0.02),
+      pale,
+      [x * 0.75, 0.07, 0.1],
+      [0, x < 0 ? -0.5 : 0.5, 0],
+      head
+    )
+    // Whiskers, splayed.
+    for (const tip of [-0.12, 0.12]) {
       add(
-        new THREE.BoxGeometry(0.07, 1.0, 0.07),
+        new THREE.BoxGeometry(0.22, 0.006, 0.006),
         body,
-        [x, 0.6, 0.2],
-        [0.3, 0, x > 0 ? -0.15 : 0.15]
+        [x * 1.6, -0.01, 0.36],
+        [0, x < 0 ? tip : -tip, 0],
+        head
       )
+    }
+  }
+  // Two teeth under the snout's tip.
+  for (const x of [-0.012, 0.012]) {
+    add(
+      new THREE.BoxGeometry(0.02, 0.05, 0.012),
+      pale,
+      [x, -0.06, 0.4],
+      [0.2, 0, 0],
+      head
     )
   }
-  const base = sway.map((m) => m.rotation.x)
-  const tilt = sway.map((m) => m.rotation.z)
+
+  // The tail: a chain of joints from the rump, tapering, nearly as long as
+  // the rat, lying along the floor and sweeping as it goes.
+  const tail: THREE.Group[] = []
+  let parent: THREE.Object3D = trunk
+  let at: Vec3 = [0, 0.36, -0.56]
+  for (let i = 0; i < 6; i++) {
+    const seg = joint(parent, at, `rat-tail-${i}`)
+    seg.rotation.x = i === 0 ? 1.2 : 0.06
+    const long = 0.15
+    add(
+      new THREE.CylinderGeometry(0.035 - i * 0.005, 0.04 - i * 0.005, long, 4),
+      body,
+      [0, -long / 2, 0],
+      [0, 0, 0],
+      seg
+    )
+    tail.push(seg)
+    parent = seg
+    at = [0, -long, 0]
+  }
+  const tailBase = tail.map((seg) => seg.rotation.x)
+
+  // Four legs on the group, so the trunk can buck over them: forelegs
+  // under the shoulders, hind legs under the haunches.
+  const legs: THREE.Group[] = []
+  for (const [x, z] of [
+    [-0.17, 0.22],
+    [0.17, 0.22],
+    [-0.19, -0.3],
+    [0.19, -0.3],
+  ] as const) {
+    const hip = 0.28
+    const leg = joint(group, [x, hip, z], 'rat-leg')
+    add(
+      new THREE.BoxGeometry(0.06, hip, 0.07),
+      body,
+      [0, -hip / 2, 0],
+      [0, 0, 0],
+      leg
+    )
+    add(
+      new THREE.BoxGeometry(0.08, 0.025, 0.12),
+      body,
+      [0, -hip + 0.012, 0.03],
+      [0, 0, 0],
+      leg
+    )
+    legs.push(leg)
+  }
+
+  let phase = 0
+  let last = 0
+  let run = 0
   let thrash = 0
+  const update = (t: number, speed = 0) => {
+    const dt = Math.min(0.1, Math.max(0, t - last))
+    last = t
+    const pace = Math.min(speed, 6)
+    run += (Math.min(1, pace / 1.5) - run) * Math.min(1, dt * 6)
+    phase += (pace * dt * Math.PI * 2) / SCURRY
+    const step = Math.sin(phase)
+    // A trot: each foreleg with the hind leg across from it.
+    legs.forEach((leg, i) => {
+      const pair = i === 0 || i === 3 ? 1 : -1
+      leg.rotation.x =
+        pair * step * 0.7 * run + Math.sin(t * 13 + i * 1.7) * 1.1 * thrash
+      leg.rotation.z = Math.sin(t * 11 + i) * 0.5 * thrash
+    })
+    // The back flexes with the scurry, the trunk bucks as it burns.
+    trunk.position.y = Math.abs(Math.cos(phase)) * 0.04 * run
+    trunk.rotation.x =
+      Math.sin(phase * 2) * 0.05 * run + Math.sin(t * 9) * 0.3 * thrash
+    trunk.rotation.z = Math.sin(t * 7.5) * 0.25 * thrash
+    // Still, it lifts its head and sniffs; running, it holds it low.
+    const idle = 1 - run
+    head.rotation.x =
+      -0.15 * idle +
+      0.1 * run +
+      Math.sin(t * 17) * 0.04 * idle +
+      Math.sin(t * 12) * 0.4 * thrash
+    head.rotation.y = Math.sin(t * 0.8) * 0.35 * idle
+    // The tail sweeps, a wave down its length, wilder burning.
+    tail.forEach((seg, i) => {
+      seg.rotation.x = tailBase[i]
+      seg.rotation.z =
+        Math.sin(t * (2 + run * 6) - i * 0.7) * (0.18 + thrash * 0.5)
+    })
+  }
+  update(0)
   return {
     group,
-    update(t) {
-      sway.forEach((m, i) => {
-        m.rotation.x =
-          base[i] +
-          Math.sin(t * 1.7 + i) * 0.12 +
-          Math.sin(t * 14 + i * 2) * 1.2 * thrash
-        m.rotation.z = tilt[i] + Math.sin(t * 10 + i) * 0.6 * thrash
-      })
-    },
+    update,
     setBurn(next) {
       const burn = Math.max(0, Math.min(1, next))
       thrash = burn * burn
