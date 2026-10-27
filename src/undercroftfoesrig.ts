@@ -177,7 +177,7 @@ function buildFoe(kind: FoeKind, seed: number): FoeRig {
 // The scale of the burst a foe leaves: a rat's is small, the Warden's
 // far bigger.
 export function burstScale(kind: FoeBurstWire['kind']): number {
-  return kind === 'warden' ? 2.5 : 0.6
+  return kind === 'warden' ? 1.8 : 0.6
 }
 
 // How high its chest stands, where the burst blooms.
