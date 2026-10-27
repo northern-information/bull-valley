@@ -53,10 +53,14 @@ describe('a fall', () => {
   })
 
   it('empties the pack, every kind at zero but the key items', () => {
-    const empty = emptied(STARTING_INVENTORY)
-    expect(Object.keys(empty)).toEqual(Object.keys(STARTING_INVENTORY))
+    const pack: Record<string, number> = {
+      ...STARTING_INVENTORY,
+      'citgo-phone': 1,
+    }
+    const empty = emptied(pack)
+    expect(Object.keys(empty)).toEqual(Object.keys(pack))
     for (const [kind, count] of Object.entries(empty)) {
-      expect(count).toBe(isKeyItem(kind) ? STARTING_INVENTORY[kind] : 0)
+      expect(count).toBe(isKeyItem(kind) ? pack[kind] : 0)
     }
     // The kit every raider carries is kept (sharedworld.ts rule 38).
     expect(empty.flashlight).toBe(1)

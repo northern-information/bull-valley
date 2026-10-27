@@ -3,9 +3,9 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { outfitById } from './outfits.ts'
 
-// The phone: Q brings it up and it dials a Citgo portal to the last Citgo
-// the raider stood at (portals.ts, sharedworld.ts rule 28), the screen
-// filling as it goes, then says the portal is open and goes down again.
+// The portal phone: Q brings it up and it dials a Citgo portal to the
+// last Citgo the raider stood at (portals.ts, sharedworld.ts rule 28), the
+// screen filling as it goes, then says the portal is open and goes down again.
 // While one of ours is open the screen says how long it has left. Q again
 // while it dials hangs up.
 //

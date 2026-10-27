@@ -25,9 +25,11 @@ import {
   ringSpots,
   SHINING_MAZE,
 } from './maze.ts'
+import { buildPayphone } from './payphonemodel.ts'
 import { buildRecycler } from './recyclermodel.ts'
 import { toLocal, toWorld } from './store.ts'
 import type { DishArray, Wreck } from './assets.ts'
+import type { PortalPhone } from './citgos.ts'
 import type { DonutField } from './donuts.ts'
 import type { GronRig, MoabRig, TylerRig } from './figure.ts'
 import type { Ground } from './ground.ts'
@@ -309,6 +311,28 @@ export function placeRecyclers(
     group.add(machine)
     walls.addWall({ x, z }, { x, z }, radius)
     return { at: { x, z }, group: machine }
+  })
+}
+
+// The portal phone by every Citgo's door (CONFIG.portal.phones.citgo),
+// its back to the storefront and its face to the pumps, blocking like a
+// post: fast travel goes to it (citgos.ts), indexed like `stations`.
+export function placeCitgoPhones(
+  group: THREE.Group,
+  ground: Ground,
+  walls: Walls,
+  stations: readonly FuelPoint[]
+): PortalPhone[] {
+  const { citgo, radius } = CONFIG.portal.phones
+  return stations.map((station, i) => {
+    const [x, , z] = toWorld(station, [citgo.x, 0, citgo.z])
+    const phone = buildPayphone()
+    phone.position.set(x, ground.at(x, z), z)
+    // The phone faces +X, as the recycling machine does.
+    phone.rotation.y = -station.yaw
+    group.add(phone)
+    walls.addWall({ x, z }, { x, z }, radius)
+    return { x, z, yaw: station.yaw, site: 'citgo', station: i }
   })
 }
 

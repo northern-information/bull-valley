@@ -34,6 +34,7 @@ import {
   donutFieldOf,
   insideDishArray,
   lonePineOf,
+  placeCitgoPhones,
   placeDishes,
   placeGron,
   placeMoabs,
@@ -74,7 +75,7 @@ import { buildRoads, buildShoulders, buildWater } from './worldsurfaces.ts'
 import type { DishArray, PortalRig, Wreck } from './assets.ts'
 import type { Sight } from './book.ts'
 import type { CastleSite } from './castlesite.ts'
-import type { YardSpot } from './castleyard.ts'
+import type { PortalPhone } from './citgos.ts'
 import type { DonutField } from './donuts.ts'
 import type { DriveInSite } from './driveinsite.ts'
 import type { GronRig, MoabRig, TylerRig } from './figure.ts'
@@ -291,9 +292,13 @@ export interface World {
   // place and shore, the tackle box on its landing, and update(t) for the
   // fireflies. None without a spawn station or water near it.
   ponds: PondRig[]
-  // The payphones (castleyard.ts payphoneSpot, sharedworld.ts rule 28):
-  // the one on Castle Entropy's rim, none without the castle.
-  payphones: YardSpot[]
+  // The portal phones fast travel goes to (citgos.ts, sharedworld.ts rule
+  // 28), in this order so an index found keeps its phone: the one on
+  // Castle Entropy's rim (castleyard.ts payphoneSpot), the one at the
+  // drive-in, then the one by each station's door, indexed like
+  // fuelPoints. The castle's and the drive-in's are missing without a
+  // spawn station.
+  payphones: PortalPhone[]
 }
 
 // The terrain as buildWorld may cut into it (terrain.ts HeightField): the
@@ -621,6 +626,7 @@ export function buildWorld(
   const { moabs, moabRigs } = placeMoabs(group, ground, walls, fuel.points)
   const recyclers = placeRecyclers(group, ground, walls, fuel.points)
   const { tyler, tylerRig } = placeTyler(group, ground, walls, spawnStation)
+  const citgoPhones = placeCitgoPhones(group, ground, walls, fuel.points)
   const castle = moatAt
     ? buildCastleSite(moatAt.place, raw, moatAt.floor, ground, walls)
     : null
@@ -697,6 +703,10 @@ export function buildWorld(
     }),
     castle,
     ponds,
-    payphones: castle ? [castle.payphone] : [],
+    payphones: [
+      ...(castle ? [{ ...castle.payphone, site: 'castle' as const }] : []),
+      ...(driveIn ? [driveIn.phone] : []),
+      ...citgoPhones,
+    ],
   }
 }

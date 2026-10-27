@@ -648,8 +648,19 @@ describe('ValleyDO', () => {
       citgos: { last: null, visited: [] },
     })
     const portal = JSON.stringify({ type: 'portal' })
-    // No Citgo yet to call.
+    // No portal phone to call with: Tyler gives it the first time.
     await v.webSocketMessage(ws(a), state(1500, 1500))
+    await v.webSocketMessage(ws(a), portal)
+    expect(a.last()).toMatchObject({
+      type: 'nack',
+      re: 'portal',
+      reason: 'no-phone',
+    })
+    await v.webSocketMessage(
+      ws(a),
+      JSON.stringify({ type: 'discover', entries: ['tyler'] })
+    )
+    // No Citgo yet to call.
     await v.webSocketMessage(ws(a), portal)
     expect(a.last()).toMatchObject({
       type: 'nack',
@@ -4019,10 +4030,10 @@ describe('ValleyDO: the Book of Shadows', () => {
       a.frames().findLast((m): m is PackMessage => m.type === 'pack')?.pack[
         'marx-whistle'
       ]
-    // Every account carries the flashlight and the phone from its welcome.
+    // Every account carries the flashlight from its welcome.
     expect(a.frames()[0]).toMatchObject({
       type: 'welcome',
-      pack: { flashlight: 1, 'citgo-phone': 1 },
+      pack: { flashlight: 1 },
     })
     expect(whistles() ?? 0).toBe(0)
     await v.webSocketMessage(ws(a), discover('marx'))
@@ -4030,6 +4041,25 @@ describe('ValleyDO: the Book of Shadows', () => {
     await v.webSocketMessage(ws(a), discover('marx'))
     expect(whistles()).toBe(1)
     expect((await v.packStore.get('acct-A')).pack['marx-whistle']).toBe(1)
+  })
+
+  it('gives the portal phone the first time the account meets Tyler, once', async () => {
+    const { valley: v, state: s } = await valley()
+    const a = await join(v, s, 'A')
+    const phones = () =>
+      a.frames().findLast((m): m is PackMessage => m.type === 'pack')?.pack[
+        'citgo-phone'
+      ]
+    // A new account carries none until it meets him.
+    expect(a.frames()[0]).toMatchObject({
+      type: 'welcome',
+      pack: { 'citgo-phone': 0 },
+    })
+    await v.webSocketMessage(ws(a), discover('tyler'))
+    expect(phones()).toBe(1)
+    await v.webSocketMessage(ws(a), discover('tyler'))
+    expect(phones()).toBe(1)
+    expect((await v.packStore.get('acct-A')).pack['citgo-phone']).toBe(1)
   })
 
   it('gives the whistle at the welcome to an account that met Marx before it', async () => {

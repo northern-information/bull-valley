@@ -4,7 +4,8 @@ import type { Page } from '@playwright/test'
 
 // Walk up to Matthew Marx or David Carlsten and he glows, with no prompt;
 // E has him say his next line in the chat log: Marx a stanza of Burns,
-// Carlsten small talk. The first time, Marx gives his whistle too.
+// Carlsten small talk. The first time, Marx gives his whistle too, and
+// Tyler Etters a new account's portal phone before any line.
 
 type Who = 'marx' | 'carlsten'
 
@@ -59,7 +60,7 @@ const lastLine = (page: Page) =>
     .last()
     .evaluate((p) => p.lastChild?.textContent)
 
-test('Marx glows when you come near and recites a stanza at a time', async ({
+test('Marx glows and recites a stanza at a time; he and Tyler each give a gift', async ({
   page,
 }) => {
   await beginRaid(page)
@@ -99,6 +100,49 @@ test('Marx glows when you come near and recites a stanza at a time', async ({
   })
   await expect(page.locator('.bv-prompt')).toHaveText(copy('prompts.board'))
   await expect.poll(() => glowsOn(page, 'marx')).toBe(false)
+
+  // Tyler Etters, met for the first time, hands a new account its portal
+  // phone before any line of his own (rule 38); until then it carries
+  // none.
+  expect(
+    await page.evaluate(() => window.__bv?.inventory['citgo-phone'] ?? 0)
+  ).toBe(0)
+  // A stride out from where he sits, toward Moab's horse, so he is the
+  // nearer of the two.
+  const at = await page.evaluate(() => {
+    const { world, player } = window.__bv!
+    const tyler = world.tyler
+    const station = world.fuelPoints.indexOf(world.spawnStation!)
+    const moab = world.moabs[station]
+    if (!tyler || !moab) throw new Error('no Tyler to approach')
+    const dx = moab.x - tyler.x
+    const dz = moab.z - tyler.z
+    const d = Math.hypot(dx, dz)
+    player.relocate(tyler.x + (dx / d) * 1.4, tyler.z + (dz / d) * 1.4)
+    return tyler
+  })
+  await faceSpot(page, at.x, at.z, 1.2)
+  const tylerName = copy('outfits.tyler')
+  await page.keyboard.press('KeyE')
+  // His first word is the phone, into the pack, said, and onto the bar.
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.inventory['citgo-phone']))
+    .toBe(1)
+  await expect
+    .poll(() => lastLine(page))
+    .toBe(`${tylerName}: ${copy('tyler.phone_gift')}`)
+  await expect(page.locator('.bv-chat')).toContainText(copy('log.phone_given'))
+  expect(await npcLines(page)).not.toContain(
+    `${tylerName}: ${copy('tyler.says_1')}`
+  )
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.hotbar))
+    .toContain('citgo-phone')
+  // Then his lines, from the first.
+  await page.keyboard.press('KeyE')
+  await expect
+    .poll(() => lastLine(page))
+    .toBe(`${tylerName}: ${copy('tyler.says_1')}`)
 })
 
 test('Carlsten glows when you come near and opens his shelves, a line each time', async ({
@@ -139,7 +183,7 @@ test('Carlsten glows when you come near and opens his shelves, a line each time'
   }
 })
 
-test('Jericho greets you by the payphone and bids you return when the time is right', async ({
+test('Jericho greets you by the portal phone and bids you return when the time is right', async ({
   page,
 }) => {
   await beginRaid(page)

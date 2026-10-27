@@ -48,7 +48,7 @@ import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 61
+export const PROTOCOL_VERSION = 62
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -325,8 +325,9 @@ export interface HelloMessage {
   // The middle of the Citgo portal ring on each station's lot, in
   // world.fuelPoints order (rule 28).
   rings: XZ[]
-  // Where each payphone stands (castleyard.ts payphoneSpot), none or more:
-  // a raider who stands at one finds it for fast travel (rule 28).
+  // Where each portal phone stands (world.ts payphones: the castle's, the
+  // drive-in's, one by each Citgo's door), none or more: a raider who
+  // stands at one finds it for fast travel (rule 28).
   payphones: XZ[]
   // On a reconnect, the id this client had before the line dropped. The
   // valley may not have heard that socket close yet; it retires it if it is
@@ -1637,8 +1638,9 @@ function parseLairs(value: unknown): Lair[] | null {
   return lairs
 }
 
-// The payphones a hello may place.
-const PAYPHONES_MAX = 8
+// The portal phones a hello may place: one by every Citgo's door, the
+// castle's and the drive-in's.
+const PAYPHONES_MAX = STATIONS_MAX + 2
 
 // The firefly ponds: at most PONDS_MAX, each a pond place.
 const PONDS_MAX = 8

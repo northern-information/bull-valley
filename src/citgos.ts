@@ -1,9 +1,11 @@
 // The Citgos a raider has stood at, pure (sharedworld.ts rule 28): which
 // station they stand at now, the log the valley keeps of every one visited
-// and the last, and of every payphone found (castleyard.ts payphoneSpot),
-// and fast travel from one visited Citgo or found payphone to another. The
-// valley's reducer runs the log; actions.ts and the map (citgomap.ts) read
-// it for fast travel. No three.js, no DOM.
+// and the last, and of every portal phone found (one by every Citgo's door,
+// one at the drive-in, one on Castle Entropy's rim), and fast travel, which
+// always goes to a portal phone: from anywhere with the portal phone in the
+// pack, or from any portal phone without it. The valley's reducer runs the
+// log; actions.ts and the map (citgomap.ts) read it for fast travel. No
+// three.js, no DOM.
 
 import { CONFIG } from './config.ts'
 import { projectOnSegment } from './coords.ts'
@@ -14,8 +16,9 @@ import type { FuelStation, XZ } from './interfaces.ts'
 
 // An account's Citgos: every station it has stood at, in the order first
 // visited, and the last (indices into world.fuelPoints), or null for none
-// yet; and every payphone it has found, in the order found (indices into
-// world.payphones; none when absent, as a log kept before there were any).
+// yet; and every portal phone it has found by standing at it, in the order
+// found (indices into world.payphones; none when absent, as a log kept
+// before there were any).
 export interface CitgoLog {
   last: number | null
   visited: number[]
@@ -24,13 +27,43 @@ export interface CitgoLog {
 
 export const NO_CITGOS: CitgoLog = { last: null, visited: [] }
 
-// A place fast travel goes from and to: a Citgo by its station, or a
-// payphone by its index.
-export type Stop = { citgo: number } | { phone: number }
+// A portal phone where the world stands it: its face looks along
+// (cos yaw, sin yaw), and the site it stands at. One by a Citgo's door
+// names its station, and is known once that Citgo is visited, whether or
+// not it was stood at.
+export interface PortalPhone extends XZ {
+  yaw: number
+  site: 'castle' | 'drive-in' | 'citgo'
+  station?: number
+}
 
-// Every payphone the log has found.
+// Every portal phone the log has found by standing at it.
 export function phonesOf(log: CitgoLog): readonly number[] {
   return log.phones ?? []
+}
+
+// Every portal phone the account knows, the ones fast travel goes to: each
+// found, in the order found, then each by a visited Citgo's door, in the
+// order the phones stand.
+export function knownPhones(
+  log: CitgoLog,
+  phones: readonly Pick<PortalPhone, 'station'>[]
+): number[] {
+  const known = phonesOf(log).filter((i) => i >= 0 && i < phones.length)
+  phones.forEach(({ station }, i) => {
+    if (station === undefined || known.includes(i)) return
+    if (log.visited.includes(station)) known.push(i)
+  })
+  return known
+}
+
+// The portal phone by Citgo `station`'s door, or null.
+export function phoneOfCitgo(
+  phones: readonly Pick<PortalPhone, 'station'>[],
+  station: number
+): number | null {
+  const i = phones.findIndex((p) => p.station === station)
+  return i < 0 ? null : i
 }
 
 // The survey's fuel points a Citgo stands on: every one clear of the
@@ -73,8 +106,8 @@ export function visit(log: CitgoLog, station: number): CitgoLog {
   }
 }
 
-// The payphone a raider at `at` stands at: the nearest within `reach`, or
-// null.
+// The portal phone a raider at `at` stands at: the nearest within
+// `reach`, or null.
 export function phoneAt(
   at: XZ,
   phones: readonly XZ[],
@@ -83,62 +116,30 @@ export function phoneAt(
   return citgoAt(at, phones, reach)
 }
 
-// The log once a raider finds payphone `phone`; the same log when it was
-// already found. A payphone is never the last Citgo: the portal still goes
-// to that.
+// The log once a raider finds portal phone `phone`; the same log when it
+// was already found. A portal phone is never the last Citgo: the portal
+// still goes to that.
 export function findPhone(log: CitgoLog, phone: number): CitgoLog {
   const phones = phonesOf(log)
   if (phones.includes(phone)) return log
   return { ...log, phones: [...phones, phone] }
 }
 
-const sameStop = (a: Stop, b: Stop) =>
-  'citgo' in a
-    ? 'citgo' in b && a.citgo === b.citgo
-    : 'phone' in b && a.phone === b.phone
-
-// Whether a raider standing at `from` (null: at no Citgo and no payphone
-// found) may fast travel to `to`, or why not: only from a Citgo or a
-// found payphone, only to a Citgo visited or a payphone found, and never
-// to where they stand.
+// Whether a raider may fast travel to portal phone `to`, or why not:
+// standing at portal phone `from` (null: at none), carrying a portal phone
+// or not. Only to one known (knownPhones), never to the one stood at, and
+// from anywhere with a portal phone in the pack, or else only from a
+// portal phone.
 export function fastTravel(
-  log: CitgoLog,
-  from: Stop | null,
-  to: Stop
-): 'ok' | 'not-at-citgo' | 'not-visited' | 'here' {
-  if (from === null) return 'not-at-citgo'
-  if ('phone' in from && !phonesOf(log).includes(from.phone)) {
-    return 'not-at-citgo'
-  }
-  if (sameStop(from, to)) return 'here'
-  const known =
-    'citgo' in to
-      ? log.visited.includes(to.citgo)
-      : phonesOf(log).includes(to.phone)
-  return known ? 'ok' : 'not-visited'
-}
-
-// Where a raider stands: the Citgo, or else a payphone, or null.
-export function stopAt(
-  at: XZ,
-  stations: readonly XZ[],
-  phones: readonly XZ[]
-): Stop | null {
-  const citgo = citgoAt(at, stations)
-  if (citgo !== null) return { citgo }
-  const phone = phoneAt(at, phones)
-  return phone === null ? null : { phone }
-}
-
-// Where fast travel sets a raider down: the middle of the station's
-// portal ring, facing its pump island (the camera looks along (-sin yaw,
-// -cos yaw)).
-export function arrivalAt(ring: XZ, island: XZ): Facing {
-  return {
-    x: ring.x,
-    z: ring.z,
-    yaw: Math.atan2(-(island.x - ring.x), -(island.z - ring.z)),
-  }
+  known: readonly number[],
+  from: number | null,
+  to: number,
+  carrying: boolean
+): 'ok' | 'no-phone' | 'not-found' | 'here' {
+  if (from === to) return 'here'
+  if (!known.includes(to)) return 'not-found'
+  if (from === null && !carrying) return 'no-phone'
+  return 'ok'
 }
 
 // A road as the map draws it: its name ('' for none) and its points in the
@@ -172,8 +173,8 @@ export function roadNameNear(
   return best
 }
 
-// Where fast travel sets a raider down at a payphone: a step out in front
-// of it, facing it. Its face looks along (cos yaw, sin yaw).
+// Where fast travel sets a raider down: a step out in front of the portal
+// phone, facing it. Its face looks along (cos yaw, sin yaw).
 export function arrivalAtPhone(phone: XZ & { yaw: number }): Facing {
   const fx = Math.cos(phone.yaw)
   const fz = Math.sin(phone.yaw)
@@ -186,13 +187,15 @@ export function arrivalAtPhone(phone: XZ & { yaw: number }): Facing {
 
 // What a new log says in the log: each Citgo found since `before`, named
 // by `label`, with its bounty when the valley paid one (in a world, for
-// any but the first ever; sharedworld.ts rule 28), then each payphone
-// found.
+// any but the first ever; sharedworld.ts rule 28), then each portal phone
+// found that was not known before (one by a visited Citgo's door already
+// was; `phones` says which stand by which Citgo).
 export function citgoLines(
   before: CitgoLog,
   after: CitgoLog,
   label: (station: number) => string,
-  inWorld: boolean
+  inWorld: boolean,
+  phones: readonly Pick<PortalPhone, 'station'>[] = []
 ): string[] {
   const found = after.visited.filter((i) => !before.visited.includes(i))
   const paid = inWorld && after.visited.length > found.length
@@ -207,6 +210,8 @@ export function citgoLines(
   const had = phonesOf(before)
   for (const phone of phonesOf(after)) {
     if (had.includes(phone)) continue
+    const station = phones[phone]?.station
+    if (station !== undefined && after.visited.includes(station)) continue
     lines.push(copy('log.payphone_found'))
   }
   return lines

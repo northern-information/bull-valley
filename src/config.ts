@@ -400,8 +400,8 @@ export const CONFIG = {
   },
   // Citgos visited, Citgo portals and fast travel (citgos.ts, portals.ts,
   // sharedworld.ts rule 28). A raider within visitReach of a station's pump
-  // island stands at that Citgo: it is visited, it is the last Citgo they
-  // stood at, and fast travel leaves from there. The phone (Q) dials a
+  // island stands at that Citgo: it is visited, and it is the last Citgo
+  // they stood at. The portal phone in the pack (Q) dials a
   // portal for dialSeconds, then it opens `ahead` metres in front of the
   // raider, facing them, and its twin opens at their last Citgo. Anyone on
   // foot who walks within `radius` of either end's middle comes out `exit`
@@ -409,9 +409,13 @@ export const CONFIG = {
   // one open at a time, for lifeSeconds. Every lot has a ring of `slots`
   // portal ends, `ringRadius` metres round `ring` (station-local like the
   // bush: past the pump island's far end, clear of Moab and the lamps),
-  // each facing out; fast travel sets a raider down in the ring's middle.
-  // After a portal or fast travel, no portal takes a raider for
-  // graceSeconds, whatever stands where they come out.
+  // each facing out. After a portal or fast travel, no portal takes a
+  // raider for graceSeconds, whatever stands where they come out. Fast
+  // travel goes to a portal phone (`phones`): one by every Citgo's door,
+  // station-local like the bush (its back to the storefront on the trash
+  // can's side, facing the pumps), and one at the drive-in, drive-in-local
+  // (drivein.ts: beside the projection booth, facing across the lot);
+  // each blocks like a post this wide.
   portal: {
     dialSeconds: 1.5,
     graceSeconds: 1,
@@ -423,6 +427,11 @@ export const CONFIG = {
     ringRadius: 3.5,
     slots: 6,
     visitReach: 25,
+    phones: {
+      citgo: { x: -6.0, z: -4.0 },
+      driveIn: { x: 4.6, z: -24.5 },
+      radius: 0.45,
+    },
   },
   spawn: {
     // The spawn sits this far from the pump island, toward the truck: on
@@ -943,8 +952,9 @@ export const CONFIG = {
       // The light towers, one to a side, this far out, each with a pool
       // of light this wide in front of it.
       lamps: { out: 6.4, pool: 10 },
-      // The payphone: `beside` metres along the side from Jericho, `out`
-      // from the edge; a raider within `reach` of it stands at it.
+      // The portal phone: `beside` metres along the side from Jericho,
+      // `out` from the edge; a raider within `reach` of it, or of any
+      // portal phone (CONFIG.portal.phones), stands at it.
       payphone: { beside: 3.4, out: 5.6, reach: 3 },
       // Jericho, the Candlebearer, where the walk straight out of the spawn
       // Citgo's door comes to the rim (castleyard.ts jerichoSpot): `out`

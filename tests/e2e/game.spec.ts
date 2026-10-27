@@ -31,17 +31,26 @@ test('Space jumps, and the feet come back down where they left', async ({
 const lastCitgo = (page: Page) =>
   page.evaluate(() => window.__bv?.citgos.last ?? null)
 
-test('the phone dials a Citgo portal to the last Citgo and back', async ({
+// A portal phone into the pack, as Tyler gives a new account one.
+async function givePhone(page: Page): Promise<void> {
+  await page.evaluate(() => window.__bv?.grant('citgo-phone', 1))
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.inventory['citgo-phone']))
+    .toBe(1)
+}
+
+test('the portal phone dials a Citgo portal to the last Citgo and back', async ({
   page,
 }) => {
   await beginRaid(page)
   await expect.poll(() => lastCitgo(page)).not.toBeNull()
   const station = await lastCitgo(page)
+  await givePhone(page)
   // Out in the valley, far from any Citgo.
   await page.evaluate(() => window.__bv?.teleport(0.5, 0.5))
   await heardWhere(page)
-  // The phone is on 2 of a new bar: its key puts it in the hand, and the
-  // click dials.
+  // The phone is on 2 of a new bar, beside the flashlight: its key puts
+  // it in the hand, and the click dials.
   await page.keyboard.press('Digit2')
   await expect
     .poll(() => page.evaluate(() => window.__bv?.inHand))
@@ -79,7 +88,7 @@ test('the phone dials a Citgo portal to the last Citgo and back', async ({
   await expect.poll(() => distanceTo(portal.field)).toBeLessThan(3)
 })
 
-test('the map shows the Citgos, and fast travel goes between visited ones', async ({
+test('the map shows the Citgos, and fast travel goes to a known portal phone', async ({
   page,
 }) => {
   await beginRaid(page)
@@ -88,6 +97,8 @@ test('the map shows the Citgos, and fast travel goes between visited ones', asyn
   await page.keyboard.press('m')
   await expect(page.locator('.bv-map')).toBeVisible()
   await expect(page.locator('[data-bv="map-last"]')).not.toHaveText('')
+  // No portal phone in the pack, and none stood at: no fast travel yet.
+  await expect(page.locator('.bv-map-hint')).toHaveText(copy('map.hint_away'))
   await page.keyboard.press('m')
   await expect(page.locator('.bv-map')).toBeHidden()
 
@@ -95,19 +106,17 @@ test('the map shows the Citgos, and fast travel goes between visited ones', asyn
     () => window.__bv?.world.fuelPoints.length ?? 0
   )
   const other = (home + 1) % count
-  const ring = (i: number) =>
-    page.evaluate((i) => window.__bv?.world.rings[i] ?? null, i)
-  const nearRing = async (i: number) => {
-    const at = await ring(i)
-    return page.evaluate((at) => {
+  // How far the raider stands from the portal phone by Citgo i's door.
+  const fromPhone = (i: number) =>
+    page.evaluate((i) => {
       const bv = window.__bv
-      if (!bv || !at) return Infinity
-      return Math.hypot(bv.player.pos.x - at.x, bv.player.pos.z - at.z)
-    }, at)
-  }
+      const phone = bv?.world.payphones.find((p) => p.station === i)
+      if (!bv || !phone) return Infinity
+      return Math.hypot(bv.player.pos.x - phone.x, bv.player.pos.z - phone.z)
+    }, i)
   // Not yet visited: no fast travel there.
   await page.evaluate((i) => window.__bv?.fastTravel(i), other)
-  expect(await nearRing(other)).toBeGreaterThan(50)
+  expect(await fromPhone(other)).toBeGreaterThan(50)
   // Stand on its forecourt, and the valley writes it.
   await page.evaluate((i) => {
     const bv = window.__bv
@@ -119,9 +128,14 @@ test('the map shows the Citgos, and fast travel goes between visited ones', asyn
       timeout: 15_000,
     })
     .toContain(other)
-  // From there, home again by fast travel.
+  // Without a portal phone in the pack, only from beside one.
   await page.evaluate((i) => window.__bv?.fastTravel(i), home)
-  await expect.poll(() => nearRing(home)).toBeLessThan(1)
+  await expect(page.locator('.bv-chat')).toContainText(copy('log.travel_away'))
+  expect(await fromPhone(home)).toBeGreaterThan(50)
+  // With one, home again by fast travel, set down at its portal phone.
+  await givePhone(page)
+  await page.evaluate((i) => window.__bv?.fastTravel(i), home)
+  await expect.poll(() => fromPhone(home)).toBeLessThan(2.5)
 })
 
 test("a shadowman's touch takes its hit, and the Citgo makes you whole", async ({
