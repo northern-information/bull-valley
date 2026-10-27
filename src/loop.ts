@@ -17,6 +17,7 @@ import { EMOTES, holds } from './emotes.ts'
 import { hurts } from './fall.ts'
 import { havenNews } from './fireflies.ts'
 import { BOX_ROD, inPond, jarRoom, nearestLanding, rodIn } from './fishing.ts'
+import { fogOpen, isFogGate } from './fogwall.ts'
 import { footstepCues, OWN_FEET } from './footsteps.ts'
 import { ease, stepHand, useLift, useSeconds } from './hands.ts'
 import { shakeAt } from './health.ts'
@@ -137,6 +138,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   const topiaries = world.topiaries
   world.walls.setGates((gate, x, z) => {
     if (isTopiaryGate(gate)) return !topiaries?.stands(gate)
+    if (isFogGate(gate)) return fogOpen(game.tunnel.warden)
     return (
       plaza !== null &&
       isLock(gate) &&
@@ -450,6 +452,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   // The shadowmen, the Caretaker and the tunnel shades, the valley's,
   // drawn a beat behind the present: their bursts and what they sound
   // like, and the mist. Their touches come in the valley's own frames.
+  let fogStood = false
   const stepShadows = ({ dt, time }: FrameClock, renderAt: number) => {
     const perception = time < s.effects.perception.end
     const croft = world.undercroft
@@ -504,6 +507,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
         rate: kind === 'warden' ? 0.6 : 1,
       })
     )
+    // The fog in the deep chamber's door stands while the Warden does
+    // (fogwall.ts), and in the chamber its bar runs along the bottom.
+    const warden = game.tunnel.warden
+    const inChamber = croft?.chamber(player.pos.x, player.pos.z) ?? false
+    croft?.setFog(warden)
+    if (fogStood && !warden && inChamber) hud.tell(copy('log.fog_lifts'))
+    fogStood = warden
+    hud.setBoss(warden && inChamber ? game.tunnel.wardenShare : null)
     croft?.update(time)
     bursts.update(dt)
     // What the shadowmen and the Caretaker sound like this frame.
@@ -926,6 +937,14 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       on: world.lookout.on(player.pos.x, player.pos.z),
     }
 
+  // The fog in the deep chamber's door, from outside it, while the Warden
+  // stands (fogwall.ts).
+  const fogSpot = () => {
+    const croft = world.undercroft
+    if (!croft || !game.tunnel.warden) return null
+    return croft.chamber(player.pos.x, player.pos.z) ? null : croft.fog
+  }
+
   // The heart of the maze, while the raider carries Erwin's rose to lay
   // there (rule 26).
   const heartSpot = () =>
@@ -1006,6 +1025,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       dealer: world.plaza?.dealer.at ?? null,
       trapdoor: world.undercroft?.hatch ?? null,
       ladder: world.undercroft?.foot ?? null,
+      fog: fogSpot(),
       lookout: lookoutSpot(),
       // Rule 39: the toolbox, while the pack holds no torch.
       toolbox:

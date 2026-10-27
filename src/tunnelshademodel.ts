@@ -18,7 +18,10 @@ import type { Vec3 } from './interfaces.ts'
 // walking (m/s): the rat's scurry and the Warden's heavy step are drawn
 // from it. setBurn pales it and shakes it as a beam burns it, and it
 // thrashes, wilder the nearer it is to bursting: the rat's legs flail and
-// its body bucks, the Warden's arms, legs and trunk heave.
+// its body bucks; the Warden never flails, it convulses: a tremor through
+// all of it, its arms wrenched out and its elbows locking in jerks it
+// holds a beat, its head snapping back and aside, its back arching and its
+// knees giving.
 export interface TunnelShadeRig {
   group: THREE.Group
   update(t: number, speed?: number): void
@@ -312,11 +315,29 @@ const PALE = new THREE.Color('#9aa0aa')
 // How far one stride carries it, and how long a twitch of the head lasts.
 const STRIDE = 2.2
 const TWITCH = 0.18
+// How long a spasm takes to snap in; it then holds and slackens over the
+// rest of its beat.
+const SNAP = 0.05
 
 // A cheap hash of an integer, 0..1, for the twitches.
 function hash(n: number): number {
   const s = Math.sin(n * 127.1 + 311.7) * 43758.5453
   return s - Math.floor(s)
+}
+
+// A spasm at `t`: beats of `every` seconds, each struck at random with
+// `odds`, snapping in over SNAP, held, then slackening by its end. Signed
+// and sized by the beat, -1..1; 0 between spasms. `salt` keeps one limb's
+// beats from another's.
+function spasm(t: number, every: number, odds: number, salt: number): number {
+  const b = t / every + salt
+  const beat = Math.floor(b)
+  if (hash(beat + salt * 31) >= odds) return 0
+  const into = (b - beat) * every
+  const hold =
+    into < SNAP ? into / SNAP : 1 - ((into - SNAP) / (every - SNAP)) ** 3
+  const size = 0.5 + hash(beat * 3 + salt) * 0.5
+  return (hash(beat * 7 + salt) < 0.5 ? -1 : 1) * size * Math.max(0, hold)
 }
 
 function buildWarden(seed: number): TunnelShadeRig {
@@ -555,7 +576,9 @@ function buildWarden(seed: number): TunnelShadeRig {
 
   // The arms: from the shoulder in the coat's black, then bare grey
   // forearms, hanging so long the hands are at its knees.
-  const arm = (side: -1 | 1): { shoulder: THREE.Group; hand: THREE.Group } => {
+  const arm = (
+    side: -1 | 1
+  ): { shoulder: THREE.Group; elbow: THREE.Group; hand: THREE.Group } => {
     const shoulder = joint(trunk, [side * 0.78, 1.12, 0], `warden-arm-${side}`)
     shoulder.rotation.z = side * 0.1
     add(
@@ -592,7 +615,7 @@ function buildWarden(seed: number): TunnelShadeRig {
         hand
       )
     }
-    return { shoulder, hand }
+    return { shoulder, elbow, hand }
   }
   const right = arm(1)
   const left = arm(-1)
@@ -699,16 +722,37 @@ function buildWarden(seed: number): TunnelShadeRig {
       m.rotation.x = Math.sin(t * 1.3 + i * 0.4) * (0.06 + walk * 0.1)
     })
     chain.rotation.x = Math.sin(t * 1.1) * 0.08 + walk * step * 0.25
-    // Burning, it thrashes: the arms flung up and about, the legs
-    // kicking, the trunk heaving.
+    right.shoulder.rotation.z = 0.1
+    left.shoulder.rotation.z = -0.1
+    right.elbow.rotation.set(-0.15, 0, 0)
+    left.elbow.rotation.set(-0.15, 0, 0)
+    // Burning, it convulses rather than flails: a fine tremor through it
+    // all, and spasms that wrench an arm out from its side and lock the
+    // elbow, held a beat and let go; the head snaps back and aside, the
+    // back arches against it, the knees give. Never a swing round.
     if (thrash > 0) {
-      right.shoulder.rotation.x += Math.sin(t * 9.1) * 1.1 * thrash
-      right.shoulder.rotation.z += Math.sin(t * 7.3 + 1) * 0.6 * thrash
-      left.shoulder.rotation.x += Math.sin(t * 10.2 + 2) * 1.1 * thrash
-      left.shoulder.rotation.z -= Math.sin(t * 8.1) * 0.6 * thrash
-      legs[0].rotation.x += Math.sin(t * 8.7) * 0.5 * thrash
-      legs[1].rotation.x += Math.sin(t * 9.4 + 2) * 0.5 * thrash
-      trunk.rotation.z = Math.sin(t * 5.2) * 0.2 * thrash
+      const odds = 0.25 + thrash * 0.6
+      const tremor = (Math.sin(t * 41) + Math.sin(t * 67 + 1)) * 0.02 * thrash
+      for (const [i, limb] of [right, left].entries()) {
+        const side = i === 0 ? 1 : -1
+        const out = Math.abs(spasm(t, 0.34, odds, 1 + i))
+        const lift = spasm(t, 0.42, odds, 5 + i)
+        limb.shoulder.rotation.z += side * out * 0.75 * thrash + tremor
+        limb.shoulder.rotation.x += -Math.abs(lift) * 0.5 * thrash - tremor
+        limb.elbow.rotation.x =
+          -0.15 - Math.abs(spasm(t, 0.27, odds, 9 + i)) * 0.9 * thrash
+      }
+      const snap = spasm(t, 0.5, odds, 13)
+      head.rotation.z += snap * 0.55 * thrash
+      head.rotation.x -= Math.abs(spasm(t, 0.6, odds, 17)) * 0.7 * thrash
+      head.rotation.y += tremor * 4
+      const arch = Math.abs(spasm(t, 0.7, odds, 21))
+      trunk.rotation.x -= arch * 0.35 * thrash
+      trunk.rotation.z = snap * 0.08 * thrash + tremor
+      // The knees give: it sinks and catches itself.
+      body.position.y -= Math.abs(spasm(t, 0.8, odds * 0.7, 25)) * 0.12 * thrash
+    } else {
+      trunk.rotation.z = 0
     }
     hem.forEach((m, i) => {
       m.rotation.x =

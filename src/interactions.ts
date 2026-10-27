@@ -125,6 +125,9 @@ export type Interaction<P extends PickupSpot = PickupSpot> =
   // Undercroft (undercroft.ts); the ladder's foot below: E climbs up.
   | { kind: 'descend' }
   | { kind: 'ascend' }
+  // The fog wall in the deep chamber's door, from outside, while the
+  // Warden stands: E carries the raider through it (fogwall.ts).
+  | { kind: 'fog' }
   // The lookout tower by the maze's gate (lookout.ts): E at the ladder's
   // foot climbs up onto the deck; at its top, E climbs back down.
   | { kind: 'climbTower' }
@@ -206,6 +209,8 @@ export const SIGHTS = {
   ladder: { low: 0, high: 3, r: 0.5 },
   ladderTop: { low: -1.5, high: 1.2, r: 0.6 },
   door: { low: 0, high: 2.2, r: 0.6 },
+  // The fog wall, the doorway's whole height and width.
+  fog: { low: 0, high: 4, r: 2.4 },
   portal: { low: 0, high: 2.6, r: 1.2 },
   // The toolbox, the torches standing up out of it.
   toolbox: { low: 0, high: 0.7, r: 0.45 },
@@ -328,6 +333,9 @@ export interface InteractionInput<P extends PickupSpot> {
   // it, or null.
   trapdoor?: XZ | null
   ladder?: XZ | null
+  // The fog wall in the deep chamber's door, from outside while the
+  // Warden stands, or null.
+  fog?: XZ | null
   // The lookout tower's ladder, its foot and its top, and whether this
   // raider is up on the deck; or null.
   lookout?: { foot: XZ; top: XZ; on: boolean } | null
@@ -520,6 +528,7 @@ export function resolveInteraction<P extends PickupSpot>(
     sees(spot, sight)
   if (reach(input.ladder, SIGHTS.ladder)) return { kind: 'ascend' }
   if (reach(input.trapdoor, SIGHTS.hatch)) return { kind: 'descend' }
+  if (reach(input.fog, SIGHTS.fog)) return { kind: 'fog' }
 
   // The toolbox beside the ladder's foot, looked at: the ladder takes E
   // only when the look is on it.
@@ -822,6 +831,8 @@ export function interactionPrompt(interaction: Interaction): string | null {
       return copy('prompts.descend')
     case 'ascend':
       return copy('prompts.ascend')
+    case 'fog':
+      return copy('prompts.fog')
     case 'climbTower':
       return copy('prompts.climb_tower')
     case 'leaveTower':

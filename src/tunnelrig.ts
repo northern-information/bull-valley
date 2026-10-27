@@ -1,15 +1,18 @@
 // The tunnel shades as seen (tunnelshades.ts): one body each (assets.ts
 // buildTunnelShade), a shadow rat or the Warden, walking the Undercroft's
 // floor, a rat turned the way it runs and the Warden (or a rat standing
-// still) to face the player, paling and shaking as a beam burns it, its health bar over it
-// once it is hurt (enemybars.ts; the Warden's counts the hits it has
-// taken). They are the valley's
+// still) to face the player, paling and shaking as a beam burns it, its
+// health bar over it once it is hurt (enemybars.ts). The Warden wears
+// none: its bar is the boss's along the bottom of the view (bosshud.ts),
+// counting the hits it has taken, and whether it stands raises the fog in
+// its door (fogwall.ts). They are the valley's
 // (sharedworld.ts rule 11): they ride in the shadowmen frames and are
 // drawn a beat behind the present, between the last two.
 
 import { buildTunnelShade } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { bodyHeight, EnemyBars } from './enemybars.ts'
+import { wardenStands } from './fogwall.ts'
 import { mulberry32, range } from './rng.ts'
 import {
   applyShadowFrame,
@@ -52,6 +55,10 @@ interface TunnelShadesUpdate {
 export class TunnelShades {
   // Where each stands as last drawn, for the dev hook.
   shown: TunnelShadeWire[] = []
+  // Whether the Warden stands (fogwall.ts wardenStands), and how much of
+  // it is left as last drawn, kept while a hit has it in the dark.
+  warden = false
+  wardenShare = 1
   private place: MazePlace | null
   private groundAt: HeightAt
   private rigs = new Map<number, TunnelShadeRig>()
@@ -76,6 +83,9 @@ export class TunnelShades {
   // A frame from the valley, landed at `at` (local ms).
   receive(msg: ShadowmenMessage, at: number): void {
     applyShadowFrame(this.table, msg.tunnel, at)
+    const was = this.warden
+    this.warden = wardenStands(was, msg)
+    if (this.warden && !was) this.wardenShare = 1
     this.pending.push(...msg.tunnelBursts)
     this.hits.push(...msg.tunnelWounds)
   }
@@ -90,6 +100,11 @@ export class TunnelShades {
     this.shown = shown
     this.draw(shown, player, time)
     for (const s of shown) {
+      const share = shadeHealth(s.burn, s.hurt, CONFIG.tunnel[s.kind].hits)
+      if (s.kind === 'warden') {
+        this.wardenShare = share
+        continue
+      }
       this.bars.show(
         s.id,
         {
@@ -97,7 +112,7 @@ export class TunnelShades {
           y: this.groundAt(s.x, s.z),
           z: s.z,
           tall: this.talls.get(s.id) ?? 2,
-          share: shadeHealth(s.burn, s.hurt, CONFIG.tunnel[s.kind].hits),
+          share,
         },
         player,
         dt
