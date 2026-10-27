@@ -15,9 +15,9 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
   const marlboros = () =>
     page.evaluate(() => window.__bv?.inventory.marlboro ?? 0)
 
-  // A new account's bar holds the kit every raider carries: the
-  // flashlight on 1 and the phone on 2.
-  await expect(slots).toHaveCount(2)
+  // A new account's bar holds the kit every raider carries from its
+  // welcome: the flashlight on 1 (the portal phone waits on Tyler).
+  await expect(slots).toHaveCount(1)
   await page.keyboard.press('Tab')
   await expect(open).toHaveCount(1)
   await expect(card).toBeHidden()
@@ -50,9 +50,8 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
   await page.keyboard.press('Digit3')
   await saved
   await expect.poll(async () => (await hotbar())?.[2]).toBe('marlboro')
-  // Beside the kit every raider carries, the flashlight on 1 and the
-  // phone on 2.
-  await expect(slots).toHaveCount(3)
+  // Beside the flashlight on 1.
+  await expect(slots).toHaveCount(2)
   await expect(
     page.locator('.bv-hot-slot[data-kind="marlboro"] .bv-hot-key')
   ).toHaveText('3')
@@ -105,7 +104,7 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
     .poll(() => page.evaluate(() => !!window.__bv), { timeout: 30_000 })
     .toBe(true)
   await expect.poll(async () => (await hotbar())?.[2]).toBe('marlboro')
-  await expect(slots).toHaveCount(3)
+  await expect(slots).toHaveCount(2)
 
   // In the pack, 3 over nothing empties the slot, as for a kind run out.
   await page.locator('[data-bv="begin"]').click()
@@ -123,7 +122,7 @@ test('Tab opens the pack, a number key assigns, the hotbar uses and is kept', as
   await cleared
   await expect.poll(async () => (await hotbar())?.[2]).toBeNull()
   // The kit stays, and the hand (back on 1 after the reload) with it.
-  await expect(slots).toHaveCount(2)
+  await expect(slots).toHaveCount(1)
 })
 
 test('the mouse selects, uses, drags to the hotbar and opens a menu; a spent kind leaves the bar', async ({
