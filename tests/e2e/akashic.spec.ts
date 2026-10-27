@@ -56,15 +56,16 @@ test('the map mode edits the survey and undoes it', async ({ page }) => {
   await expect(page.locator('.ak-canvas')).toBeVisible()
 })
 
-test('the kind chips and the search narrow the asset list', async ({
+test('the kind checkboxes, the place, the set and the search narrow the asset list', async ({
   page,
 }) => {
   await page.goto('/akashic')
   await expect.poll(() => page.evaluate(() => !!window.__akashic)).toBe(true)
   const all = await page.evaluate(() => window.__akashic!.ids.length)
+  const shown = () => page.evaluate(() => window.__akashic!.shown)
 
-  await page.locator('.ak-kinds [data-kind="characters"]').click()
-  const characters = await page.evaluate(() => window.__akashic!.shown)
+  await page.locator('input[name="kind-characters"]').check()
+  const characters = await shown()
   expect(characters.length).toBeGreaterThan(0)
   expect(characters.length).toBeLessThan(all)
   expect(characters).toContain(
@@ -74,8 +75,14 @@ test('the kind chips and the search narrow the asset list', async ({
     characters.length
   )
 
+  // A second kind ticked widens the list.
+  await page.locator('input[name="kind-poses"]').check()
+  const both = await shown()
+  expect(both.length).toBeGreaterThan(characters.length)
+  await page.locator('input[name="kind-poses"]').uncheck()
+
   await page.locator('.ak-search').fill('shadowman')
-  const found = await page.evaluate(() => window.__akashic!.shown)
+  const found = await shown()
   expect(found).toContain('shadowman')
   expect(found.every((id) => characters.includes(id))).toBe(true)
 
@@ -84,8 +91,21 @@ test('the kind chips and the search narrow the asset list', async ({
   await page.keyboard.press('ArrowRight')
   expect(found).toContain(await page.evaluate(() => window.__akashic!.current))
 
+  // Clear filters shows everything; the place and the set each narrow it.
+  await page.locator('.ak-clear').click()
+  expect((await shown()).length).toBe(all)
+  await page.locator('select[name="place"]').selectOption('drive-in')
+  const driveIn = await shown()
+  expect(driveIn).toContain('drive-in-screen')
+  expect(driveIn).not.toContain('pump')
+  await page.locator('select[name="set"]').selectOption('cars')
+  const cars = await shown()
+  expect(cars.length).toBeGreaterThan(0)
+  expect(cars.every((id) => id.startsWith('burnt-'))).toBe(true)
+
   // A deep link to a hidden asset clears the filters.
   await page.evaluate(() => window.__akashic!.select('pump'))
-  expect(await page.evaluate(() => window.__akashic!.shown.length)).toBe(all)
+  expect((await shown()).length).toBe(all)
   await expect(page.locator('.ak-search')).toHaveValue('')
+  await expect(page.locator('select[name="place"]')).toHaveValue('')
 })
