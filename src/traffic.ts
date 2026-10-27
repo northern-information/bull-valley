@@ -530,10 +530,14 @@ export function carsNear(
 
 // --- Hits -----------------------------------------------------------------
 
-// Whether `p` lies within `pad` of a box `length` by `width` round
-// (x, z), turned to `heading`.
-function inBox(
+// Whether `p` lies within `pad` of a box `length` by `width` swept from
+// (fromX, fromZ) to (x, z) down `heading`: the box where it stands now,
+// and everywhere it passed since, so a long frame never lets a car jump
+// through a raider. From where it stands, the sweep is the box alone.
+function inSweep(
   p: XZ,
+  fromX: number,
+  fromZ: number,
   x: number,
   z: number,
   heading: number,
@@ -543,29 +547,56 @@ function inBox(
 ): boolean {
   const fx = Math.sin(heading)
   const fz = Math.cos(heading)
-  const dx = p.x - x
-  const dz = p.z - z
-  const along = dx * fx + dz * fz
-  const across = -dx * fz + dz * fx
+  const local = (cx: number, cz: number) => {
+    const dx = p.x - cx
+    const dz = p.z - cz
+    return { along: dx * fx + dz * fz, across: -dx * fz + dz * fx }
+  }
+  const now = local(x, z)
+  const was = local(fromX, fromZ)
+  const reach = length / 2 + pad
   return (
-    Math.abs(along) <= length / 2 + pad && Math.abs(across) <= width / 2 + pad
+    Math.abs(now.across) <= width / 2 + pad &&
+    Math.min(now.along, was.along) <= reach &&
+    Math.max(now.along, was.along) >= -reach
   )
 }
 
 // The first car moving fast enough to hurt with a raider's feet (radius
-// `pad`) under it: the tractor or a semi's trailer.
+// `pad`) under it, or passed over them since `before` (the same cars a
+// frame ago, by id): the tractor or a semi's trailer.
 export function struckBy(
   cars: readonly Car[],
   feet: XZ,
   pad: number,
+  before: ReadonlyMap<string, Car> = new Map(),
   cfg: TrafficConfig = CONFIG.traffic
 ): Car | null {
   for (const car of cars) {
     if (car.speed < cfg.minHitSpeed) continue
     const { length, width } = cfg.vehicles[car.kind]
-    if (inBox(feet, car.x, car.z, car.heading, length, width, pad)) return car
+    const was = before.get(car.id) ?? car
+    const { x, z, heading } = car
+    if (inSweep(feet, was.x, was.z, x, z, heading, length, width, pad)) {
+      return car
+    }
     const t = car.trailer
-    if (t && inBox(feet, t.x, t.z, t.heading, cfg.semi.trailer, width, pad)) {
+    const wt = was.trailer ?? t
+    if (
+      t &&
+      wt &&
+      inSweep(
+        feet,
+        wt.x,
+        wt.z,
+        t.x,
+        t.z,
+        t.heading,
+        cfg.semi.trailer,
+        width,
+        pad
+      )
+    ) {
       return car
     }
   }

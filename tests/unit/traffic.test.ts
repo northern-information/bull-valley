@@ -217,6 +217,14 @@ describe('a hit', () => {
     expect(struckBy([{ ...car, speed: 1 }], { x: 0, z: 0 }, 0.3)).toBeNull()
   })
 
+  it('lands on feet a car passed over since the last frame', () => {
+    const was = new Map([['a', { ...car, z: -30 }]])
+    expect(struckBy([car], { x: 0, z: -15 }, 0.3, was)).toBe(car)
+    // Beside its path, or behind where it was, it missed.
+    expect(struckBy([car], { x: 3, z: -15 }, 0.3, was)).toBeNull()
+    expect(struckBy([car], { x: 0, z: -40 }, 0.3, was)).toBeNull()
+  })
+
   it("lands under a semi's trailer too", () => {
     const semi: Car = {
       ...car,

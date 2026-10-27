@@ -71,6 +71,7 @@ import type { ShadowBodies } from './shadowbodies.ts'
 import type { HeadlightsSent } from './shadowmen.ts'
 import type { Feet as SlurmFeet } from './slurms.ts'
 import type { Targets } from './targets.ts'
+import type { Car } from './traffic.ts'
 import type { Pickup } from './world.ts'
 
 // Under e2e (--mode test) the valley runs but is never drawn. The specs
@@ -653,6 +654,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
   // valley (rule 24), once a car; and where the lamps round us stand, so
   // the valley can burn the shadowmen in them.
   const runOver = new Set<string>()
+  let carsBefore = new Map<string, Car>()
   let trafficSentAt = -Infinity
   const stepTraffic = ({ now }: FrameClock) => {
     const traffic = game.traffic
@@ -666,8 +668,9 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       (car) => Math.abs(car.y - player.groundY) < CONFIG.traffic.hitReach
     )
     const car = onFoot
-      ? struckBy(level, player.pos, CONFIG.player.radius)
+      ? struckBy(level, player.pos, CONFIG.player.radius, carsBefore)
       : null
+    carsBefore = new Map(cars.map((near) => [near.id, near]))
     if (car && !runOver.has(car.id)) {
       runOver.add(car.id)
       const thrown = throwOf(car, player.pos)
