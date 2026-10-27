@@ -83,7 +83,6 @@ const ITEMS = new Set([
   'slurm-jar',
   'slurm-caught',
   'torch',
-  'shovel',
   'nightcrawlers',
   'gold-bullion',
   'empty-can',
@@ -99,7 +98,7 @@ const ITEMS = new Set([
   'guitar',
   'book',
 ])
-const ITEM_PREFIXES = ['pack-', 'drink-', 'med-', 'fish-', 'food-', 'mech-']
+const ITEM_PREFIXES = ['pack-', 'drink-', 'med-', 'fish-', 'food-']
 
 // A whole station or building, walked through rather than looked at.
 const PLACES = new Set([

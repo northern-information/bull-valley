@@ -101,8 +101,6 @@ const THREE_AND_DOM = [
   'itemthumbs',
   'jeep',
   'jerichomodel',
-  'celestialmodel',
-  'mechmodel',
   'kitmodels',
   'laptopart',
   'laptopdialog',

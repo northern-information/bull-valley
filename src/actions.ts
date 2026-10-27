@@ -68,7 +68,7 @@ import { mountLookPanel } from './lookpanel.ts'
 import { call, refused } from './marx.ts'
 import { openMoabDialog } from './moabdialog.ts'
 import { openNameDialog } from './namedialog.ts'
-import { marksMap, npcLine, npcName, pinnedAt } from './npcs.ts'
+import { npcLine, npcName } from './npcs.ts'
 import { outfitById } from './outfits.ts'
 import {
   bagTabs,
@@ -101,7 +101,6 @@ import { tradeFanfare } from './tradefanfare.ts'
 import { planLeg } from './truckplan.ts'
 import { dose, levelsAt, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
-import { placeWaypoint } from './waypoints.ts'
 import { charterable } from './worldsync.ts'
 import type { ChatCommand, CrewFrame } from './chat.ts'
 import type { CitgoLog, Stop } from './citgos.ts'
@@ -902,22 +901,6 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     hud.tell(copy('log.torch_taken'))
   }
 
-  // Rule 42: E at the heap inside the celestial graveyard's gate: a shovel
-  // out of it; E at the weeping angel's grave: it dug. The pack frame after
-  // puts the shovel in the pack, and the mech that came up; a refusal says
-  // why.
-  const takeShovel = () => {
-    net.send({ type: 'shovel' })
-    hud.tell(copy('log.shovel_taken'))
-  }
-  const exhume = () => {
-    if (s.pending.exhume) return
-    s.pending.exhume = true
-    net.send({ type: 'exhume' })
-    hud.tell(copy('log.digging'))
-    game.sfx?.play('dig')
-  }
-
   // Rule 39: the click with the torch in hand: a swing, at the topiary in
   // front within reach, if any. The blow is sent as it lands (loop.ts).
   const swingTorch = () => {
@@ -1243,17 +1226,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
 
   // Marx, Carlsten, Moab, Tyler and Jericho each say their next line.
-  // Jericho's last pins the graveyard nearest him on the raider's map
-  // (rule 37, as a pin placed on the map is), unless it is pinned already.
   const speakTo = (npc: NpcId) => {
-    const said = s.npcSaid[npc]++
-    npcSays(npc, npcLine(npc, said))
-    const yard = world.celestialYard
-    if (!marksMap(npc, said) || !yard) return
-    if (!pinnedAt(s.waypoints, yard)) {
-      markWaypoints(placeWaypoint(s.waypoints, yard))
-    }
-    hud.tell(copy('jericho.marked', { yard: yard.name }))
+    npcSays(npc, npcLine(npc, s.npcSaid[npc]++))
   }
 
   // Rule 14: Moab's offer, taken. The valley trades and the pack frame
@@ -1656,12 +1630,6 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       }
       case 'toolbox':
         takeTorch()
-        return
-      case 'shovel':
-        takeShovel()
-        return
-      case 'exhume':
-        exhume()
         return
       case 'locked':
         hud.tell(copy('log.locked'))

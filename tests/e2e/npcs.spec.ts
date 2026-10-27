@@ -1,5 +1,5 @@
 import { copy } from './copy.ts'
-import { beginRaid, expect, faceSpot, heardWhere, test } from './fixtures.ts'
+import { beginRaid, expect, faceSpot, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // Walk up to Matthew Marx or David Carlsten and he glows, with no prompt;
@@ -139,7 +139,7 @@ test('Carlsten glows when you come near and opens his shelves, a line each time'
   }
 })
 
-test("Jericho marks the celestial graveyard, where a shovel digs a mech out of the angel's grave", async ({
+test('Jericho greets you by the payphone and bids you return when the time is right', async ({
   page,
 }) => {
   await beginRaid(page)
@@ -167,83 +167,13 @@ test("Jericho marks the celestial graveyard, where a shovel digs a mech out of t
   await expect(page.locator('.bv-prompt')).toBeHidden()
 
   const name = copy('jericho.name')
-  const yard = await page.evaluate(() => window.__bv!.world.celestialYard)
-  if (!yard) throw new Error('No graveyard in the survey')
-  const pinned = () =>
-    page.evaluate(
-      (yard) =>
-        window.__bv!.waypoints.filter(
-          (p) => Math.hypot(p.x - yard.x, p.z - yard.z) < 1
-        ).length,
-      yard
-    )
-  for (const key of ['says_1', 'says_2']) {
+  const pins = await page.evaluate(() => window.__bv!.waypoints.length)
+  for (const key of ['says_1', 'says_2', 'says_3', 'says_1']) {
     await page.keyboard.press('KeyE')
     await expect
       .poll(() => lastLine(page))
       .toBe(`${name}: ${copy(`jericho.${key}`)}`)
   }
-  expect(await pinned()).toBe(0)
-  // His last line pins the graveyard nearest him, and the log names it.
-  await page.keyboard.press('KeyE')
-  await expect
-    .poll(() => lastLine(page))
-    .toBe(`${name}: ${copy('jericho.says_3')}`)
-  await expect.poll(pinned).toBe(1)
-  await expect(page.locator('.bv-chat')).toContainText(
-    copy('jericho.marked', { yard: yard.name })
-  )
-  // Round again, he marks it once.
-  const count = await page.evaluate(() => window.__bv!.waypoints.length)
-  for (let i = 0; i < 3; i++) await page.keyboard.press('KeyE')
-  await expect
-    .poll(() => lastLine(page))
-    .toBe(`${name}: ${copy('jericho.says_3')}`)
-  expect(await page.evaluate(() => window.__bv!.waypoints.length)).toBe(count)
-  expect(await pinned()).toBe(1)
-
-  // On to the graveyard he marked (sharedworld.ts rule 42): `back` metres
-  // toward the gate from the heap or the grave, looking at it.
-  const before = (k: 'shovel' | 'grave', back: number, rise: number) =>
-    page.evaluate(
-      ([k, back, rise]) => {
-        const bv = window.__bv!
-        const yard = bv.world.celestial
-        if (!yard) throw new Error('No celestial graveyard')
-        const to = yard[k]
-        const x = to.x + Math.cos(yard.place.yaw) * back
-        const z = to.z + Math.sin(yard.place.yaw) * back
-        bv.player.relocate(x, z)
-        return { x: to.x, z: to.z, rise }
-      },
-      [k, back, rise] as const
-    )
-  const prompt = page.locator('.bv-prompt')
-  const heap = await before('shovel', 1.2, 0.8)
-  await heardWhere(page)
-  await faceSpot(page, heap.x, heap.z, heap.rise)
-  await expect(prompt).toHaveText(copy('prompts.shovel'))
-  await page.keyboard.press('KeyE')
-  await expect
-    .poll(() => page.evaluate(() => window.__bv!.inventory.shovel))
-    .toBe(1)
-  const grave = await before('grave', 4, 0.1)
-  await heardWhere(page)
-  await faceSpot(page, grave.x, grave.z, grave.rise)
-  await expect(prompt).toHaveText(copy('prompts.exhume'))
-  await page.keyboard.press('KeyE')
-  // What came up is made a big deal of, and goes into the pack.
-  await expect(page.locator('.bv-banner')).toContainText(copy('mechs.detail'))
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        Object.entries(window.__bv!.inventory)
-          .filter(([kind, n]) => kind.startsWith('mech-') && n > 0)
-          .map(([kind]) => kind)
-      )
-    )
-    .toHaveLength(1)
-  // She gives up one a day.
-  await page.keyboard.press('KeyE')
-  await expect(page.locator('.bv-chat')).toContainText(copy('mechs.dug_today'))
+  // He marks nothing on the map.
+  expect(await page.evaluate(() => window.__bv!.waypoints.length)).toBe(pins)
 })
