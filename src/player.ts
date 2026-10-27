@@ -145,6 +145,15 @@ export class Player {
     this.steady = 0
   }
 
+  // Thrown (a car ran into us, traffic.ts throwOf): off the feet at
+  // (vx, vz) m/s and `up` m/s up, landing as any fall does.
+  knock(vx: number, vz: number, up: number) {
+    this.vel.set(vx, 0, vz)
+    if (this.fallFrom === null) this.fallFrom = this.groundY
+    this.fallSpeed = -up
+    this.steady = 0
+  }
+
   // Space: the feet leave the ground on the next frame, if they may
   // (fall.ts mayJump). A jump is a fall that starts upward, so it lands
   // as any fall does, and only a long drop past the takeoff hurts.

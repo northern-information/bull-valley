@@ -45,6 +45,7 @@ import type { SeasonProgress } from './season.ts'
 import type { ShadowBodies } from './shadowbodies.ts'
 import type { ShadeKind } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
+import type { PlacedCar } from './trafficrig.ts'
 import type { Truck } from './truck.ts'
 import type { Waypoints } from './waypoints.ts'
 import type { World } from './world.ts'
@@ -58,6 +59,8 @@ interface BvHook {
   world: World
   truck: Truck
   graph: RoadGraph
+  // The traffic's cars near the player as last drawn (none under e2e).
+  readonly traffic: PlacedCar[]
   shadowmen: ShadowBodies
   caretaker: CaretakerShade
   // The Undercroft's tunnel shades as last drawn.
@@ -244,6 +247,9 @@ export function installDevHook(game: Game, actions: Actions): void {
     world: game.world,
     truck: game.truck,
     graph: game.graph,
+    get traffic() {
+      return game.traffic?.cars ?? []
+    },
     shadowmen: game.shadowmen,
     caretaker: game.caretaker,
     get tunnel() {

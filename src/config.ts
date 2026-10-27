@@ -550,6 +550,11 @@ export const CONFIG = {
       halfAngle: 0.45,
       height: 0.95,
       nose: 2.95,
+      // The taillights, behind the middle and up (shadowmen.ts
+      // taillightBeam, CONFIG.traffic.tail's cone): every vehicle's
+      // lights burn.
+      tail: -2.88,
+      tailHeight: 1.15,
       staleMs: 1000,
     },
     wanderMetres: 6000, // how far the outbound joyride runs
@@ -1098,6 +1103,98 @@ export const CONFIG = {
       size: { min: 0.05, max: 0.15 },
       spin: 9,
     },
+  },
+  // The valley's traffic (traffic.ts): through traffic from one edge of
+  // the survey to another, the same for everyone on the valley's clock.
+  traffic: {
+    // A road end within this many metres of the survey's edge is a way
+    // in and out of the valley.
+    exitMargin: 120,
+    // Routes are laid between exits until the next would carry fewer
+    // than minGain metres of the bigger roads (`main`) no route carries
+    // yet, or there are maxRoutes. A road's class weighs its length
+    // when a route is chosen, so the traffic keeps to the bigger roads.
+    minGain: 1500,
+    maxRoutes: 40,
+    main: ['primary', 'secondary', 'tertiary'] as const,
+    weight: {
+      primary: 1,
+      secondary: 1.1,
+      tertiary: 1.25,
+      unclassified: 2,
+      residential: 3,
+    },
+    // m/s on each class of road (about 50, 45, 40 and 25 mph), and what
+    // a bend allows: sqrt(lateral × its radius), never under minSpeed;
+    // cars gain speed at accel and lose it at brake (m/s²).
+    speed: {
+      primary: 22,
+      secondary: 20,
+      tertiary: 18,
+      unclassified: 13,
+      residential: 11,
+    },
+    lateral: 2.5,
+    minSpeed: 5,
+    accel: 1.8,
+    brake: 3,
+    // Seconds between cars down one route in one direction (more where
+    // routes share a road, traffic.ts chooseRoutes), each car a `jitter`
+    // share of it later at random, so no two meet and nothing passes on a
+    // route: a car or two a minute, both ways, on most of the bigger
+    // roads.
+    headway: 60,
+    jitter: 0.6,
+    // How the cars are dealt: how often each kind comes by.
+    weights: { jeep: 3, bmw: 3, pickup: 3, semi: 2 },
+    // Each kind's footprint, metres, for a hit (struckBy) and its lamps:
+    // the lamps stand `nose` ahead of the middle and `tail` behind it,
+    // `height` up. A semi's trailer pivots on its kingpin, `kingpin`
+    // behind the tractor's middle; the trailer runs `trailer` long, its
+    // nose `overhang` ahead of the kingpin.
+    vehicles: {
+      jeep: { length: 4.3, width: 1.75, nose: 2.25, tail: -2.15, height: 0.93 },
+      bmw: { length: 4.3, width: 1.7, nose: 2.2, tail: -2.2, height: 0.75 },
+      pickup: {
+        length: 5.7,
+        width: 1.95,
+        nose: 2.85,
+        tail: -2.85,
+        height: 0.95,
+      },
+      semi: { length: 6.6, width: 2.5, nose: 3.35, tail: -3.3, height: 1.1 },
+    },
+    semi: { kingpin: 2.4, trailer: 14.6, overhang: 0.4, tailHeight: 1.0 },
+    // A hit: a moving vehicle (at least minHitSpeed) over a raider's
+    // feet takes `hit` of their whole at fullSpeed, less as it goes
+    // slower, never under 1 point; it throws them `throwSpeed` m/s
+    // its way and `throwUp` m/s up.
+    minHitSpeed: 2,
+    // Feet more than hitReach above or below a car's ground (a fire
+    // escape over the road) are out of its way.
+    hitReach: 2.5,
+    fullSpeed: 20,
+    hit: { jeep: 0.4, bmw: 0.4, pickup: 0.5, semi: 0.85 },
+    throwSpeed: 7,
+    throwUp: 4,
+    // Every vehicle's lamps burn shadowmen as Marx's do (traffic.ts
+    // lampBeams): the headlights' cone is CONFIG.truck.headlights', the
+    // taillights' this one, backward. A client tells the valley of the
+    // cars within nearRadius of it at most every reportMs, the valley
+    // takes one within CONFIG.truck.headlights.reach of its last frame,
+    // and forgets a word older than staleMs.
+    tail: { range: 9, halfAngle: 0.8 },
+    reportMs: 200,
+    // Never more than traffic.ts TRAFFIC_LAMPS_MAX.
+    reportMax: 12,
+    staleMs: 1000,
+    // What a client works out, draws and tells the valley of: the cars
+    // within nearRadius of the player, out past the fog to where the
+    // shadowmen cross (CONFIG.shadowmen.despawnRadius); a route whose
+    // bounds lie further off is not looked at, and no car beyond it is
+    // worked out or drawn. The `real` nearest throw real light.
+    nearRadius: 360,
+    real: 2,
   },
   wreck: {
     // The green BMW nosed into a tree beside the spawn Citgo, station-local

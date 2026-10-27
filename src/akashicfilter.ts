@@ -267,6 +267,7 @@ const PLACE_IDS: Record<Exclude<Place, 'elsewhere'>, readonly string[]> = {
     'beacon-keep',
     'waypoint-pillar',
     'wreck',
+    'traffic-',
     'berry-bush',
     'raincloud',
     'figure-gron',

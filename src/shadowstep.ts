@@ -1,6 +1,6 @@
 // The shadowmen's step over the valley (sharedworld.ts rule 11), pure like
 // the reducer whose Valley it reads: what the valley keeps of its shadows
-// in memory, the raiders they cross round, Marx's headlights, one step of
+// in memory, the raiders they cross round, Marx's headlights and the traffic's lamps, one step of
 // the shadowmen, the Caretaker (rule 13) and the tunnel shades with what
 // it credits (rules 15, 16 and 22) and the grace it leaves (rule 24), each
 // raider's share of its frame, what the step reads of where raiders stand
@@ -21,6 +21,7 @@ import {
   inHaven,
   placeStill,
   stepShadowmen,
+  taillightBeam,
 } from './shadowmen.ts'
 import {
   citgosFor,
@@ -30,6 +31,7 @@ import {
   inTheBed,
   wardsFor,
 } from './sharedworld.ts'
+import { lampBeams } from './traffic.ts'
 import {
   createTunnelShades,
   stepTunnelShades,
@@ -62,19 +64,23 @@ import type {
   TruckPose,
 } from './shadowmen.ts'
 import type { Valley } from './sharedworld.ts'
+import type { TrafficLamp } from './traffic.ts'
 import type { TunnelBurst, TunnelShade, TunnelUpdate } from './tunnelshades.ts'
 import type { ShadowHit } from './wards.ts'
 
 // The valley's shadowmen, in the server's memory: the field, the
 // Caretaker (rule 13), each raider who was struck with the server ms
 // until which they are left alone, and where Marx's truck was last said to
-// stand, with the server ms it was said.
+// stand, with the server ms it was said, and the traffic's lamps.
 export interface Shadows {
   field: ShadowmenField
   caretaker: Caretaker
   tunnel: TunnelShade[]
   recovering: Record<string, number>
   headlights: { pose: TruckPose; at: number } | null
+  // The traffic's lamps, by the socket that last told of them (traffic.ts),
+  // with the server ms it did.
+  traffic: Record<string, { lamps: TrafficLamp[]; at: number }>
 }
 
 export function createShadows(): Shadows {
@@ -84,6 +90,7 @@ export function createShadows(): Shadows {
     tunnel: createTunnelShades(),
     recovering: {},
     headlights: null,
+    traffic: {},
   }
 }
 
@@ -164,7 +171,49 @@ export function headlightsAt(
 ): Beam[] {
   const seen = shadows.headlights
   if (!seen || now - seen.at > cfg.staleMs) return []
-  return [headlightBeam(seen.pose, cfg)]
+  return [
+    headlightBeam(seen.pose, cfg),
+    taillightBeam(seen.pose, cfg.tail, cfg.tailHeight),
+  ]
+}
+
+// A raider says where the lamps of the cars round them stand (a traffic
+// frame, traffic.ts): every client drives the same traffic on the same
+// clock, so any one near will do. A lamp not within reach of the sender's
+// last state frame is not taken. Kept by sender, so two raiders telling
+// of the same car only light it twice. Mutates shadows.
+export function seeTraffic(
+  shadows: Shadows,
+  id: string,
+  from: PeerStateWire | null,
+  lamps: readonly TrafficLamp[],
+  now: number,
+  cfg = CONFIG.truck.headlights
+): number {
+  if (!from) return 0
+  const near = lamps.filter(
+    (lamp) => Math.hypot(from.x - lamp.x, from.z - lamp.z) <= cfg.reach
+  )
+  shadows.traffic[id] = { lamps: near, at: now }
+  return near.length
+}
+
+// Every vehicle's lamps the valley has fresh word of, as beams; a word
+// gone stale is forgotten. Mutates shadows.
+export function trafficAt(
+  shadows: Shadows,
+  now: number,
+  cfg = CONFIG.traffic
+): Beam[] {
+  const beams: Beam[] = []
+  for (const [id, seen] of Object.entries(shadows.traffic)) {
+    if (now - seen.at > cfg.staleMs) {
+      delete shadows.traffic[id]
+      continue
+    }
+    for (const lamp of seen.lamps) beams.push(...lampBeams(lamp))
+  }
+  return beams
 }
 
 // How far past the Undercroft's walls a raider still counts as down there,
@@ -398,7 +447,7 @@ export function stepShadows(
       lairs: world.lairs,
       lurks: world.lurks,
       calm,
-      lights: headlightsAt(shadows, now),
+      lights: [...headlightsAt(shadows, now), ...trafficAt(shadows, now)],
       ground,
       stairs,
     },

@@ -35,6 +35,7 @@ import type {
   ServerMessage,
 } from './protocol.ts'
 import type { TruckPose } from './shadowmen.ts'
+import type { TrafficLamp } from './traffic.ts'
 
 export type NetStatus = 'connecting' | 'online' | 'offline'
 
@@ -236,6 +237,10 @@ export class NetClient {
 
   sendHeadlights(pose: TruckPose): void {
     this.send({ type: 'headlights', ...pose })
+  }
+
+  sendTraffic(lamps: TrafficLamp[]): void {
+    this.send({ type: 'traffic', lamps })
   }
 
   private async open(first = false): Promise<void> {

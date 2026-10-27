@@ -72,6 +72,7 @@ import {
   placeCaretaker,
   placeShadowman,
   seeHeadlights,
+  seeTraffic,
   shadowmenNear,
   stepShadows,
 } from '../src/shadowstep.ts'
@@ -155,6 +156,12 @@ interface Attachment {
 const STATE_LIMIT: RateLimit = { count: 30, ms: 1000 }
 // Where Marx's truck stands, on the state frame's cadence.
 const HEADLIGHTS_LIMIT: RateLimit = STATE_LIMIT
+// Where the traffic's lamps stand round one raider: the client sends at
+// most one every CONFIG.traffic.reportMs.
+const TRAFFIC_LIMIT: RateLimit = { count: 10, ms: 1000 }
+// Hits by the traffic: a raider is run down once a car, a few a minute at
+// worst.
+const RUN_OVER_LIMIT: RateLimit = { count: 3, ms: 10_000 }
 
 // Chat lines one socket may send in ten seconds; the rest are nacked.
 const CHAT_LIMIT: RateLimit = { count: 5, ms: 10_000 }
@@ -219,6 +226,8 @@ export class ValleyDO extends DurableObject<Env> {
   // fresh, which only ever lets a few extra frames through.
   private stateRate = new WeakMap<WebSocket, RateWindow>()
   private headlightsRate = new WeakMap<WebSocket, RateWindow>()
+  private trafficRate = new WeakMap<WebSocket, RateWindow>()
+  private runOverRate = new WeakMap<WebSocket, RateWindow>()
   private chatRate = new WeakMap<WebSocket, RateWindow>()
   private appearanceRate = new WeakMap<WebSocket, RateWindow>()
   private friendRate = new WeakMap<WebSocket, RateWindow>()
@@ -363,6 +372,11 @@ export class ValleyDO extends DurableObject<Env> {
         if (me.dialup) return
         this.headlights(ws, me, msg)
         return
+      case 'traffic':
+        if (me.dialup) return
+        if (!allow(this.trafficRate, ws, TRAFFIC_LIMIT)) return
+        seeTraffic(this.shadows, id, me.at, msg.lamps, Date.now())
+        return
       case 'ping':
         send(ws, { type: 'pong', t: msg.t, serverNow: Date.now() })
         return
@@ -430,6 +444,18 @@ export class ValleyDO extends DurableObject<Env> {
       case 'fall':
         // Rule 24: landed hard, by the client's word.
         if (account) await this.plunge(ws, account, id, msg.height)
+        return
+      case 'run-over':
+        // Rule 24: run down by the traffic, by the client's word.
+        if (!account || !allow(this.runOverRate, ws, RUN_OVER_LIMIT)) return
+        await this.locked(() =>
+          this.hurtHeld(account, id, [ws], {
+            type: 'run-over',
+            id,
+            kind: msg.kind,
+            speed: msg.speed,
+          })
+        )
         return
       case 'stow':
       case 'unstow':
@@ -974,7 +1000,7 @@ export class ValleyDO extends DurableObject<Env> {
     account: string,
     id: string,
     sockets: readonly WebSocket[],
-    action: Extract<ValleyAction, { type: 'hit' | 'plunge' }>
+    action: Extract<ValleyAction, { type: 'hit' | 'plunge' | 'run-over' }>
   ): Promise<void> {
     const reduced = reduce(this.valley, action, this.context())
     await this.apply(reduced)

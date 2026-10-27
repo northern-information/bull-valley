@@ -10,8 +10,9 @@ import { CONFIG } from './config.ts'
 import { clamp01 } from './math.ts'
 import type { ShadowHit } from './wards.ts'
 
-// What hurt a raider: a shadow's touch, or a fall.
-export type Hurt = ShadowHit | 'fall'
+// What hurt a raider: a shadow's touch, a fall, or a car of the traffic
+// (traffic.ts).
+export type Hurt = ShadowHit | 'fall' | 'vehicle'
 
 // Whether the feet at `feetY` are in the air over ground at `groundY`.
 export function airborne(

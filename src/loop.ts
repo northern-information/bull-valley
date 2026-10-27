@@ -47,6 +47,7 @@ import { aimHeightOf, burstScaleOf, headlightsDue } from './shadowmen.ts'
 import { drawnAt } from './shadowsync.ts'
 import { formatCash } from './store.ts'
 import { isTopiaryGate } from './topiaries.ts'
+import { struckBy, throwOf } from './traffic.ts'
 import { tripBlur } from './trip.ts'
 import { burstHeight, burstScale } from './tunnelrig.ts'
 import { levelsAt } from './wardlevels.ts'
@@ -647,6 +648,43 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     }
   }
 
+  // The valley's traffic (traffic.ts): the cars near us drawn on the
+  // valley's clock; one that runs us down on foot throws us and tells the
+  // valley (rule 24), once a car; and where the lamps round us stand, so
+  // the valley can burn the shadowmen in them.
+  const runOver = new Set<string>()
+  let trafficSentAt = -Infinity
+  const stepTraffic = ({ now }: FrameClock) => {
+    const traffic = game.traffic
+    if (!traffic) return
+    const cars = traffic.update(net.clock.serverNow(now) / 1000, player.pos)
+    for (const id of runOver) {
+      if (!cars.some((car) => car.id === id)) runOver.delete(id)
+    }
+    const onFoot = !s.aboard && s.placed && now >= s.strikeUntil
+    const level = cars.filter(
+      (car) => Math.abs(car.y - player.groundY) < CONFIG.traffic.hitReach
+    )
+    const car = onFoot
+      ? struckBy(level, player.pos, CONFIG.player.radius)
+      : null
+    if (car && !runOver.has(car.id)) {
+      runOver.add(car.id)
+      const thrown = throwOf(car, player.pos)
+      player.knock(thrown.x, thrown.z, thrown.up)
+      net.send({ type: 'run-over', kind: car.kind, speed: car.speed })
+    }
+    if (
+      net.online &&
+      cars.length > 0 &&
+      now - trafficSentAt >= CONFIG.traffic.reportMs
+    ) {
+      trafficSentAt = now
+      const lamps = cars.flatMap((near) => near.lamps)
+      net.sendTraffic(lamps.slice(0, CONFIG.traffic.reportMax))
+    }
+  }
+
   // The portals. Says the moment the Citgo portals' clock reads.
   const stepPortals = ({ now, time }: FrameClock): number => {
     // The portal at the maze's heart swirls, and anyone on foot who walks
@@ -1078,6 +1116,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     const renderAt = clock.now - CONFIG.net.interpolateMs
     const { swarm, keeper } = stepShadows(clock, renderAt)
     stepScenery(clock, feet.feetY)
+    stepTraffic(clock)
     stepHallucinations(clock)
     const portalNow = stepPortals(clock)
     drawMap()
