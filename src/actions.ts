@@ -1645,6 +1645,16 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         )
         return
       }
+      case 'fog': {
+        // Through the fog into the deep chamber; it lets no one back out
+        // while the Warden stands (fogwall.ts).
+        const croft = world.undercroft
+        if (!croft) return
+        const to = croft.through
+        player.relocate(to.x, to.z, to.yaw)
+        hud.tell(copy('log.fog'))
+        return
+      }
       case 'climbTower':
       case 'leaveTower': {
         // Up the lookout's ladder onto the deck, or back down to its foot.
