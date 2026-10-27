@@ -80,6 +80,22 @@ test('the trapdoor goes down to the Undercroft, its gold, and back up', async ({
   await expect(page.locator('.bv-chat')).toContainText(copy('log.travel_below'))
   expect(await below(page)).toBe(true)
 
+  // Nor does the portal phone dial: the screen says NO SIGNAL, and it goes
+  // down again with no portal open.
+  const slot = await page.evaluate(
+    () => window.__bv?.hotbar.indexOf('citgo-phone') ?? -1
+  )
+  expect(slot).toBeGreaterThanOrEqual(0)
+  await page.evaluate((i) => window.__bv?.select(i), slot)
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.inHand))
+    .toBe('citgo-phone')
+  await page.evaluate(() => window.__bv?.useHand())
+  await expect(page.locator('.bv-phone')).toHaveClass(/bv-phone--raised/)
+  await expect(page.locator('.bv-chat')).toContainText(copy('log.portal_below'))
+  await expect(page.locator('.bv-phone')).not.toHaveClass(/bv-phone--raised/)
+  expect(await page.evaluate(() => window.__bv?.myPortal ?? null)).toBeNull()
+
   // And back up the ladder.
   const foot = await page.evaluate(() => {
     const bv = window.__bv
