@@ -20,6 +20,7 @@ import {
   PICKUPS_MAX,
   PROTOCOL_VERSION,
 } from '../../src/protocol.ts'
+import { TRAFFIC_LAMPS_MAX } from '../../src/traffic.ts'
 import { WAYPOINT_MAX } from '../../src/waypoints.ts'
 
 const state = {
@@ -262,6 +263,36 @@ describe('parseClientMessage', () => {
     expect(parse({ ...lights, heading: 'north' })).toBeNull()
     expect(parse({ ...lights, heading: Infinity })).toBeNull()
     expect(parse({ ...lights, x: NaN })).toBeNull()
+  })
+
+  it("parses where the traffic's lamps stand, and nothing else", () => {
+    const lamp = { kind: 'semi', x: 1, y: 2, z: 3, heading: 0.5 }
+    const frame = {
+      type: 'traffic',
+      lamps: [lamp, { ...lamp, kind: 'trailer' }],
+    }
+    expect(parse(frame)).toEqual(frame)
+    expect(parse({ type: 'traffic', lamps: [] })).toEqual({
+      type: 'traffic',
+      lamps: [],
+    })
+    expect(
+      parse({ type: 'traffic', lamps: [{ ...lamp, kind: 'bus' }] })
+    ).toBeNull()
+    expect(parse({ type: 'traffic', lamps: [{ ...lamp, x: NaN }] })).toBeNull()
+    expect(parse({ type: 'traffic', lamps: [7] })).toBeNull()
+    expect(parse({ type: 'traffic', lamps: 'all' })).toBeNull()
+    expect(
+      parse({ type: 'traffic', lamps: Array(TRAFFIC_LAMPS_MAX + 1).fill(lamp) })
+    ).toBeNull()
+  })
+
+  it('parses a raider run down by a car, and nothing else', () => {
+    const hit = { type: 'run-over', kind: 'pickup', speed: 12 }
+    expect(parse({ ...hit, extra: 1 })).toEqual(hit)
+    expect(parse({ ...hit, kind: 'tank' })).toBeNull()
+    expect(parse({ ...hit, speed: 0 })).toBeNull()
+    expect(parse({ ...hit, speed: 1e6 })).toBeNull()
   })
 
   it("carries a reconnect's last id in a hello, and drops a bad one", () => {

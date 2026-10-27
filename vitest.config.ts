@@ -180,6 +180,8 @@ const THREE_AND_DOM = [
   'topiaryrig',
   'torchhand',
   'torchmodel',
+  'trafficmodels',
+  'trafficrig',
   'trails',
   'tripsolidsrig',
   'truck',

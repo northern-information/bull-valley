@@ -529,6 +529,7 @@ struck = { text = "You are somewhere else. Time is missing.", by = "ai" }
 hit = { text = "Something cold goes through you. It takes a piece with it.", by = "ai" }
 hit_caretaker = { text = "The lantern swings into you. A piece of you stays in the corn.", by = "ai" }
 hit_fall = { text = "You land hard. Something in you cracks and stays cracked.", by = "ai" }
+hit_vehicle = { text = "Headlights, a horn, the grille. You come down in the ditch with the road still ringing in you.", by = "ai" }
 warded_high = { text = "The high takes the edge off it.", by = "ai" }
 warded_stimulated = { text = "You're too wired for it to sink in. The legs only graze you.", by = "ai" }
 warded_drunk = { text = "The lantern lands soft. You're too loose to break.", by = "ai" }
@@ -537,6 +538,7 @@ mended = { text = "Under the Citgo lights you come back together.", by = "ai" }
 caught = { text = "A lantern, very close. Then the forecourt, and the smell of cold corn.", by = "ai" }
 tunneled = { text = "Something in the dark, very close. Then the forecourt, and the taste of stone.", by = "ai" }
 plunged = { text = "The ground, all at once. Then the forecourt, and concrete dust in your teeth.", by = "ai" }
+run_over = { text = "High beams, very close. Then the forecourt, and the smell of hot brakes.", by = "ai" }
 fell = { text = "Your pockets are empty. Everything you carried is still out there, on you, where you fell.", by = "ai" }
 spilled = { text = "Your wallet came open as you went down: {amount} in dimes lies where you fell, for whoever gets there first.", by = "ai" }
 looted = { text = "You take your things back off your own body.", by = "ai" }

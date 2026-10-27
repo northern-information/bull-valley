@@ -487,6 +487,26 @@ export function headlightBeam(
   }
 }
 
+// A vehicle's taillights as a beam: from the lamps `tail` metres along
+// its heading (behind its middle, so negative) and `height` up, back down
+// the way it came, shorter and wider than the headlights'.
+export function taillightBeam(
+  { x, y, z, heading }: TruckPose,
+  tail: number,
+  height: number,
+  cfg = CONFIG.traffic.tail
+): Beam {
+  const dx = Math.sin(heading)
+  const dz = Math.cos(heading)
+  return {
+    origin: { x: x + dx * tail, y: y + height, z: z + dz * tail },
+    dir: { x: -dx, y: 0, z: -dz },
+    range: cfg.range,
+    halfAngle: cfg.halfAngle,
+    floor: y,
+  }
+}
+
 // Ring points to try before settling for a clamped one.
 const SPAWN_TRIES = 8
 

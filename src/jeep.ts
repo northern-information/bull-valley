@@ -27,12 +27,17 @@ export const JEEP = {
   roof: 1.86,
 }
 
-export function buildJeep(): THREE.Group {
+// Tyler's as it stands; the traffic's (traffic.ts) in another paint with
+// the hatch shut.
+export function buildJeep({
+  paint = '#a3161b',
+  hatchOpen = true,
+}: { paint?: string; hatchOpen?: boolean } = {}): THREE.Group {
   const { width, wheel, rear, floor, cargo, roof } = JEEP
   const front = rear + JEEP.length
   const group = new THREE.Group()
   group.name = 'jeep'
-  const red = lambert({ color: '#a3161b' })
+  const red = lambert({ color: paint })
   const black = lambert({ color: '#151518' })
   const carpet = lambert({ color: '#26262a' })
   const steel = lambert({ color: '#8a8d92' })
@@ -239,10 +244,11 @@ export function buildJeep(): THREE.Group {
   }
 
   // The one rear hatch, roof to sill, lifted up on its hinge at the
-  // roof's back edge: red, with its window in the upper half.
+  // roof's back edge (or shut down over the back): red, with its window
+  // in the upper half.
   const hatch = new THREE.Group()
   hatch.position.set(0, roof, rear)
-  hatch.rotation.x = 1.95
+  hatch.rotation.x = hatchOpen ? 1.95 : 0
   add(hatch, [width - 0.04, roof - sill, 0.05], red, 0, -(roof - sill) / 2, 0)
   add(
     hatch,

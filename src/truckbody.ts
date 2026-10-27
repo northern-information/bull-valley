@@ -6,11 +6,12 @@ import { applyPS1 } from './ps1.ts'
 
 // Matthew Marx's white Chevy, without Matthew Marx: truck.ts seats the
 // driver (figure.ts), and figure.ts imports this file. Local space: the
-// truck faces +Z, origin at ground level under the middle.
-export function buildTruckBody(): THREE.Group {
+// truck faces +Z, origin at ground level under the middle. The traffic's
+// pickups (traffic.ts) are the same Chevy in other paints.
+export function buildTruckBody(paint = '#c8ccd2'): THREE.Group {
   const group = new THREE.Group()
   group.name = 'truck'
-  const white = lambert({ color: '#c8ccd2' })
+  const white = lambert({ color: paint })
   const dark = lambert({ color: '#14161a' })
   const glass = lambert({ color: '#0e141d', transparent: true, opacity: 0.45 })
 

@@ -195,8 +195,12 @@
 //    is whole again after. A fall the client says it landed from (a
 //    `plunge`; where a raider stands is its own word) takes fall.ts
 //    fallDamage of its height, no ward cutting it: all of it from two
-//    stories, which is rule 18's strike the same. A raider on foot whose last state frame put them
-//    on a Citgo forecourt is given back CONFIG.health.forecourt's share
+//    stories, which is rule 18's strike the same. A car of the valley's
+//    traffic the client says ran them down (a `run-over`, traffic.ts: the
+//    traffic is the clock's and the roads', which the valley never knows)
+//    takes traffic.ts vehicleDamage of its kind and speed, no ward cutting
+//    it either, and none in the bed of the truck. A raider on foot whose
+//    last state frame put them on a Citgo forecourt is given back CONFIG.health.forecourt's share
 //    of whole every few seconds until whole, and a use of anything that heals
 //    (items.ts healsPct), once the pack has given the unit up, gives its
 //    share of whole back.
@@ -574,6 +578,7 @@ import {
   regrow,
   torchDamage,
 } from './topiaries.ts'
+import { vehicleDamage } from './traffic.ts'
 import { levelsAt } from './wardlevels.ts'
 import { damageOf } from './wards.ts'
 import { cleanWaypoints, NO_WAYPOINTS, sameWaypoints } from './waypoints.ts'
@@ -618,6 +623,7 @@ import type { QuestId, QuestStage, QuestStages, QuestStep } from './quests.ts'
 import type { Research, ResearchLine } from './recycling.ts'
 import type { StandLedger } from './stand.ts'
 import type { TopiaryHealth } from './topiaries.ts'
+import type { VehicleKind } from './traffic.ts'
 import type { WardState } from './wardlevels.ts'
 import type { ShadowHit } from './wards.ts'
 import type { Waypoints } from './waypoints.ts'
@@ -900,6 +906,9 @@ export type ValleyAction =
   | { type: 'hit'; id: string; by: ShadowHit; roll?: number }
   // Rule 24: a fall landed from `height` metres, by the client's word.
   | { type: 'plunge'; id: string; height: number }
+  // Rule 24: run down by the traffic's `kind` at `speed` m/s, by the
+  // client's word.
+  | { type: 'run-over'; id: string; kind: VehicleKind; speed: number }
   // Rule 24: a use of `kind` giving its share back, or made whole (no
   // kind: a forecourt).
   | { type: 'mend'; id: string; kind?: string }
@@ -1757,6 +1766,8 @@ function act(
       return onHit(valley, action, context)
     case 'plunge':
       return onPlunge(valley, action, context)
+    case 'run-over':
+      return onRunOver(valley, action, context)
     case 'pass':
       return onPass(valley, action, context)
     case 'dose':
@@ -2686,6 +2697,23 @@ function onPlunge(
   const damage = fallDamage(action.height, maxFor(valley, account))
   if (damage === 0) return done(valley, now, { broadcast: [] })
   return hurt(valley, account, now, { by: 'fall', damage, warded: 0 })
+}
+
+function onRunOver(
+  valley: Valley,
+  action: ActionOf<'run-over'>,
+  { now }: ValleyContext
+): Reduced {
+  // Rule 24: run down, no ward cutting it. A raider on the phone, or in
+  // the bed of the truck, stands in no road.
+  const member = valley.members[action.id]
+  if (!member || member.dialup || inTheBed(valley, action.id)) {
+    return done(valley, now, { broadcast: [] })
+  }
+  const { account } = member
+  const max = maxFor(valley, account)
+  const damage = vehicleDamage(action.kind, action.speed, max)
+  return hurt(valley, account, now, { by: 'vehicle', damage, warded: 0 })
 }
 
 // Rule 24: `struck` off the account's geometrie; the last of it shatters
