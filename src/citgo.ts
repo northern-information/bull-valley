@@ -20,8 +20,8 @@ import type { Part } from './assetkit.ts'
 import type { Vec3 } from './interfaces.ts'
 import type { StoreFinish, StoreSign } from './store.ts'
 
-// The Citgo station every fuel point wears: the road sign, the station
-// layout, the store shell and its finishes, the wall signs, the shelf
+// The Citgo station every fuel point wears: the road sign and its price
+// board, the station layout, the store shell and its finishes, the wall signs, the shelf
 // display and the locker doors, the pumps, the trash cans and the canopy.
 
 // --- Citgo station -------------------------------------------------------
@@ -47,6 +47,43 @@ function makeCitgoSignTexture(): THREE.CanvasTexture {
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
   ctx.fillText('CITGO', 64, 64)
+  return new THREE.CanvasTexture(canvas)
+}
+
+// The price board under the road sign: a lit white panel of changeable
+// black letters, a grade and its price on each row, the tenths in small
+// figures after. Painted trade dress, so it keeps its own face and stays
+// out of COPY.toml.
+const PRICES: readonly (readonly [string, string])[] = [
+  ['REGULAR', '1.19'],
+  ['PLUS', '1.29'],
+  ['SUPER', '1.39'],
+  ['DIESEL', '1.24'],
+]
+
+function makePriceBoardTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas')
+  canvas.width = 128
+  canvas.height = 96
+  const ctx = context2d(canvas)
+  ctx.fillStyle = '#e9e6dc'
+  ctx.fillRect(0, 0, 128, 96)
+  ctx.fillStyle = '#f26522'
+  ctx.fillRect(0, 0, 128, 4)
+  ctx.fillRect(0, 92, 128, 4)
+  ctx.fillStyle = '#16171a'
+  ctx.textBaseline = 'middle'
+  PRICES.forEach(([grade, price], row) => {
+    const y = 15 + row * 22
+    ctx.textAlign = 'left'
+    ctx.font = 'bold 11px sans-serif'
+    ctx.fillText(grade, 6, y)
+    ctx.textAlign = 'right'
+    ctx.font = 'bold 20px sans-serif'
+    ctx.fillText(price, 112, y + 1)
+    ctx.font = 'bold 9px sans-serif'
+    ctx.fillText('9', 122, y - 4)
+  })
   return new THREE.CanvasTexture(canvas)
 }
 
@@ -77,6 +114,8 @@ export const FUEL_LAYOUT = {
   signDistance: 10,
   signAlong: 8,
   signHeight: 7,
+  // The price board hangs on the pole this far under the sign's middle.
+  priceDrop: 2.05,
   glowScale: 9,
   // Along local X from the store front to the road centreline (the sample
   // stops at the road edge); halfWidth spans local Z, room to park either
@@ -585,6 +624,18 @@ export function fuelStationParts() {
       material: (() => {
         const face = applyPS1(
           new THREE.MeshBasicMaterial({ map: makeCitgoSignTexture() })
+        )
+        const edge = lambert({ color: '#454b54' })
+        return [edge, edge, edge, edge, face, face]
+      })(),
+    },
+    // The price board under it, built the same way, the pole inside it.
+    priceBoard: {
+      name: 'price-board',
+      geometry: new THREE.BoxGeometry(2.4, 1.8, 0.32),
+      material: (() => {
+        const face = applyPS1(
+          new THREE.MeshBasicMaterial({ map: makePriceBoardTexture() })
         )
         const edge = lambert({ color: '#454b54' })
         return [edge, edge, edge, edge, face, face]

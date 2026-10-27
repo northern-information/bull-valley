@@ -111,6 +111,7 @@ export function buildFuelStations(
   )
   const signPoles = instanced(parts.signPole, count)
   const signs = instanced(parts.sign, count)
+  const priceBoards = instanced(parts.priceBoard, count)
   const lots = makeRibbonAccumulator(ground)
 
   const dummy = new THREE.Object3D()
@@ -196,7 +197,7 @@ export function buildFuelStations(
       }
     })
 
-    // Tall road sign out front, at the lot's corner.
+    // Tall road sign out front, at the lot's corner, its prices under it.
     const sx = x + cos * L.signDistance - sin * L.signAlong
     const sz = z + sin * L.signDistance + cos * L.signAlong
     const sy = ground.at(sx, sz)
@@ -206,6 +207,9 @@ export function buildFuelStations(
     dummy.position.set(sx, sy + L.signHeight, sz)
     dummy.updateMatrix()
     signs.setMatrixAt(i, dummy.matrix)
+    dummy.position.set(sx, sy + L.signHeight - L.priceDrop, sz)
+    dummy.updateMatrix()
+    priceBoards.setMatrixAt(i, dummy.matrix)
     const sprite = makeGlowSprite(parts.glow, L.glowScale)
     sprite.position.set(sx, sy + L.signHeight, sz)
     group.add(sprite)
@@ -219,6 +223,7 @@ export function buildFuelStations(
     ...trashCans,
     signPoles,
     signs,
+    priceBoards,
   ]) {
     mesh.instanceMatrix.needsUpdate = true
     group.add(mesh)

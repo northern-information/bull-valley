@@ -249,6 +249,10 @@ function sampleFuelStation(): THREE.Group {
     p.canopy,
     { ...p.signPole, position: [L.signDistance, 0, L.signAlong] },
     { ...p.sign, position: [L.signDistance, L.signHeight, L.signAlong] },
+    {
+      ...p.priceBoard,
+      position: [L.signDistance, L.signHeight - L.priceDrop, L.signAlong],
+    },
   ]
   for (const off of L.canopyPoles) {
     parts.push({ ...p.canopyPole, position: [0, 0, off] })
