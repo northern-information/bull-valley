@@ -4,7 +4,8 @@ import type { Page } from '@playwright/test'
 
 // The Undercroft: down the trapdoor in the Video Vault's office to the old
 // stone under Bull Valley Plaza, where the tunnel shades walk (rule 11)
-// and the altar keeps a bar of gold a day (rule 4); and back up.
+// and the altar keeps a bar of gold a day (rule 4), and no fast travel
+// leaves; and back up.
 
 // The prompt as shown: a hidden one keeps the last text it showed (the
 // ladder's own, from the climb down), so a check on its text alone can
@@ -68,6 +69,16 @@ test('the trapdoor goes down to the Undercroft, its gold, and back up', async ({
   await expect
     .poll(() => page.evaluate(() => window.__bv?.inventory['gold-bullion']))
     .toBe(1)
+
+  // No fast travel leaves it, portal phone or not.
+  await page.evaluate(() => window.__bv?.grant('citgo-phone', 1))
+  await expect
+    .poll(() => page.evaluate(() => window.__bv?.inventory['citgo-phone']))
+    .toBe(1)
+  const home = await page.evaluate(() => window.__bv?.citgos.last ?? 0)
+  await page.evaluate((i) => window.__bv?.fastTravel(i), home)
+  await expect(page.locator('.bv-chat')).toContainText(copy('log.travel_below'))
+  expect(await below(page)).toBe(true)
 
   // And back up the ladder.
   const foot = await page.evaluate(() => {

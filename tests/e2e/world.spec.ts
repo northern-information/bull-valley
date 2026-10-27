@@ -229,6 +229,18 @@ base.describe('one visit', { tag: '@raid' }, () => {
         copy('map.hint_charter')
       )
       await expect(page.locator('.bv-countdown')).toBeHidden()
+      // No fast travel from the bed, portal phone or not.
+      await page.evaluate(() => window.__bv?.grant('citgo-phone', 1))
+      await expect
+        .poll(() => page.evaluate(() => window.__bv?.inventory['citgo-phone']))
+        .toBe(1)
+      await page.evaluate(() =>
+        window.__bv?.fastTravel(window.__bv.citgos.last ?? 0)
+      )
+      await expect(page.locator('.bv-chat')).toContainText(
+        copy('log.travel_aboard')
+      )
+      expect(await aboard()).toBe(true)
       // E hops out with the map still open, and closes it.
       await page.keyboard.press('KeyE')
       await expect

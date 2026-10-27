@@ -250,11 +250,15 @@ function sampleFuelStation(): THREE.Group {
     p.canopy,
     { ...p.signPole, position: [L.signDistance, 0, L.signAlong] },
     { ...p.sign, position: [L.signDistance, L.signHeight, L.signAlong] },
+    {
+      ...p.priceBoard,
+      position: [L.signDistance, L.signHeight - L.priceDrop, L.signAlong],
+    },
   ]
-  for (const off of [L.canopyPoleOffset, -L.canopyPoleOffset]) {
+  for (const off of L.canopyPoles) {
     parts.push({ ...p.canopyPole, position: [0, 0, off] })
   }
-  for (const off of [L.pumpOffset, -L.pumpOffset]) {
+  for (const off of L.pumps) {
     for (const part of p.pump) parts.push({ ...part, position: [0, 0, off] })
     parts.push({ ...p.canopyLight, position: [0, 0, off] })
   }

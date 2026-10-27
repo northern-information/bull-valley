@@ -16,7 +16,7 @@ import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
 import { clamp01 } from './math.ts'
 import { mulberry32, range } from './rng.ts'
-import { CANOPY, STORE_LAYOUT } from './store.ts'
+import { CANOPY, PUMP_ISLANDS, STORE_LAYOUT } from './store.ts'
 import type { XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
 
@@ -47,8 +47,13 @@ const CANOPY_UNDER = CANOPY.height - CANOPY.thickness / 2
 // How far outside an edge a slurm falls.
 const DRIP = 0.12
 // Round the canopy's corners, clear of its edge, on the way to the far
-// side (so Carlsten never walks through the pump island).
+// side (so Carlsten never walks through a pump island).
 const CORNER = { x: CANOPY_X + 0.7, z: CANOPY_Z + 0.9 }
+// The walks across under the canopy, between one island's end poles and
+// the next's.
+const ISLAND_GAPS = PUMP_ISLANDS.slice(1).map(
+  (z, i) => (z + PUMP_ISLANDS[i]) / 2
+)
 
 export const DRIPLINES: Record<Dripline, DriplineSpec> = {
   // Along the storefront, either side of the door and clear of the trash
@@ -77,7 +82,7 @@ export const DRIPLINES: Record<Dripline, DriplineSpec> = {
     y: CANOPY_UNDER,
     out: { x: 1, z: 0 },
   },
-  // The ends, clear of the trash cans at the island's ends.
+  // The ends, clear of the trash cans past the ends of the bank.
   'canopy-left': {
     along: 'x',
     at: -CANOPY_Z - DRIP,
@@ -235,16 +240,24 @@ export function slurmEvent(station: number, slot: number): SlurmEvent {
   }
 }
 
-// The way round the canopy to a far edge, nearest corner first; nothing
-// in the way of the store's side or the eave.
+// The way to a far edge of the canopy: round its nearest corner to an end,
+// and to the road side through the gap between islands (or past the end
+// of the bank) nearest the slurms; nothing in the way of the store's side
+// or the eave.
 function route(dripline: Dripline, slurms: readonly Slurm[]): XZ[] {
   if (dripline === 'eave' || dripline === 'canopy-store') return []
   const spec = DRIPLINES[dripline]
+  if (spec.along === 'x') {
+    return [{ x: -CORNER.x, z: Math.sign(spec.at) * CORNER.z }]
+  }
   const mean = slurms.reduce((sum, s) => sum + s.drip.z, 0) / slurms.length
-  const side = spec.along === 'x' ? Math.sign(spec.at) : mean < 0 ? -1 : 1
-  const near = { x: -CORNER.x, z: side * CORNER.z }
-  if (spec.along === 'x') return [near]
-  return [near, { x: CORNER.x, z: side * CORNER.z }]
+  const through = [-CORNER.z, ...ISLAND_GAPS, CORNER.z].reduce((a, b) =>
+    Math.abs(b - mean) < Math.abs(a - mean) ? b : a
+  )
+  return [
+    { x: -CORNER.x, z: through },
+    { x: CORNER.x, z: through },
+  ]
 }
 
 const distance = (a: XZ, b: XZ): number => Math.hypot(a.x - b.x, a.z - b.z)
