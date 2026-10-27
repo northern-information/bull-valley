@@ -38,11 +38,17 @@ export const DRIVE_IN = {
     projectorIn: 1,
   },
   // The stalls: a row at each of these, a stall every `pitch` across, out
-  // to `reach` either side. About `filled` of them hold a burnt-out car.
+  // to `reach` either side. `cars` of them hold a burnt-out car.
   rows: [-14, -5, 4, 13],
   pitch: 5.2,
   reach: 26,
-  filled: 0.55,
+  cars: 3,
+  // Tufts of weeds through the gravel: this many over the lot, and this
+  // many more crowded round each car, within `weedHug` of it. None inside
+  // the booth, which is kept empty.
+  weeds: 160,
+  weedsPerCar: 10,
+  weedHug: 3,
   // Each car blocks as a capsule this far either side of its middle, this
   // wide.
   carHalf: 1.9,
@@ -129,21 +135,60 @@ export function boothWalls(): { a: XZ; b: XZ; half: number }[] {
   ].map((w) => ({ ...w, half: wallHalf }))
 }
 
-// The burnt-out cars, drive-in-local, the same for everyone: a stall in
-// each row about `filled` of the time, each nosed roughly at the screen.
+// The burnt-out cars, drive-in-local, the same for everyone: DRIVE_IN.cars
+// stalls drawn from all the rows', each car nosed roughly at the screen.
 export function carSpots(): CarSpot[] {
   const rng = mulberry32(DRIVE_IN.seed)
-  const spots: CarSpot[] = []
   const stalls = Math.floor(DRIVE_IN.reach / DRIVE_IN.pitch)
+  const free: XZ[] = []
   for (const z of DRIVE_IN.rows) {
     for (let i = -stalls; i <= stalls; i++) {
-      const roll = rng()
-      const kind = CAR_KINDS[Math.floor(rng() * CAR_KINDS.length)]
-      const yaw = range(rng, -0.25, 0.25)
-      const jitter = range(rng, -0.4, 0.4)
-      const seed = Math.floor(rng() * 0xffffff)
-      if (roll > DRIVE_IN.filled) continue
-      spots.push({ x: i * DRIVE_IN.pitch, z: z + jitter, yaw, kind, seed })
+      free.push({ x: i * DRIVE_IN.pitch, z })
+    }
+  }
+  const spots: CarSpot[] = []
+  while (spots.length < DRIVE_IN.cars && free.length > 0) {
+    const [stall] = free.splice(Math.floor(rng() * free.length), 1)
+    spots.push({
+      x: stall.x,
+      z: stall.z + range(rng, -0.4, 0.4),
+      yaw: range(rng, -0.25, 0.25),
+      kind: CAR_KINDS[Math.floor(rng() * CAR_KINDS.length)],
+      seed: Math.floor(rng() * 0xffffff),
+    })
+  }
+  return spots
+}
+
+// Whether a drive-in-local point lies inside the booth, grown by `margin`.
+export function inBooth(p: XZ, margin = 0): boolean {
+  const { z, width, depth } = DRIVE_IN.booth
+  return (
+    Math.abs(p.x) <= width / 2 + margin &&
+    Math.abs(p.z - z) <= depth / 2 + margin
+  )
+}
+
+// The weeds through the gravel, drive-in-local, the same for everyone:
+// scattered over the lot and crowded round the cars, never in the booth.
+// Each with the yaw and the height it grows to.
+export function weedSpots(): (XZ & { yaw: number; scale: number })[] {
+  const rng = mulberry32(DRIVE_IN.seed ^ 0x3eed)
+  const { half } = CONFIG.driveIn
+  const spots: (XZ & { yaw: number; scale: number })[] = []
+  const grow = (x: number, z: number) => {
+    const p = { x, z }
+    if (Math.abs(x) > half.x || Math.abs(z) > half.z || inBooth(p, 0.3)) return
+    spots.push({ ...p, yaw: rng() * Math.PI * 2, scale: range(rng, 0.7, 1.6) })
+  }
+  for (let i = 0; i < DRIVE_IN.weeds; i++) {
+    grow(range(rng, -half.x, half.x), range(rng, -half.z, half.z))
+  }
+  for (const car of carSpots()) {
+    for (let i = 0; i < DRIVE_IN.weedsPerCar; i++) {
+      const a = rng() * Math.PI * 2
+      const r = range(rng, 1, DRIVE_IN.weedHug)
+      grow(car.x + Math.cos(a) * r, car.z + Math.sin(a) * r)
     }
   }
   return spots

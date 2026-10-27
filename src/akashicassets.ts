@@ -48,6 +48,7 @@ import {
   buildDriveInScreen,
   buildProjector,
   buildSpeakerPost,
+  buildWeedTuft,
 } from './driveinmodel.ts'
 import { buildTyler } from './figure.ts'
 import { buildFireRoots, buildRaincloud } from './fire.ts'
@@ -730,6 +731,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'speaker-post',
     label: 'A drive-in speaker post',
     build: () => buildSpeakerPost(3),
+  },
+  {
+    id: 'drive-in-weeds',
+    label: 'A tuft of weeds through the drive-in’s gravel',
+    build: () => buildWeedTuft(3),
   },
   {
     id: 'castle-entropy',
