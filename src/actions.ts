@@ -1877,6 +1877,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     switch (reason) {
       case 'aboard':
         return copy('log.portal_aboard')
+      case 'below':
+        return copy('log.portal_below')
       case 'at-citgo':
         return copy('log.portal_at_citgo')
       case 'no-citgo':
