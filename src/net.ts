@@ -90,7 +90,7 @@ interface NetIdentity {
   dealer: XZ | null
   // Where Gron stands (rule 26), or null.
   gron: XZ | null
-  // Where the Undercroft lies (rule 11: the tunnel shades), or null.
+  // Where the Undercroft lies (rule 11: the Undercroft's foes), or null.
   undercroft: MazePlace | null
   // Where the moat lies (rule 11: the ground the shadowmen walk), or null.
   moat: MazePlace | null

@@ -50,12 +50,12 @@ import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { TopiaryHealth } from './topiaries.ts'
 import type { TrafficLamp, VehicleKind } from './traffic.ts'
-import type { TunnelKind } from './tunnelshades.ts'
+import type { FoeKind } from './undercroftfoes.ts'
 import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 65
+export const PROTOCOL_VERSION = 66
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -324,7 +324,7 @@ export interface HelloMessage {
   // park (industrial.ts parkDisk), or null: the valley gives it only there.
   disk: XZ | null
   // Where the Undercroft lies (undercroft.ts), or null: the valley steps
-  // its tunnel shades in it (rule 11).
+  // its foes in it (rule 11).
   undercroft: MazePlace | null
   // Where Castle Entropy's moat lies (moat.ts castlePlace), or null: the
   // valley cuts it into the ground its shadowmen walk (rule 11).
@@ -1211,12 +1211,12 @@ export interface CaretakerWire {
   lunge?: true
 }
 
-// A tunnel shade in the Undercroft (tunnelshades.ts), or its Warden, as
+// A shadow rat in the Undercroft (undercroftfoes.ts), or its Warden, as
 // the valley sends it: its id, never reused, where it walks, how near a
 // beam has it to bursting (0 to 1), and the raider it hunts.
-export interface TunnelShadeWire {
+export interface UndercroftFoeWire {
   id: number
-  kind: TunnelKind
+  kind: FoeKind
   x: number
   z: number
   burn: number
@@ -1227,8 +1227,8 @@ export interface TunnelShadeWire {
 }
 
 // One that burst this step, or (tunnelWounds) took a hit it stands.
-export interface TunnelBurstWire extends XZ {
-  kind: TunnelKind
+export interface FoeBurstWire extends XZ {
+  kind: FoeKind
 }
 
 // Every step of the valley's shadowmen (CONFIG.shadowmen.tickHz a second),
@@ -1242,10 +1242,10 @@ export interface ShadowmenMessage {
   bursts: Burst[]
   caretaker: CaretakerWire | null
   burned: XZ | null
-  // The Undercroft's tunnel shades, and the ones that burst this step.
-  tunnel: TunnelShadeWire[]
-  tunnelBursts: TunnelBurstWire[]
-  tunnelWounds: TunnelBurstWire[]
+  // The Undercroft's foes, and the ones that burst this step.
+  tunnel: UndercroftFoeWire[]
+  tunnelBursts: FoeBurstWire[]
+  tunnelWounds: FoeBurstWire[]
 }
 
 // A shadow touched this raider, or they landed hard (sharedworld.ts rule

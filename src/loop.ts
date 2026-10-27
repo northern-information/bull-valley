@@ -50,7 +50,7 @@ import { formatCash } from './store.ts'
 import { isTopiaryGate } from './topiaries.ts'
 import { struckBy, throwOf } from './traffic.ts'
 import { tripBlur } from './trip.ts'
-import { burstHeight, burstScale } from './tunnelrig.ts'
+import { burstHeight, burstScale } from './undercroftfoesrig.ts'
 import { levelsAt } from './wardlevels.ts'
 import { wardView } from './wardview.ts'
 import { crawlingSlurms } from './world.ts'
@@ -449,7 +449,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
     return lit
   }
 
-  // The shadowmen, the Caretaker and the tunnel shades, the valley's,
+  // The shadowmen, the Caretaker and the Undercroft's foes, the valley's,
   // drawn a beat behind the present: their bursts and what they sound
   // like, and the mist. Their touches come in the valley's own frames.
   let fogStood = false
@@ -483,7 +483,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       const y = world.ground.at(at.x, at.z) + CONFIG.caretaker.chestHeight
       bursts.spawn(at.x, y, at.z)
     }
-    // And the tunnel shades in the Undercroft, the Warden among them.
+    // And the Undercroft's foes, the Warden among them.
     const tunnel = game.tunnel.update({
       dt,
       time,
@@ -884,7 +884,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
           .filter(
             (t) => Math.hypot(t.x - player.pos.x, t.z - player.pos.z) <= range
           )
-          .map((t) => (t.kind === 'warden' ? 'warden' : 'tunnel-shade')),
+          .map((t) => (t.kind === 'warden' ? 'warden' : 'shadow-rat')),
         ...itemsHeld(s.inventory),
       ])
     }

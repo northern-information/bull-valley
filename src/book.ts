@@ -139,10 +139,10 @@ const NAMED: readonly BookEntry[] = [
     lore: copy('book.caretaker.lore'),
   },
   {
-    id: 'tunnel-shade',
+    id: 'shadow-rat',
     chapter: 'shadows',
-    name: copy('book.tunnel-shade.name'),
-    lore: copy('book.tunnel-shade.lore'),
+    name: copy('book.shadow-rat.name'),
+    lore: copy('book.shadow-rat.lore'),
   },
   {
     id: 'warden',

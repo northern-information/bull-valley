@@ -109,24 +109,24 @@ describe('the fog wall', () => {
 
 describe('whether the Warden stands', () => {
   const frame = (
-    tunnel: ('shade' | 'warden')[],
-    bursts: ('shade' | 'warden')[] = []
+    tunnel: ('rat' | 'warden')[],
+    bursts: ('rat' | 'warden')[] = []
   ) => ({
     tunnel: tunnel.map((kind) => ({ kind })),
     tunnelBursts: bursts.map((kind) => ({ kind })),
   })
 
   it('stands once a frame shows it', () => {
-    expect(wardenStands(false, frame(['shade']))).toBe(false)
-    expect(wardenStands(false, frame(['shade', 'warden']))).toBe(true)
+    expect(wardenStands(false, frame(['rat']))).toBe(false)
+    expect(wardenStands(false, frame(['rat', 'warden']))).toBe(true)
   })
 
   it('stands yet while a hit has it in the dark', () => {
-    expect(wardenStands(true, frame(['shade']))).toBe(true)
+    expect(wardenStands(true, frame(['rat']))).toBe(true)
   })
 
-  it('falls when a frame says it burst, and not for a shade', () => {
+  it('falls when a frame says it burst, and not for a rat', () => {
     expect(wardenStands(true, frame([], ['warden']))).toBe(false)
-    expect(wardenStands(true, frame([], ['shade']))).toBe(true)
+    expect(wardenStands(true, frame([], ['rat']))).toBe(true)
   })
 })

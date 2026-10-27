@@ -1,118 +1,22 @@
 import * as THREE from 'three'
-import { lambert } from './assetkit.ts'
+import { adder, joint, lambert } from './assetkit.ts'
 import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
-import type { Vec3 } from './interfaces.ts'
+import type { FoeRig } from './assetkit.ts'
 
-// A tunnel shade (tunnelshades.ts): a hunched black shape low to the
-// stone, its long arms hanging, two pale eyes; or the Warden, a head and
-// a half taller than any raider and twice as broad, its face shut in a
-// riveted iron helm with one red slit and a padlock at the jaw, a black
-// coat over a butcher's apron, grey arms hanging past its knees, a
-// rusted cleaver dragged in one hand and a hooked chain in the other.
-// Origin at the floor under it, facing +Z. update takes how fast it is
-// walking (m/s): the Warden's heavy step is drawn from it, never a run.
-// setBurn pales it and shakes it as a beam burns it, and its arms thrash,
-// wilder the nearer it is to bursting; the Warden never flails, it
-// convulses: a tremor through all of it, its arms wrenched out and its
-// elbows locking in jerks it holds a beat, its head snapping back and
-// aside, its back arching and its knees giving.
-export interface TunnelShadeRig {
-  group: THREE.Group
-  update(t: number, speed?: number): void
-  setBurn(burn: number): void
-}
-
-const SHADE_BODY = new THREE.Color('#040405')
-const SHADE_PALE = new THREE.Color('#6a6e78')
-
-type Add = (
-  geometry: THREE.BufferGeometry,
-  material: THREE.Material,
-  at: Vec3,
-  turn?: Vec3,
-  parent?: THREE.Object3D
-) => THREE.Mesh
-
-function adder(group: THREE.Group): Add {
-  return (geometry, material, at, turn = [0, 0, 0], parent = group) => {
-    const mesh = new THREE.Mesh(geometry, material)
-    mesh.position.set(...at)
-    mesh.rotation.set(...turn)
-    parent.add(mesh)
-    return mesh
-  }
-}
-
-// A pivot at `at` under `parent`, for a limb or the head to turn on.
-function joint(parent: THREE.Object3D, at: Vec3, name: string): THREE.Group {
-  const pivot = new THREE.Group()
-  pivot.name = name
-  pivot.position.set(...at)
-  parent.add(pivot)
-  return pivot
-}
-
-export function buildTunnelShade(
-  kind: 'shade' | 'warden',
-  seed = 0x7e11
-): TunnelShadeRig {
-  return kind === 'warden' ? buildWarden(seed) : buildShade()
-}
-
-function buildShade(): TunnelShadeRig {
-  const group = new THREE.Group()
-  group.name = 'tunnel-shade'
-  const body = new THREE.MeshBasicMaterial({
-    color: SHADE_BODY,
-    transparent: true,
-    opacity: 0.94,
-  })
-  applyPS1(body)
-  const eyes = applyPS1(new THREE.MeshBasicMaterial({ color: '#d8e4ea' }))
-  const add = adder(group)
-  const sway: THREE.Mesh[] = []
-  // Hunched: a long tilted body, the head thrust forward low.
-  add(new THREE.ConeGeometry(0.42, 1.3, 6), body, [0, 0.65, -0.1], [0.5, 0, 0])
-  add(new THREE.IcosahedronGeometry(0.2, 0), body, [0, 1.15, 0.38])
-  for (const x of [-0.12, 0.12]) {
-    add(new THREE.BoxGeometry(0.05, 0.03, 0.02), eyes, [x * 0.6, 1.18, 0.56])
-  }
-  for (const x of [-0.32, 0.32]) {
-    sway.push(
-      add(
-        new THREE.BoxGeometry(0.07, 1.0, 0.07),
-        body,
-        [x, 0.6, 0.2],
-        [0.3, 0, x > 0 ? -0.15 : 0.15]
-      )
-    )
-  }
-  const base = sway.map((m) => m.rotation.x)
-  const tilt = sway.map((m) => m.rotation.z)
-  let thrash = 0
-  return {
-    group,
-    update(t) {
-      sway.forEach((m, i) => {
-        m.rotation.x =
-          base[i] +
-          Math.sin(t * 1.7 + i) * 0.12 +
-          Math.sin(t * 14 + i * 2) * 1.2 * thrash
-        m.rotation.z = tilt[i] + Math.sin(t * 10 + i) * 0.6 * thrash
-      })
-    },
-    setBurn(next) {
-      const burn = Math.max(0, Math.min(1, next))
-      thrash = burn * burn
-      body.color.copy(SHADE_BODY).lerp(SHADE_PALE, burn)
-      body.opacity = 0.94 - burn * 0.4
-    },
-  }
-}
+// The Warden (undercroftfoes.ts): a head and a half taller than any raider
+// and twice as broad, its face shut in a riveted iron helm with one red
+// slit and a padlock at the jaw, a black coat over a butcher's apron, grey
+// arms hanging past its knees, a rusted cleaver dragged in one hand and a
+// hooked chain in the other. Origin at the floor under it, facing +Z.
+// update takes how fast it is walking (m/s): its heavy step is drawn from
+// it, never a run. setBurn pales it and shakes it as a beam burns it; it
+// never flails, it convulses: a tremor through all of it, its arms
+// wrenched out and its elbows locking in jerks it holds a beat, its head
+// snapping back and aside, its back arching and its knees giving.
 
 // The Warden's finishes. The coat is unlit black, a hole in the dark the
-// way the shades are; the flesh, the leather and the iron are lit, so a
+// way the rats are; the flesh, the leather and the iron are lit, so a
 // flashlight finds the grey of its arms and the rust on its blade.
 const COAT = new THREE.Color('#050506')
 const FLESH = new THREE.Color('#77716a')
@@ -147,7 +51,7 @@ function spasm(t: number, every: number, odds: number, salt: number): number {
   return (hash(beat * 7 + salt) < 0.5 ? -1 : 1) * size * Math.max(0, hold)
 }
 
-function buildWarden(seed: number): TunnelShadeRig {
+export function buildWarden(seed = 0x7e11): FoeRig {
   const rng = mulberry32(seed)
   const group = new THREE.Group()
   group.name = 'warden'

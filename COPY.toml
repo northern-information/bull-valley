@@ -75,7 +75,7 @@ cell = { text = "{buff}, {time} left", by = "ai" }
 high = { text = "High: the shadowmen hit softer, and the flashlight reaches further and wider", by = "ai" }
 stimulated = { text = "Stimulated: the spiders hit softer, and the sprint runs faster", by = "ai" }
 drunk = { text = "Drunk: the Caretaker's lantern lands softer", by = "ai" }
-tripping = { text = "Tripping: the Undercroft's shades can't find all of you", by = "ai" }
+tripping = { text = "Tripping: the Undercroft's rats can't find all of you", by = "ai" }
 perception = { text = "Perception: the shadows show through the fog", by = "ai" }
 
 # The wards (src/wards.ts): each corner's name and the shadows it wards,
@@ -89,7 +89,7 @@ tripping = { text = "Tripping", by = "ai" }
 high_against = { text = "the shadowmen", by = "ai" }
 stimulated_against = { text = "the spiders", by = "ai" }
 drunk_against = { text = "the Caretaker", by = "ai" }
-tripping_against = { text = "the Undercroft's shades", by = "ai" }
+tripping_against = { text = "the Undercroft's rats", by = "ai" }
 card_dose = { text = "{ward} {dose}: wards against {against}", by = "ai" }
 card_lower = { text = "{ward} {dose}: brings it down", by = "ai" }
 
@@ -299,9 +299,9 @@ lore = { text = "Burn a shadow spider and it breaks into a brood of these: small
 name = { text = "The Caretaker", by = "ai" }
 lore = { text = "A hooded shade with a cold lantern who keeps the corn maze. One light does nothing to it. Two, held together, burn it, and it forms again at the heart.", by = "ai" }
 
-[book.tunnel-shade]
-name = { text = "Tunnel Shade", by = "ai" }
-lore = { text = "Hunched shapes that keep to the Undercroft's rooms, slower than you but patient. They see in the dark. Your light undoes them, and they come back.", by = "ai" }
+[book.shadow-rat]
+name = { text = "Shadow Rat", by = "ai" }
+lore = { text = "Rats as big as dogs, black as the stone they run on, that keep to the Undercroft's rooms. Slower than you but patient, and they see in the dark. A bite costs more than a shadowman's touch. Your light undoes them, and they come back.", by = "ai" }
 
 [book.warden]
 name = { text = "The Warden", by = "ai" }
@@ -1855,7 +1855,7 @@ ride_blurb = { text = "Out the back roads in the bed of the white Chevy, picking
 corn = { text = "Sweep the Corn", by = "ai" }
 corn_blurb = { text = "Down every path of the maze while the Caretaker floats the other way.", by = "ai" }
 undercroft = { text = "Down the Undercroft", by = "ai" }
-undercroft_blurb = { text = "Under the plaza, past the shades, to the Warden's altar and back.", by = "ai" }
+undercroft_blurb = { text = "Under the plaza, past the rats, to the Warden's altar and back.", by = "ai" }
 safe = { text = "Nothing out there lays a hand on you.", by = "ai" }
 risk_warded = { text = "{risk}% chance of coming back hurt; {ward} keeps it down.", by = "ai" }
 loot = { text = "Brings back {loot}.", by = "ai" }

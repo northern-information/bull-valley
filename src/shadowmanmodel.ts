@@ -70,12 +70,17 @@ const THRASH = {
 }
 const FLAKE = { cell: 0.035, holes: 0.16, boil: 0.07, hz: 9, burnt: 0.3 }
 
+// How much of a flaky body is holes, `burn` (0 to 1) into its burn.
+export function flakeAmount(burn: number): number {
+  return FLAKE.holes + FLAKE.burnt * burn
+}
+
 // The smoke: how many puffs a body gives off, how long each climbs, how
 // far (in heights of a body), how big (metres, the same for every body,
 // since they share the material), and how dark.
 const SMOKE = { puffs: 18, seconds: 2.6, rise: 0.3, size: 0.45, shade: 0.17 }
 
-interface Flakes {
+export interface Flakes {
   time: { value: number }
   amount: { value: number }
 }
@@ -83,8 +88,11 @@ interface Flakes {
 // Holes punched through a material: each cell of its parts' own space
 // is dropped by a hash of the cell and the body's seed, so the holes ride
 // the limbs and look the same on every client. Laid over whatever the
-// material compiles to already (ps1.ts applyPS1's wobble).
-function flaky(material: THREE.Material, seed: number): Flakes {
+// material compiles to already (ps1.ts applyPS1's wobble). The shadowmen's
+// and the shadow rats' (ratmodel.ts), so every shadow of the
+// kind is flaky the same way: set `time` each frame and `amount` from
+// `flakeAmount` as it burns.
+export function flaky(material: THREE.Material, seed: number): Flakes {
   const flakes: Flakes = {
     time: { value: 0 },
     amount: { value: FLAKE.holes },
@@ -163,6 +171,80 @@ function smokeMaterialOf(): THREE.PointsMaterial {
   return smokeMaterial
 }
 
+// The smoke off a shadow: `puffs` puffs leaving from anywhere in the box
+// `from` (metres, the body's own), each on its own beat from `seed`,
+// thick as it leaves and thinning to nothing as it climbs `rise` metres,
+// drifting up to `drift` metres aside (half that front to back). update
+// takes the body's clock and how far it is burnt, which pales the smoke.
+export interface ShadowSmoke {
+  points: THREE.Points
+  update(time: number, burn: number): void
+  dispose(): void
+}
+
+export function buildShadowSmoke({
+  seed,
+  puffs: count = SMOKE.puffs,
+  from,
+  rise,
+  drift,
+}: {
+  seed: number
+  puffs?: number
+  from: { min: [number, number, number]; max: [number, number, number] }
+  rise: number
+  drift: number
+}): ShadowSmoke {
+  const puffs = Array.from({ length: count }, (_, k) => {
+    const rng = mulberry32(seed + k * 7919)
+    return {
+      offset: (k + rng()) / count,
+      x: range(rng, from.min[0], from.max[0]),
+      y: range(rng, from.min[1], from.max[1]),
+      z: range(rng, from.min[2], from.max[2]),
+      drift: range(rng, -drift, drift),
+    }
+  })
+  const geometry = new THREE.BufferGeometry()
+  geometry.setAttribute(
+    'position',
+    new THREE.BufferAttribute(new Float32Array(puffs.length * 3), 3)
+  )
+  geometry.setAttribute(
+    'color',
+    new THREE.BufferAttribute(new Float32Array(puffs.length * 4), 4)
+  )
+  const points = new THREE.Points(geometry, smokeMaterialOf())
+  points.name = 'shadow-smoke'
+  // The puffs move every frame; their bounds would go stale.
+  points.frustumCulled = false
+  return {
+    points,
+    update(time, burn) {
+      const at = geometry.getAttribute('position') as THREE.BufferAttribute
+      const color = geometry.getAttribute('color') as THREE.BufferAttribute
+      const shade = SMOKE.shade + 0.25 * burn
+      puffs.forEach((puff, i) => {
+        const age = time / SMOKE.seconds + puff.offset
+        const life = age - Math.floor(age)
+        at.setXYZ(
+          i,
+          puff.x + puff.drift * life,
+          puff.y + rise * life,
+          puff.z + puff.drift * life * 0.5
+        )
+        const alpha = 0.7 * Math.min(1, life * 5) * (1 - life)
+        color.setXYZW(i, shade, shade, shade * 1.1, alpha)
+      })
+      at.needsUpdate = true
+      color.needsUpdate = true
+    },
+    dispose() {
+      geometry.dispose()
+    },
+  }
+}
+
 // How tall the shadow outfit stands at scale 1, hood and all: measured
 // once, so a body can be scaled to any height.
 let natural = 0
@@ -239,30 +321,18 @@ export function buildShadowman(height = 2.8, seed = 0xd06): ShadowmanRig {
 
   // The smoke: puffs rising off it from anywhere on the body, each on its
   // own beat, thick as it leaves and thinning to nothing as it climbs.
-  const puffs = Array.from({ length: SMOKE.puffs }, (_, k) => {
-    const rng = mulberry32(seed + k * 7919)
-    return {
-      offset: (k + rng()) / SMOKE.puffs,
-      x: range(rng, -0.18, 0.18),
-      y: range(rng, 0.25, 0.95),
-      z: range(rng, -0.1, 0.1),
-      drift: range(rng, -0.25, 0.25),
-    }
+  const wide = height * 0.4
+  const smoke = buildShadowSmoke({
+    seed,
+    from: {
+      min: [-0.18 * wide, 0.25 * height, -0.1 * wide],
+      max: [0.18 * wide, 0.95 * height, 0.1 * wide],
+    },
+    rise: SMOKE.rise * height,
+    drift: 0.25 * wide,
   })
-  const smokeGeo = new THREE.BufferGeometry()
-  smokeGeo.setAttribute(
-    'position',
-    new THREE.BufferAttribute(new Float32Array(puffs.length * 3), 3)
-  )
-  smokeGeo.setAttribute(
-    'color',
-    new THREE.BufferAttribute(new Float32Array(puffs.length * 4), 4)
-  )
-  const smoke = new THREE.Points(smokeGeo, smokeMaterialOf())
-  smoke.name = 'shadowman-smoke'
-  // The puffs move every frame; their bounds would go stale.
-  smoke.frustumCulled = false
-  group.add(smoke)
+  smoke.points.name = 'shadowman-smoke'
+  group.add(smoke.points)
 
   const crook = crookOf(seed)
   const scaled = height / RAIDER_HEIGHT
@@ -316,31 +386,14 @@ export function buildShadowman(height = 2.8, seed = 0xd06): ShadowmanRig {
       }
       skin.color.lerpColors(BODY, BURNING, burn)
       flakes.time.value = time + tremor
-      flakes.amount.value = FLAKE.holes + FLAKE.burnt * burn
-      const at = smokeGeo.getAttribute('position') as THREE.BufferAttribute
-      const color = smokeGeo.getAttribute('color') as THREE.BufferAttribute
-      const shade = SMOKE.shade + 0.25 * burn
-      puffs.forEach((puff, i) => {
-        const age = time / SMOKE.seconds + puff.offset
-        const life = age - Math.floor(age)
-        const rise = SMOKE.rise * life * height
-        at.setXYZ(
-          i,
-          (puff.x + puff.drift * life) * height * 0.4,
-          puff.y * height + rise,
-          (puff.z + puff.drift * life * 0.5) * height * 0.4
-        )
-        const alpha = 0.7 * Math.min(1, life * 5) * (1 - life)
-        color.setXYZW(i, shade, shade, shade * 1.1, alpha)
-      })
-      at.needsUpdate = true
-      color.needsUpdate = true
+      flakes.amount.value = flakeAmount(burn)
+      smoke.update(time, burn)
       aura.material.opacity = perception ? 0.5 * sight : 0
     },
     dispose() {
       skin.dispose()
       aura.material.dispose()
-      smokeGeo.dispose()
+      smoke.dispose()
     },
   }
 }

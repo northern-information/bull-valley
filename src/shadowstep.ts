@@ -1,7 +1,7 @@
 // The shadowmen's step over the valley (sharedworld.ts rule 11), pure like
 // the reducer whose Valley it reads: what the valley keeps of its shadows
 // in memory, the raiders they cross round, Marx's headlights and the traffic's lamps, one step of
-// the shadowmen, the Caretaker (rule 13) and the tunnel shades with what
+// the shadowmen, the Caretaker (rule 13) and the Undercroft's foes with what
 // it credits (rules 15, 16 and 22) and the grace it leaves (rule 24), each
 // raider's share of its frame, what the step reads of where raiders stand
 // (rules 24 and 28), and the dev server's placements.
@@ -32,23 +32,23 @@ import {
   wardsFor,
 } from './sharedworld.ts'
 import { lampBeams } from './traffic.ts'
-import {
-  createTunnelShades,
-  stepTunnelShades,
-  tunnelShadesAt,
-} from './tunnelshades.ts'
 import { inUndercroft } from './undercroft.ts'
+import {
+  createUndercroftFoes,
+  stepUndercroftFoes,
+  undercroftFoesAt,
+} from './undercroftfoes.ts'
 import type { Caretaker } from './caretaker.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
 import type { XpGrant } from './progression.ts'
 import type {
   CaretakerWire,
+  FoeBurstWire,
   PeerStateWire,
   ShadowmanWire,
   ShadowmenMessage,
-  TunnelBurstWire,
-  TunnelShadeWire,
+  UndercroftFoeWire,
 } from './protocol.ts'
 import type { Rng } from './rng.ts'
 import type { StairPath } from './shadowclimb.ts'
@@ -65,7 +65,7 @@ import type {
 } from './shadowmen.ts'
 import type { Valley } from './sharedworld.ts'
 import type { TrafficLamp } from './traffic.ts'
-import type { TunnelBurst, TunnelShade, TunnelUpdate } from './tunnelshades.ts'
+import type { FoeBurst, FoeUpdate, UndercroftFoe } from './undercroftfoes.ts'
 import type { ShadowHit } from './wards.ts'
 
 // The valley's shadowmen, in the server's memory: the field, the
@@ -75,7 +75,7 @@ import type { ShadowHit } from './wards.ts'
 export interface Shadows {
   field: ShadowmenField
   caretaker: Caretaker
-  tunnel: TunnelShade[]
+  tunnel: UndercroftFoe[]
   recovering: Record<string, number>
   headlights: { pose: TruckPose; at: number } | null
   // The traffic's lamps, by the socket that last told of them (traffic.ts),
@@ -87,7 +87,7 @@ export function createShadows(): Shadows {
   return {
     field: createShadowmen(),
     caretaker: createCaretaker(),
-    tunnel: createTunnelShades(),
+    tunnel: createUndercroftFoes(),
     recovering: {},
     headlights: null,
     traffic: {},
@@ -341,10 +341,10 @@ function shadowmanWire(s: Shadowman, cfg: ShadowmenConfig): ShadowmanWire {
 }
 
 function tunnelWire(
-  shades: TunnelShade[],
+  foes: UndercroftFoe[],
   croft: MazePlace
-): TunnelShadeWire[] {
-  return tunnelShadesAt(shades, croft).map((s) => ({
+): UndercroftFoeWire[] {
+  return undercroftFoesAt(foes, croft).map((s) => ({
     id: s.id,
     kind: s.kind,
     x: round(s.world.x, 2),
@@ -355,18 +355,18 @@ function tunnelWire(
   }))
 }
 
-// Where a tunnel shade burst or took a hit, as the wire carries it.
-function tunnelSpot(b: TunnelBurstWire): TunnelBurstWire {
+// Where a shadow rat burst or took a hit, as the wire carries it.
+function tunnelSpot(b: FoeBurstWire): FoeBurstWire {
   return { kind: b.kind, x: round(b.x, 2), z: round(b.z, 2) }
 }
 
 // Rules 16 and 22: what the step's bursts credit, and the XP they and a
-// burned Caretaker earn. A tunnel shade burnt is a shadow burnt; a
+// burned Caretaker earn. A shadow rat burnt is a shadow burnt; a
 // spiderling earns nothing, since a spider's brood would farm it.
 function burnCredits(
   valley: Valley,
   bursts: ShadowmenUpdate['bursts'],
-  tunnelBursts: readonly TunnelBurst[],
+  tunnelBursts: readonly FoeBurst[],
   credited: readonly string[]
 ): { burned: string[]; xp: XpGrant[] } {
   const shadows = bursts.filter((b) => b.kind !== 'spiderling')
@@ -397,7 +397,7 @@ export function shadeHavens(
   ]
 }
 
-// One step of the valley's shadowmen, its Caretaker and its tunnel shades,
+// One step of the valley's shadowmen, its Caretaker and its foes,
 // dt seconds on. Null when there is nothing to step (no world, or no one
 // placed in it), and the field is emptied, so the valley stops stepping
 // until someone is placed again. `ground` is the valley's
@@ -431,7 +431,7 @@ export function stepShadows(
     Object.assign(shadows, createShadows())
     return null
   }
-  // Rule 11: a raider in the Undercroft is the tunnel shades' alone.
+  // Rule 11: a raider in the Undercroft is the Undercroft's foes' alone.
   const croft = world.undercroft
   const surface = croft
     ? raiders.filter((r) => !inUndercroft(croft, r, CROFT_MARGIN))
@@ -457,8 +457,13 @@ export function stepShadows(
   const keeper = world.maze
     ? stepKeeper(valley, shadows, rng, world.maze, surface, dt)
     : { caretaker: null, burned: null, caught: [], credited: [] }
-  const tunnel: TunnelUpdate = croft
-    ? stepTunnelShades(shadows.tunnel, rng, { dt, raiders, place: croft, calm })
+  const tunnel: FoeUpdate = croft
+    ? stepUndercroftFoes(shadows.tunnel, rng, {
+        dt,
+        raiders,
+        place: croft,
+        calm,
+      })
     : { struck: [], strikers: {}, bursts: [], wounds: [] }
   for (const id of [...keeper.caught, ...tunnel.struck]) {
     if (!struck.includes(id)) struck.push(id)

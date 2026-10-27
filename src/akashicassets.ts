@@ -114,6 +114,7 @@ import {
   GUITAR_OUTLINE,
 } from './props.ts'
 import { applyPS1 } from './ps1.ts'
+import { buildRat } from './ratmodel.ts'
 import { buildRecycler } from './recyclermodel.ts'
 import { mulberry32, range } from './rng.ts'
 import {
@@ -149,8 +150,8 @@ import {
   buildVehicle,
   LIVERIES,
 } from './trafficmodels.ts'
-import { buildTunnelShade } from './tunnelshademodel.ts'
 import { buildTrapdoor, buildUndercroft } from './undercroftmodel.ts'
+import { buildWarden } from './wardenmodel.ts'
 import { buildWeedTuft } from './weeds.ts'
 import { buildWreck } from './wreck.ts'
 import { buildClutter, buildLightTower } from './yardprops.ts'
@@ -884,11 +885,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildWorksProp({ kind: 'trailer', x: 0, z: 0, yaw: 0 }),
   },
   {
-    id: 'tunnel-shade',
-    label: 'A tunnel shade',
+    id: 'shadow-rat',
+    label: 'A shadow rat, scurrying',
     build: () => {
-      const rig = buildTunnelShade('shade')
-      setMotion(rig.group, (t) => rig.update(t))
+      const rig = buildRat()
+      setMotion(rig.group, (t) => rig.update(t, CONFIG.tunnel.rat.patrolSpeed))
       return rig.group
     },
   },
@@ -896,7 +897,7 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'warden',
     label: 'The Warden',
     build: () => {
-      const rig = buildTunnelShade('warden')
+      const rig = buildWarden()
       // Walking its chamber, at its patrol.
       setMotion(rig.group, (t) =>
         rig.update(t, CONFIG.tunnel.warden.patrolSpeed)
@@ -975,14 +976,14 @@ export const WORLD_ASSETS: AkashicAsset[] = [
       return rig.group
     },
   },
-  ...(['shade', 'warden'] as const).map((kind) => ({
-    id: `${kind === 'shade' ? 'tunnel-shade' : 'warden'}-burning`,
+  ...(['rat', 'warden'] as const).map((kind) => ({
+    id: `${kind === 'rat' ? 'shadow-rat' : 'warden'}-burning`,
     label:
-      kind === 'shade'
-        ? 'A tunnel shade: burning in a beam, thrashing'
+      kind === 'rat'
+        ? 'A shadow rat: burning in a beam, thrashing'
         : 'The Warden: burning in a beam, convulsing',
     build: () => {
-      const rig = buildTunnelShade(kind)
+      const rig = kind === 'rat' ? buildRat() : buildWarden()
       setMotion(rig.group, (t) => {
         rig.setBurn(burnLoopAt(t))
         rig.update(t)

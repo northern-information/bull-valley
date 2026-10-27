@@ -3373,7 +3373,7 @@ describe('rule 15: the season', () => {
   })
 })
 
-describe('rule 11, below: the tunnel shades walk the Undercroft', () => {
+describe('rule 11, below: the foes walk the Undercroft', () => {
   const CROFT = { x: -7000, z: -7000, yaw: 0 }
   // A spot in the Undercroft, in its own metres, in the world.
   const below = (p: { x: number; z: number }) => ({
@@ -3425,10 +3425,10 @@ describe('rule 11, below: the tunnel shades walk the Undercroft', () => {
       strikers = out?.strikers ?? {}
     }
     expect(struck).toEqual(['a'])
-    expect(strikers).toEqual({ a: 'shade' })
+    expect(strikers).toEqual({ a: 'rat' })
   })
 
-  it("credits a burn and XP for a shade burst in a raider's beam", () => {
+  it("credits a burn and XP for a rat burst in a raider's beam", () => {
     const v = valley()
     const shadows = createShadows()
     let bursts: { kind: string }[] = []
@@ -3444,10 +3444,14 @@ describe('rule 11, below: the tunnel shades walk the Undercroft', () => {
     let shade = first?.message.tunnel[0]
     if (!shade) throw new Error('no shade')
     for (let i = 1; i < 100 && bursts.length === 0; i++) {
-      // A step off the shade, its light on it.
+      // A step off the rat, its light down on it.
       const from = { x: shade.x + 1.5, z: shade.z }
       const yaw = Math.atan2(shade.x - from.x, shade.z - from.z) + Math.PI
-      const at = { ...state(from), yaw, pitch: -0.15, light: true }
+      const pitch = -Math.atan2(
+        CONFIG.player.eyeHeight - CONFIG.tunnel.rat.chestHeight,
+        1.5
+      )
+      const at = { ...state(from), yaw, pitch, light: true }
       const out = stepShadows(v, shadows, [{ id: 'a', at }], mulberry32(i), {
         now: T0 + i * 100,
         dt: 0.1,
@@ -3464,7 +3468,7 @@ describe('rule 11, below: the tunnel shades walk the Undercroft', () => {
     expect(xp).toContainEqual({ account: 'acct-a', source: 'burn' })
   })
 
-  it('leaves the shades still in a world opened without the Undercroft', () => {
+  it('leaves the foes still in a world opened without the Undercroft', () => {
     const v = valleyWith(join('a')).valley
     const out = stepShadows(
       v,

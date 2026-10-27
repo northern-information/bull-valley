@@ -629,7 +629,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
       copy(
         by === 'caretaker'
           ? 'log.caught'
-          : by === 'shade' || by === 'warden'
+          : by === 'rat' || by === 'warden'
             ? 'log.tunneled'
             : by === 'fall'
               ? 'log.plunged'

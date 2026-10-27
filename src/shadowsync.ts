@@ -1,5 +1,5 @@
 // Pure: the valley's shadowmen as this client draws them (and the
-// Undercroft's tunnel shades, tunnelrig.ts, on the same terms). The valley
+// Undercroft's foes, undercroftfoesrig.ts, on the same terms). The valley
 // sends every step (sharedworld.ts rule 11); the client keeps the last few
 // seconds of them (framebuffer.ts) and draws a beat behind the present,
 // between the two frames either side of that moment, the way it draws

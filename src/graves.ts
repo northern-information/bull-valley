@@ -22,7 +22,7 @@ export interface Burial extends XZ {
 }
 
 // Names for the shadowmen that burst at `bursts`, one each. Only a
-// shadowman is buried: a spider, a spiderling, a tunnel shade or the
+// shadowman is buried: a spider, a spiderling, a shadow rat or the
 // Warden leaves no stone.
 export function burialsOf(
   bursts: readonly (XZ & { kind: ShadeKind })[],

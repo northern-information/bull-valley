@@ -72,7 +72,7 @@ const PORTRAITS: Partial<Record<string, () => THREE.Object3D>> = {
   'strip-mall': worldAsset('plaza-sign'),
   undercroft: worldAsset('trapdoor'),
   industrial: worldAsset('park-sign'),
-  'tunnel-shade': worldAsset('tunnel-shade'),
+  'shadow-rat': worldAsset('shadow-rat'),
   warden: worldAsset('warden'),
   'donut-field': buildTruckMesh,
   'corn-maze': worldAsset('corn-maze-sign'),
