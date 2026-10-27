@@ -161,7 +161,13 @@ describe('the charter', () => {
   })
 
   it('asks the first one in where to until the pick is made', () => {
-    const asking: Leg = { ...parked(T0 + 120_000), picking: true }
+    const asking: Leg = {
+      kind: 'parked',
+      at: T0,
+      from: null,
+      leavesAt: T0 + 120_000,
+      picking: true,
+    }
     const two = world(asking, ['a', 'b']).truck
     expect(askedWhereTo(two, 'a')).toBe(true)
     expect(askedWhereTo(two, 'b')).toBe(false)
@@ -182,7 +188,13 @@ describe('the countdown', () => {
     expect(countdown(world({ kind: 'joyride', at: T0 }).truck, T0)).toBeNull()
     expect(countdown(null, T0)).toBeNull()
     // Still picking where he goes: no countdown yet.
-    const asking: Leg = { ...parked(T0 + 120_000), picking: true }
+    const asking: Leg = {
+      kind: 'parked',
+      at: T0,
+      from: null,
+      leavesAt: T0 + 120_000,
+      picking: true,
+    }
     expect(countdown(world(asking, ['a']).truck, T0)).toBeNull()
   })
 
