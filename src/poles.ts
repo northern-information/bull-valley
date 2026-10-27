@@ -17,11 +17,15 @@ import type { Walls } from './walls.ts'
 // draw every pole, every frame.
 const TILE = 1000
 
-function byTile<T>(items: readonly T[], at: (item: T) => XZ): T[][] {
+export function byTile<T>(
+  items: readonly T[],
+  at: (item: T) => XZ,
+  tile = TILE
+): T[][] {
   const tiles = new Map<string, T[]>()
   for (const item of items) {
     const { x, z } = at(item)
-    const key = `${Math.floor(x / TILE)},${Math.floor(z / TILE)}`
+    const key = `${Math.floor(x / tile)},${Math.floor(z / tile)}`
     let list = tiles.get(key)
     if (!list) {
       list = []

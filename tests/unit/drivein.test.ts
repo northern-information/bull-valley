@@ -9,6 +9,7 @@ import {
   driveInToWorld,
   filmTitle,
   filmUrl,
+  inBooth,
   isFilmName,
   offReel,
   onDriveIn,
@@ -17,6 +18,7 @@ import {
   reelSeconds,
   screenVolume,
   speakerPosts,
+  weedSpots,
 } from '../../src/drivein.ts'
 import { inMaze, mazeToWorld } from '../../src/maze.ts'
 
@@ -88,7 +90,10 @@ describe('the drive-in', () => {
   it('parks the same burnt-out cars for everyone, in the rows, on the lot', () => {
     const cars = carSpots()
     expect(carSpots()).toEqual(cars)
-    expect(cars.length).toBeGreaterThan(10)
+    expect(cars).toHaveLength(DRIVE_IN.cars)
+    expect(new Set(cars.map((c) => c.x + ',' + Math.round(c.z))).size).toBe(
+      cars.length
+    )
     const { half } = CONFIG.driveIn
     for (const car of cars) {
       expect(Math.abs(car.x)).toBeLessThanOrEqual(DRIVE_IN.reach)
@@ -110,6 +115,32 @@ describe('the drive-in', () => {
       // Between stalls, never in one.
       expect(Math.abs((post.x / DRIVE_IN.pitch) % 1)).toBeCloseTo(0.5)
     }
+  })
+})
+
+describe('the weeds', () => {
+  it('grows the same weeds for everyone, on the lot, none in the booth', () => {
+    const weeds = weedSpots()
+    expect(weedSpots()).toEqual(weeds)
+    expect(weeds.length).toBeGreaterThan(DRIVE_IN.weeds / 2)
+    const { half } = CONFIG.driveIn
+    for (const weed of weeds) {
+      expect(Math.abs(weed.x)).toBeLessThanOrEqual(half.x)
+      expect(Math.abs(weed.z)).toBeLessThanOrEqual(half.z)
+      expect(inBooth(weed)).toBe(false)
+    }
+    // Some crowd round each car.
+    for (const car of carSpots()) {
+      const near = weeds.filter(
+        (w) => Math.hypot(w.x - car.x, w.z - car.z) <= DRIVE_IN.weedHug + 0.5
+      )
+      expect(near.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('knows the booth from the lot', () => {
+    expect(inBooth({ x: 0, z: DRIVE_IN.booth.z })).toBe(true)
+    expect(inBooth({ x: 0, z: 0 })).toBe(false)
   })
 })
 

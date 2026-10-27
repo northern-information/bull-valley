@@ -216,6 +216,7 @@ const PLACE_IDS: Record<Exclude<Place, 'elsewhere'>, readonly string[]> = {
     'projector',
     'speaker-post',
     'burnt-',
+    'weed-tuft',
   ],
   castle: [
     'castle-entropy',
