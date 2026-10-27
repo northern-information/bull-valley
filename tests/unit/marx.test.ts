@@ -21,8 +21,13 @@ import type { TruckState } from '../../src/marx.ts'
 
 const T0 = 1_000_000
 const SEC = 1000
-const { readSeconds, donutSeconds, countdownSeconds, donutHomeSeconds } =
-  CONFIG.truck
+const {
+  readSeconds,
+  donutSeconds,
+  countdownSeconds,
+  pickSeconds,
+  donutHomeSeconds,
+} = CONFIG.truck
 const ROUTES = { home: { x: 0, z: 0 }, joyrideMs: 600 * SEC }
 
 // The truck after `action`, which must not be refused.
@@ -99,13 +104,23 @@ describe("Marx's day", () => {
 })
 
 describe('the bed and the countdown', () => {
-  it('starts the countdown when the first raider climbs in, and keeps it', () => {
+  it('asks the first raider in where to, and starts the countdown at the pick', () => {
     let truck = ok(board(createTruck(T0), 'a', T0 + 10 * SEC))
-    const leaves = T0 + (10 + countdownSeconds) * SEC
-    expect(truck.leg).toMatchObject({ kind: 'parked', leavesAt: leaves })
+    // No countdown yet: he waits pickSeconds for the pick.
+    expect(truck.leg).toMatchObject({
+      kind: 'parked',
+      leavesAt: T0 + (10 + pickSeconds) * SEC,
+      picking: true,
+    })
     expect(truck.riders).toEqual(['a'])
-    // A second rider does not wind it back.
+    truck = ok(charter(truck, 'a', null, T0 + 20 * SEC, false))
+    const leaves = T0 + (20 + countdownSeconds) * SEC
+    expect(truck.leg).toMatchObject({ kind: 'parked', leavesAt: leaves })
+    expect(truck.leg).not.toHaveProperty('picking')
+    // A second rider does not wind it back, nor a second pick.
     truck = ok(board(truck, 'b', T0 + 30 * SEC))
+    expect(truck.leg).toMatchObject({ leavesAt: leaves })
+    truck = ok(charter(truck, 'a', null, T0 + 40 * SEC, false))
     expect(truck.leg).toMatchObject({ leavesAt: leaves })
     expect(truck.riders).toEqual(['a', 'b'])
     expect(board(truck, 'a', T0 + 31 * SEC)).toEqual({ refused: 'aboard' })
@@ -115,6 +130,7 @@ describe('the bed and the countdown', () => {
 
   it('stops the countdown when the bed is empty again', () => {
     let truck = ok(board(createTruck(T0), 'a', T0))
+    truck = ok(charter(truck, 'a', null, T0, false))
     truck = ok(board(truck, 'b', T0))
     truck = ok(hopOut(truck, 'a'))
     expect(truck.leg).toMatchObject({ leavesAt: T0 + countdownSeconds * SEC })
@@ -123,8 +139,39 @@ describe('the bed and the countdown', () => {
     expect(hopOut(truck, 'b')).toEqual({ refused: 'not-aboard' })
   })
 
-  it('leaves on the joyride with whoever is aboard, and lets them off at home', () => {
+  it('hands the pick to the next one in when the first gets out before picking', () => {
+    let truck = ok(board(createTruck(T0), 'a', T0))
+    truck = ok(board(truck, 'b', T0 + SEC))
+    truck = ok(hopOut(truck, 'a'))
+    expect(truck.riders).toEqual(['b'])
+    expect(truck.leg).toMatchObject({ picking: true })
+    truck = ok(charter(truck, 'b', null, T0 + 5 * SEC, false))
+    expect(truck.leg).toMatchObject({
+      leavesAt: T0 + (5 + countdownSeconds) * SEC,
+    })
+    // The last one out before a pick leaves no question behind.
+    const asked = ok(hopOut(ok(board(createTruck(T0), 'a', T0)), 'a'))
+    expect(asked.leg).toEqual({
+      kind: 'parked',
+      at: T0,
+      from: null,
+      leavesAt: null,
+    })
+  })
+
+  it('takes the joyride when no pick comes', () => {
     const truck = ok(board(createTruck(T0), 'a', T0))
+    const gives = T0 + pickSeconds * SEC
+    expect(nextChange(truck, ROUTES)).toBe(gives)
+    const out = settleTruck(truck, gives, ROUTES)
+    expect(out.changes).toEqual(['depart'])
+    expect(out.truck.leg).toEqual({ kind: 'joyride', at: gives })
+  })
+
+  it('leaves on the joyride with whoever is aboard, and lets them off at home', () => {
+    const truck = ok(
+      charter(ok(board(createTruck(T0), 'a', T0)), 'a', null, T0, false)
+    )
     const leaves = T0 + countdownSeconds * SEC
     const out = settleTruck(truck, leaves, ROUTES)
     expect(out.changes).toEqual(['depart'])
@@ -194,7 +241,8 @@ describe('the charter', () => {
     const truck = ok(board(ok(board(createTruck(T0), 'a', T0)), 'b', T0))
     expect(charter(truck, 'b', to, T0, false)).toEqual({ refused: 'not-first' })
     const picked = ok(charter(truck, 'a', to, T0 + SEC, false))
-    const leaves = T0 + countdownSeconds * SEC
+    // The countdown starts at the pick.
+    const leaves = T0 + SEC + countdownSeconds * SEC
     expect(picked.leg).toMatchObject({
       kind: 'parked',
       leavesAt: leaves,

@@ -1,3 +1,4 @@
+import { copy } from './copy.ts'
 import { beginRaid, expect, heardWhere, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
@@ -23,6 +24,7 @@ test('alone in the valley, the first one in picks where Marx goes and he leaves 
   if (!box) throw new Error('no map')
   await map.click({ position: { x: box.width * 0.3, y: box.height * 0.3 } })
   await expect.poll(() => page.evaluate(() => window.__bv?.mapOpen)).toBe(false)
+  await expect(page.locator('.bv-chat')).toContainText(copy('marx.got_it'))
   await expect.poll(() => leg(page)).toBe('charter')
   expect(await page.evaluate(() => window.__bv?.aboard)).toBe(true)
   await expect

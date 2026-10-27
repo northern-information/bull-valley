@@ -10,9 +10,9 @@ import {
 } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
-// Two players in one persistent valley share it: climbing into the bed
-// starts Marx's countdown for everyone, and he leaves with whoever is in
-// it; a cabbage one takes is gone for the other; and the world keeps what
+// Two players in one persistent valley share it: the first one into the
+// bed picks where Marx goes, which starts his countdown for everyone, and
+// he leaves with whoever is in it; a cabbage one takes is gone for the other; and the world keeps what
 // happened after everyone has gone, and brings a raider back where they
 // left. The specs move players with the dev hook and press the real keys,
 // as world.spec.ts does.
@@ -129,17 +129,20 @@ base.describe('a shared world', { tag: '@valley' }, () => {
         .toEqual([false, ...Array<boolean>(perItem - 1).fill(true)])
       expect(await b.evaluate(() => window.__bv?.cash)).toBe(4000)
 
-      // A climbs in: the countdown starts, and B standing by sees it too.
+      // A climbs in and picks: the countdown starts, and B standing by sees
+      // it too.
       const leaving = copy('truck.leaves_in', { clock: '' }).trim()
       await moveToTruck(a)
       await expect(prompt(a)).toHaveText(copy('prompts.board'))
       await a.keyboard.press('KeyE')
       await expect.poll(() => aboard(a)).toBe(true)
-      // The first one in gets the map to pick where Marx goes; Esc leaves
-      // it to him (the joyride), and the pointer comes back to the bed.
-      // The prompt is hidden while the map is open, so it says nothing
-      // until the map closes.
+      // The first one in gets the map, Marx asking where to, and no
+      // countdown runs until the pick; M leaves it to him (the joyride),
+      // and the pointer comes back to the bed. The prompt is hidden while
+      // the map is open, so it says nothing until the map closes.
       await expect.poll(() => a.evaluate(() => window.__bv?.mapOpen)).toBe(true)
+      await expect(a.locator('.bv-map-title')).toHaveText(copy('marx.where_to'))
+      await expect(a.locator('.bv-countdown')).toBeHidden()
       await a.keyboard.press('KeyM')
       await expect
         .poll(() => a.evaluate(() => window.__bv?.mapOpen))

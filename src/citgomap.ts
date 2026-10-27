@@ -84,6 +84,7 @@ export class CitgoMap {
   private readonly pinCount: HTMLElement
   private readonly last: HTMLElement
   private readonly hint: HTMLElement
+  private readonly title: HTMLElement
   private readonly citgos: readonly MapCitgo[]
   private readonly phones: readonly MapCitgo[]
   // The portal phones known, as the last frame drew them: only those
@@ -137,11 +138,8 @@ export class CitgoMap {
     const head = el('header', 'bv-map-head')
     this.count = el('p', 'bv-map-count')
     this.pinCount = el('p', 'bv-map-count')
-    head.append(
-      el('h2', 'bv-map-title', copy('map.title')),
-      this.count,
-      this.pinCount
-    )
+    this.title = el('h2', 'bv-map-title', copy('map.title'))
+    head.append(this.title, this.count, this.pinCount)
     this.canvas = el('canvas', 'bv-map-canvas')
     this.canvas.width = SIZE
     this.canvas.height = SIZE
@@ -278,6 +276,8 @@ export class CitgoMap {
     this.root.hidden = !show
     this.charter = show && charter
     this.root.classList.toggle('bv-map--charter', this.charter)
+    // Opened for a charter, the map is Marx asking where to.
+    this.title.textContent = copy(this.charter ? 'marx.where_to' : 'map.title')
     if (!show) {
       this.hovered = null
       this.hoveredPin = null

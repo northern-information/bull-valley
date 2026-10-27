@@ -476,7 +476,7 @@ hop_out_moving = { text = "Boots on gravel. The truck rolls on.", by = "ai" }
 end_of_line = { text = "Back at the Citgo. Marx lights a cigarette.", by = "ai" }
 ride_home = { text = "Marx turns for home.", by = "ai" }
 board_refused = { text = "Marx shakes his head. Not now.", by = "ai" }
-charter = { text = "You tap the cab and point. Marx nods: {place}.", by = "ai" }
+charter = { text = "You tap the cab and point: {place}.", by = "ai" }
 charter_joyride = { text = "You leave it to Marx. The long way, then.", by = "ai" }
 charter_other = { text = "Marx is headed for {place}.", by = "ai" }
 charter_other_joyride = { text = "Marx will take the long way round.", by = "ai" }
@@ -1091,10 +1091,14 @@ terry = { text = "Terry", by = "ai" }
 
 # Matthew Marx, looked at and spoken to (src/npcs.ts): "O, Whistle an' I'll
 # Come to Ye, My Lad" by Robert Burns, a stanza each time, into the chat log.
-# The texts keep their line breaks.
+# The texts keep their line breaks. where_to and got_it are his question to
+# the first one in the bed and his answer to their pick (src/actions.ts);
+# where_to heads the map opened for it (src/citgomap.ts).
 
 [marx]
 whistle_gift = { text = "\"Here. It was my father's. Blow it, and I'll come to you.\"", by = "ai" }
+where_to = { text = "\"Where to, big dog?\"", by = "ai" }
+got_it = { text = "\"Got it.\"", by = "ai" }
 stanza_1 = { text = """
 O, whistle, and I'll come to you, my lad;
   O, whistle, and I'll come to you, my lad;

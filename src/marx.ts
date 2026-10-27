@@ -8,12 +8,13 @@
 // CONFIG.truck.readSeconds, then does donuts in the field across Lake
 // Avenue for donutSeconds, then drives home and reads again. Anyone
 // arriving in the valley while he is at his donuts brings him straight
-// home. Anyone climbing into the bed starts a countdownSeconds clock, and
-// the first one in may pick on the map where he goes (charter); when it
-// runs out he takes whoever is aboard there and lets them off, or with no
-// pick on the joyride out through the valley and home again, letting them
-// off at the Citgo. With no one else in the valley there is no countdown:
-// he leaves as soon as the pick is made. A whistle (Y) brings him to the
+// home. The first one into the bed is asked where to, and picks on the
+// map (charter): the pick starts a countdownSeconds clock, and when it
+// runs out he takes whoever is aboard there and lets them off, or on the
+// joyride (the long way, or no pick within pickSeconds) out through the
+// valley and home again, letting them off at the Citgo. With no one else
+// in the valley there is no countdown: he leaves as soon as the pick is
+// made. A whistle (Y) brings him to the
 // whistler, who climbs in and is driven home.
 //
 // The valley never knows the roads, so it never knows exactly when a drive
@@ -35,13 +36,16 @@ export type Leg =
   // By the spawn Citgo, Marx reading at the tailgate: once he is home
   // (`from`, the drive there, or null when he already is). leavesAt is
   // when he leaves with whoever is in the bed, or null while it is empty;
-  // dest, where the first one in picked to go (absent: the joyride).
+  // dest, where the first one in picked to go (absent: the joyride);
+  // picking, while the first one in has not picked yet, when leavesAt is
+  // only how long he waits for the pick and no countdown runs.
   | {
       kind: 'parked'
       at: number
       from: Approach | null
       leavesAt: number | null
       dest?: XZ
+      picking?: true
     }
   // In the field by the corn maze, seeded by `at`.
   | { kind: 'donuts'; at: number }
@@ -283,9 +287,9 @@ export function arrive(truck: TruckState, now: number): TruckState {
   }
 }
 
-// `id` climbs into the bed: of the truck parked at the Citgo, which starts
-// the countdown if it is not running already; or of the truck they
-// whistled, which drives them home.
+// `id` climbs into the bed: of the truck parked at the Citgo, where the
+// first one in is asked where to (the countdown waits for the pick); or of
+// the truck they whistled, which drives them home.
 export function board(
   truck: TruckState,
   id: string,
@@ -297,10 +301,10 @@ export function board(
   if (leg.kind === 'parked') {
     return {
       riders: [...truck.riders, id],
-      leg: {
-        ...leg,
-        leavesAt: leg.leavesAt ?? now + cfg.countdownSeconds * 1000,
-      },
+      leg:
+        leg.leavesAt === null
+          ? { ...leg, leavesAt: now + cfg.pickSeconds * 1000, picking: true }
+          : leg,
     }
   }
   if (leg.kind === 'called') {
@@ -314,37 +318,43 @@ export function board(
 }
 
 // `id`, the first one in the bed of the truck parked at the Citgo, picks
-// where he goes: `to`, or the joyride (null). With no one else in the
-// valley (`solo`) he leaves at once.
+// where he goes: `to`, or the joyride (null). The first pick starts the
+// countdown; with no one else in the valley (`solo`) he leaves at once.
 export function charter(
   truck: TruckState,
   id: string,
   to: XZ | null,
   now: number,
-  solo: boolean
+  solo: boolean,
+  cfg: MarxConfig = CONFIG.truck
 ): TruckState | Refused {
   const { leg } = truck
   if (leg.kind !== 'parked' || leg.leavesAt === null) return { refused: 'gone' }
   if (truck.riders[0] !== id) return { refused: 'not-first' }
-  const { dest: _dest, ...rest } = leg
+  const { dest: _dest, picking, ...rest } = leg
   return {
     ...truck,
     leg: {
       ...rest,
-      leavesAt: solo ? Math.min(now, leg.leavesAt) : leg.leavesAt,
+      leavesAt: solo
+        ? Math.min(now, leg.leavesAt)
+        : picking
+          ? now + cfg.countdownSeconds * 1000
+          : leg.leavesAt,
       ...(to ? { dest: { x: to.x, z: to.z } } : {}),
     },
   }
 }
 
 // `id` gets out of the bed: off the parked truck (the countdown and the
-// pick stop when the bed is empty), or over the side wherever the truck is.
+// pick stop when the bed is empty; the first one in gone before picking,
+// the next one in is asked), or over the side wherever the truck is.
 export function hopOut(truck: TruckState, id: string): TruckState | Refused {
   if (!truck.riders.includes(id)) return { refused: 'not-aboard' }
   const riders = truck.riders.filter((r) => r !== id)
   const { leg } = truck
   if (leg.kind === 'parked' && riders.length === 0) {
-    const { dest: _dest, ...rest } = leg
+    const { dest: _dest, picking: _picking, ...rest } = leg
     return { riders, leg: { ...rest, leavesAt: null } }
   }
   return { ...truck, riders }

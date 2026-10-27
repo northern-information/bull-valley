@@ -228,6 +228,12 @@ base.describe('one visit', { tag: '@raid' }, () => {
       await expect(page.locator('.bv-map-hint')).toHaveText(
         copy('map.hint_charter')
       )
+      await expect(page.locator('.bv-map-title')).toHaveText(
+        copy('marx.where_to')
+      )
+      await expect(page.locator('.bv-chat')).toContainText(
+        copy('marx.where_to')
+      )
       await expect(page.locator('.bv-countdown')).toBeHidden()
       // E hops out with the map still open, and closes it.
       await page.keyboard.press('KeyE')

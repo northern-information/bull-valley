@@ -20,11 +20,11 @@
 //    they walk (stand), not only when they leave, so a tab that vanished
 //    without closing still comes back near where it was.
 // 3. Matthew Marx's truck is the valley's (marx.ts): his reading and his
-//    donuts, his countdown once anyone is in the bed, the joyride out and
-//    home, and the whistle. Anyone arriving while he is at his donuts
-//    brings him home. The first one in the bed may pick where he goes
-//    (charter, a point inside the survey): he takes the bed there and lets
-//    them off, then drives home. With no one else in the valley there is
+//    donuts, the joyride out and home, and the whistle. Anyone arriving
+//    while he is at his donuts brings him home. The first one in the bed
+//    is asked where he goes and picks (charter, a point inside the survey,
+//    or the joyride); the pick starts his countdown, and he takes the bed
+//    there and lets them off, then drives home. With no one else in the valley there is
 //    no countdown: he leaves as soon as the pick is made.
 // 4. A pickup goes to whoever asks first; the rest are told it is gone.
 //    One lying in a walled room (PickupSpec.within) goes only to a raider
