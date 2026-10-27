@@ -4,6 +4,7 @@ import {
   artTexture,
   castShadows,
   lambert,
+  layered,
   makeGlowSprite,
   makeGlowTexture,
   setMotion,
@@ -108,6 +109,18 @@ const LIT: readonly CroftFinish[] = [
   'tile',
 ]
 
+// The finishes laid over another (layered): the carpet on the flagstone
+// and the damp on the carpet, the flooded room's water, and the tubes
+// under the drop ceiling.
+const OVER: Partial<Record<CroftFinish, number>> = {
+  carpet: 1,
+  damp: 2,
+  water: 1,
+  tube: 1,
+  flicker: 1,
+  dead: 1,
+}
+
 function noise(n: number): number {
   const s = Math.sin(n * 91.7 + 17.3) * 43758.5453
   return s - Math.floor(s)
@@ -157,7 +170,10 @@ export function buildUndercroft(): UndercroftRig {
   let failing: THREE.MeshBasicMaterial | null = null
   const lit: THREE.MeshLambertMaterial[] = []
   for (const [finish, geometries] of byFinish) {
-    const material = CROFT_FINISH[finish]()
+    const over = OVER[finish]
+    const material = over
+      ? layered(CROFT_FINISH[finish](), over)
+      : CROFT_FINISH[finish]()
     if (finish === 'tube') tube = material as THREE.MeshBasicMaterial
     if (finish === 'flicker') failing = material as THREE.MeshBasicMaterial
     if (LIT.includes(finish)) lit.push(material as THREE.MeshLambertMaterial)
@@ -172,18 +188,24 @@ export function buildUndercroft(): UndercroftRig {
     const cut = sign.art === 'sigil'
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(...sign.size),
-      lambert({
-        map: texture,
-        transparent: cut,
-        alphaTest: cut ? 0.1 : 0,
-        depthWrite: !cut,
-        emissive: new THREE.Color(
-          sign.name === 'altar-sigil' ? '#ff3020' : '#ffffff'
-        ),
-        emissiveMap: texture,
-        emissiveIntensity:
-          sign.name === 'altar-sigil' ? 0.6 : sign.art === 'sigil' ? 0.5 : 0.12,
-      })
+      layered(
+        lambert({
+          map: texture,
+          transparent: cut,
+          alphaTest: cut ? 0.1 : 0,
+          depthWrite: !cut,
+          emissive: new THREE.Color(
+            sign.name === 'altar-sigil' ? '#ff3020' : '#ffffff'
+          ),
+          emissiveMap: texture,
+          emissiveIntensity:
+            sign.name === 'altar-sigil'
+              ? 0.6
+              : sign.art === 'sigil'
+                ? 0.5
+                : 0.12,
+        })
+      )
     )
     mesh.name = `undercroft-${sign.name}`
     mesh.position.set(...sign.center)

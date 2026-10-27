@@ -43,6 +43,18 @@ export function lambert(
   return applyPS1(new THREE.MeshLambertMaterial(opts))
 }
 
+// A surface laid over another (a carpet on a floor, water in a channel, a
+// sigil chalked on stone), drawn `layer` steps nearer than what it lies
+// on. The PS1 snap moves each mesh's corners on its own, so two surfaces a
+// few centimetres apart cross and flicker as the camera moves; the offset
+// grows with the surface's slope on screen, as the snap's error does.
+export function layered<T extends THREE.Material>(material: T, layer = 1): T {
+  material.polygonOffset = true
+  material.polygonOffsetFactor = -3 * layer
+  material.polygonOffsetUnits = -4 * layer
+  return material
+}
+
 // One glow texture a color, shared by every halo that asks for it and
 // never disposed: a pickup, a drop or a spider going frees its own
 // materials and leaves the map.
