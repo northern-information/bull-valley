@@ -644,42 +644,6 @@ export const ITEMS = [
     category: 'key-item',
     start: 0,
   },
-  // Out of the heap of earth by the celestial graveyard's gate, one an
-  // account (sharedworld.ts rule 42): with it in the pack, E at the
-  // weeping angel's grave digs it up for a mech.
-  {
-    id: 'shovel',
-    category: 'key-item',
-    start: 0,
-  },
-  // The mechs (mechs.ts), a stub until they are their own feature: each
-  // dug up from the weeping angel's grave on the valley's roll, kept for
-  // good.
-  {
-    id: 'mech-grigori',
-    category: 'key-item',
-    start: 0,
-  },
-  {
-    id: 'mech-nephil',
-    category: 'key-item',
-    start: 0,
-  },
-  {
-    id: 'mech-anakim',
-    category: 'key-item',
-    start: 0,
-  },
-  {
-    id: 'mech-seraph',
-    category: 'key-item',
-    start: 0,
-  },
-  {
-    id: 'mech-ophanim',
-    category: 'key-item',
-    start: 0,
-  },
   // Erwin von Dutch's jar (dealer.ts): a slurm goes in it alive. Each one
   // carried holds CONFIG.fishing.jar.holds of them.
   {

@@ -97,8 +97,6 @@ interface NetIdentity {
   rings: XZ[]
   // Where each payphone stands (rule 28).
   payphones: XZ[]
-  // The celestial graveyard's frame (rule 42), or null.
-  celestial: MazePlace | null
 }
 
 // Reconnect schedule; the last delay holds for every attempt after.
@@ -307,7 +305,6 @@ export class NetClient {
           moat: identity.moat,
           rings: identity.rings,
           payphones: identity.payphones,
-          celestial: identity.celestial,
           ...was,
         } satisfies ClientMessage)
       )

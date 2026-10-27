@@ -129,8 +129,6 @@ export interface Pending {
   // slurm into the jar.
   fish: boolean
   jar: boolean
-  // Rule 42: the weeping angel's grave being dug.
-  exhume: boolean
 }
 
 export function freshPending(): Pending {
@@ -155,7 +153,6 @@ export function freshPending(): Pending {
     thread: false,
     fish: false,
     jar: false,
-    exhume: false,
   }
 }
 

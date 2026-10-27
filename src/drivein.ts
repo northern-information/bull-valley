@@ -64,7 +64,7 @@ export interface CarSpot extends XZ {
 }
 
 // The film the valley has threaded, and since when (valley ms): it plays
-// from its start then, on loop, for everyone (sharedworld.ts rule 42).
+// from its start then, on loop, for everyone (sharedworld.ts rule 41).
 export interface Reel {
   film: string
   since: number

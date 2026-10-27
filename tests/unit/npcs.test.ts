@@ -1,14 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { copy } from '../../src/copy.ts'
-import {
-  marksMap,
-  nearestYard,
-  npcLine,
-  npcName,
-  npcReach,
-  pinnedAt,
-} from '../../src/npcs.ts'
+import { npcLine, npcName, npcReach } from '../../src/npcs.ts'
 
 describe('npcLine', () => {
   it('recites the stanzas in order, then starts over', () => {
@@ -43,52 +36,6 @@ describe('npcName', () => {
   it('names each by his outfit, and Jericho, who wears none, his own', () => {
     expect(npcName('tyler')).toBe(copy('outfits.tyler'))
     expect(npcName('jericho')).toBe(copy('jericho.name'))
-  })
-})
-
-describe('marksMap', () => {
-  it("marks the map on Jericho's last line, each time round", () => {
-    expect([0, 1, 2, 3, 4, 5].map((n) => marksMap('jericho', n))).toEqual([
-      false,
-      false,
-      true,
-      false,
-      false,
-      true,
-    ])
-  })
-
-  it('never for anyone else', () => {
-    for (let n = 0; n < 6; n++) {
-      expect(marksMap('tyler', n)).toBe(false)
-      expect(marksMap('marx', n)).toBe(false)
-    }
-  })
-})
-
-describe('nearestYard', () => {
-  const yards = [
-    { x: 100, z: 0, name: 'Far' },
-    { x: -20, z: 10, name: 'Near' },
-    { x: 0, z: -60, name: 'Middling' },
-  ]
-
-  it('finds the graveyard nearest him', () => {
-    expect(nearestYard({ x: 0, z: 0 }, yards)?.name).toBe('Near')
-    expect(nearestYard({ x: 90, z: 0 }, yards)?.name).toBe('Far')
-  })
-
-  it('finds none in a survey without one', () => {
-    expect(nearestYard({ x: 0, z: 0 }, [])).toBeNull()
-  })
-})
-
-describe('pinnedAt', () => {
-  it('knows a pin already within a metre', () => {
-    const pins = [{ x: 10, z: 10 }]
-    expect(pinnedAt(pins, { x: 10.4, z: 10.4 })).toBe(true)
-    expect(pinnedAt(pins, { x: 12, z: 10 })).toBe(false)
-    expect(pinnedAt([], { x: 10, z: 10 })).toBe(false)
   })
 })
 

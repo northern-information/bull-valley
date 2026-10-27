@@ -65,37 +65,3 @@ export function npcLine(id: NpcId, said: number): string {
   const lines = NPC_LINES[id]
   return lines[said % lines.length]
 }
-
-// Whether the line after `said` lines is the one where Jericho marks the
-// raider's map: his last, each time round.
-export function marksMap(id: NpcId, said: number): boolean {
-  if (id !== 'jericho') return false
-  const lines = NPC_LINES.jericho
-  return said % lines.length === lines.length - 1
-}
-
-// A graveyard as Jericho marks it: its middle in the world, and its name
-// from the survey.
-export interface Yard extends XZ {
-  name: string
-}
-
-// The graveyard nearest `from`, or null with none.
-export function nearestYard(from: XZ, yards: readonly Yard[]): Yard | null {
-  let best: Yard | null = null
-  let bestD = Infinity
-  for (const yard of yards) {
-    const d = Math.hypot(yard.x - from.x, yard.z - from.z)
-    if (d < bestD) {
-      best = yard
-      bestD = d
-    }
-  }
-  return best
-}
-
-// Whether `list` already holds a pin within a metre of `at`, so his
-// marking the same graveyard again pins nothing new.
-export function pinnedAt(list: readonly XZ[], at: XZ): boolean {
-  return list.some((p) => Math.hypot(p.x - at.x, p.z - at.z) < 1)
-}

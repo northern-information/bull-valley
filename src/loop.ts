@@ -616,11 +616,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       pond.update(time, net.clock.serverNow(now) / 1000)
     }
     if (s.hoist && !hoistPose(time - s.hoist.at)) s.hoist = null
-    // The celestial graveyard's candles and braziers burn.
-    const celestial = world.celestial
-    if (celestial && live(celestial.place, CONFIG.celestial.radius)) {
-      celestial.update(time)
-    }
     // Into a pond's firefly haven, or out of it, the log says so; not
     // until the welcome has put the raider where they stand.
     const sheltered = inPond(
@@ -973,16 +968,6 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       toolbox:
         world.lookout && (s.inventory.torch ?? 0) < 1
           ? world.lookout.toolbox
-          : null,
-      // Rule 42: the heap while the pack holds no shovel, the grave while
-      // it holds one.
-      heap:
-        world.celestial && (s.inventory.shovel ?? 0) < 1
-          ? world.celestial.shovel
-          : null,
-      grave:
-        world.celestial && (s.inventory.shovel ?? 0) > 0
-          ? world.celestial.grave
           : null,
       heart: heartSpot(),
       disk: diskSpot(),
