@@ -122,6 +122,16 @@ test('Marx glows and recites a stanza at a time; he and Tyler each give a gift',
     return tyler
   })
   await faceSpot(page, at.x, at.z, 1.2)
+  // E is his only once he glows: pressed sooner, on a slow frame, it
+  // still falls on the truck's board left behind.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const bv = window.__bv!
+        return bv.glow === bv.world.tylerRig?.figure.group
+      })
+    )
+    .toBe(true)
   const tylerName = copy('outfits.tyler')
   await page.keyboard.press('KeyE')
   // His first word is the phone, into the pack, said, and onto the bar.

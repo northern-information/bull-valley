@@ -19,11 +19,8 @@ import type { CroftFinish } from './undercroft.ts'
 // The old stone under Bull Valley Plaza (undercroft.ts), in its own metres:
 // every box merged into one mesh per finish, the carvings and the chalk
 // over it, and a warm haze over each knot of candles (the altar's red).
-// Nothing else in the stone is lit; the rest is for the flashlight. The
-// backrooms past it are lit all over, flat and yellow, by tubes that hum
-// and now and then all stutter at once, a few failing on their own.
-// world.ts places the group at the Undercroft's corner, high over the
-// survey's.
+// Nothing else is lit; the rest is for the flashlight. world.ts places the
+// group at the Undercroft's corner, high over the survey's.
 const CROFT_FINISH: Record<CroftFinish, () => THREE.Material> = {
   // A little light of their own, as the store's walls have, so the rooms
   // read before a flashlight finds them.
@@ -61,87 +58,10 @@ const CROFT_FINISH: Record<CroftFinish, () => THREE.Material> = {
     ),
   iron: () => lambert({ color: '#3a3c3e' }),
   cloth: () => lambert({ color: '#5a1418' }),
-  // The backrooms read lit without a flashlight: their light is in them.
-  wallpaper: () =>
-    lambert({
-      color: '#b3a05a',
-      emissive: new THREE.Color('#5c5126'),
-      emissiveIntensity: 0.9,
-    }),
-  trim: () =>
-    lambert({
-      color: '#6b5c32',
-      emissive: new THREE.Color('#2a2410'),
-      emissiveIntensity: 0.9,
-    }),
-  carpet: () =>
-    lambert({
-      color: '#8a7a46',
-      emissive: new THREE.Color('#3c3418'),
-      emissiveIntensity: 0.9,
-    }),
-  damp: () =>
-    lambert({
-      color: '#4a3f20',
-      emissive: new THREE.Color('#1c170a'),
-      emissiveIntensity: 0.9,
-    }),
-  tile: () =>
-    lambert({
-      color: '#c4bc9a',
-      emissive: new THREE.Color('#4c4836'),
-      emissiveIntensity: 0.9,
-    }),
-  tube: () => applyPS1(new THREE.MeshBasicMaterial({ color: TUBE })),
-  flicker: () => applyPS1(new THREE.MeshBasicMaterial({ color: TUBE })),
-  dead: () => lambert({ color: '#4a4842' }),
 }
 
-// The tubes' light, and how the backrooms' light falters: mostly a hum
-// too quick to see, then for a second or so every few seconds it may
-// stutter all at once; a failing tube blinks on its own.
-const TUBE = new THREE.Color('#f6f2da')
-const LIT: readonly CroftFinish[] = [
-  'wallpaper',
-  'trim',
-  'carpet',
-  'damp',
-  'tile',
-]
-
-// The finishes laid over another (layered): the carpet on the flagstone
-// and the damp on the carpet, the flooded room's water, and the tubes
-// under the drop ceiling.
-const OVER: Partial<Record<CroftFinish, number>> = {
-  carpet: 1,
-  damp: 2,
-  water: 1,
-  tube: 1,
-  flicker: 1,
-  dead: 1,
-}
-
-function noise(n: number): number {
-  const s = Math.sin(n * 91.7 + 17.3) * 43758.5453
-  return s - Math.floor(s)
-}
-
-// 1 lit, toward 0 dark, at time t.
-export function backroomsLight(t: number): number {
-  const spell = Math.floor(t / 7)
-  const into = t - spell * 7
-  const tick = Math.floor(t * 14)
-  if (noise(spell) < 0.45 && into < 1.1 && noise(tick) < 0.55) {
-    return 0.25 + noise(tick + 0.5) * 0.3
-  }
-  return 0.97 + 0.03 * Math.sin(t * 120)
-}
-
-// A failing tube, 1 on, 0 off.
-export function failingTube(t: number): number {
-  const tick = Math.floor(t * 9)
-  return noise(tick * 1.3) < 0.35 ? 0.15 : 1
-}
+// The finishes laid over another (layered): the flooded room's water.
+const OVER: Partial<Record<CroftFinish, number>> = { water: 1 }
 
 interface UndercroftRig {
   group: THREE.Group
@@ -166,17 +86,11 @@ export function buildUndercroft(): UndercroftRig {
     byFinish.set(b.finish, list)
   }
   let flame: THREE.MeshBasicMaterial | null = null
-  let tube: THREE.MeshBasicMaterial | null = null
-  let failing: THREE.MeshBasicMaterial | null = null
-  const lit: THREE.MeshLambertMaterial[] = []
   for (const [finish, geometries] of byFinish) {
     const over = OVER[finish]
     const material = over
       ? layered(CROFT_FINISH[finish](), over)
       : CROFT_FINISH[finish]()
-    if (finish === 'tube') tube = material as THREE.MeshBasicMaterial
-    if (finish === 'flicker') failing = material as THREE.MeshBasicMaterial
-    if (LIT.includes(finish)) lit.push(material as THREE.MeshLambertMaterial)
     const mesh = new THREE.Mesh(mergeGeometries(geometries), material)
     mesh.name = `undercroft-${finish}`
     mesh.receiveShadow = true
@@ -250,28 +164,11 @@ export function buildUndercroft(): UndercroftRig {
     sprite.position.set(x, y, z)
     group.add(sprite)
   }
-  // A cold haze hanging under one tube in five, that falters with them.
-  const cold = makeGlowTexture('rgba(255, 246, 205, 0.22)')
-  const haze: THREE.SpriteMaterial[] = []
-  UNDERCROFT.boxes
-    .filter((b) => b.finish === 'tube')
-    .forEach((b, i) => {
-      if (i % 5 !== 0) return
-      const sprite = makeGlowSprite(cold, 3.4)
-      sprite.position.set(b.center[0], b.center[1] - 0.45, b.center[2])
-      haze.push(sprite.material)
-      group.add(sprite)
-    })
   const glow = new THREE.Color('#ffb347')
   const update = (t: number) => {
     flame?.color
       .copy(glow)
       .multiplyScalar(0.75 + 0.25 * Math.sin(t * 11) * Math.sin(t * 6.1))
-    const light = backroomsLight(t)
-    tube?.color.copy(TUBE).multiplyScalar(light)
-    failing?.color.copy(TUBE).multiplyScalar(light * failingTube(t))
-    for (const m of lit) m.emissiveIntensity = 0.9 * light
-    for (const m of haze) m.opacity = light
   }
   update(0)
   setMotion(group, update)
