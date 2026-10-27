@@ -1652,6 +1652,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
         if (!croft) return
         const to = croft.through
         player.relocate(to.x, to.z, to.yaw)
+        game.sfx?.play('fog-through')
         hud.tell(copy('log.fog'))
         return
       }

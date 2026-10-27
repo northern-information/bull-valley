@@ -56,6 +56,7 @@ export type SfxId =
   | 'portal-hum'
   | 'portal-through'
   | 'portal-close'
+  | 'fog-through'
   | 'xp-tick'
   | 'level-up'
   | 'task-complete'
@@ -444,6 +445,15 @@ export const SFX: Record<SfxId, SfxSpec> = {
     takes: 0,
     gain: 0.8,
     placeholder: { wave: 'sine', from: 900, to: 90, seconds: 0.9 },
+  },
+  // Through the fog wall into the Warden's chamber (fogwall.ts), in the
+  // head: a long low rush, the fog closing over and behind.
+  'fog-through': {
+    positional: false,
+    loop: false,
+    takes: 0,
+    gain: 0.85,
+    placeholder: { wave: 'noise', from: 900, to: 90, seconds: 1.6, pulse: 2 },
   },
   // Progress (xpSound), in the head in both apps: XP earned short of a
   // new level, under the bar's flash.
