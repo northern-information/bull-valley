@@ -2,12 +2,15 @@ import * as THREE from 'three'
 import { lambert } from './assetkit.ts'
 import { applyPS1 } from './ps1.ts'
 import { mulberry32, range } from './rng.ts'
+import { buildShadowSmoke, flakeAmount, flaky } from './shadowmanmodel.ts'
 import type { Vec3 } from './interfaces.ts'
 
 // A tunnel shade (tunnelshades.ts), seen as a shadow rat: a black rat
 // the size of a dog, low to the stone, its back humped, its naked tail
-// trailing, two pale pinprick eyes and two pale teeth; or the Warden, a head and
-// a half taller than any raider and twice as broad, its face shut in a
+// trailing, two red eyes and a mouth of pale spikes, its jaw hanging open
+// and snapping as it runs, shot through with the shadowmen's holes and
+// giving off their smoke (shadowmanmodel.ts flaky, buildShadowSmoke); or
+// the Warden, a head and a half taller than any raider and twice as broad, its face shut in a
 // riveted iron helm with one red slit and a padlock at the jaw, a black
 // coat over a butcher's apron, grey arms hanging past its knees, a
 // rusted cleaver dragged in one hand and a hooked chain in the other.
@@ -53,16 +56,19 @@ function joint(parent: THREE.Object3D, at: Vec3, name: string): THREE.Group {
 }
 
 export function buildTunnelShade(
-  kind: 'shade' | 'warden',
+  kind: 'rat' | 'warden',
   seed = 0x7e11
 ): TunnelShadeRig {
-  return kind === 'warden' ? buildWarden(seed) : buildShade()
+  return kind === 'warden' ? buildWarden(seed) : buildShade(seed)
 }
 
 // How far one scurry of the rat carries it.
 const SCURRY = 0.55
 
-function buildShade(): TunnelShadeRig {
+// The rat's eyes, red as the Warden's slit.
+const RAT_EYES = '#ff2a1a'
+
+function buildShade(seed: number): TunnelShadeRig {
   const group = new THREE.Group()
   group.name = 'shadow-rat'
   const body = new THREE.MeshBasicMaterial({
@@ -71,7 +77,9 @@ function buildShade(): TunnelShadeRig {
     opacity: 0.94,
   })
   applyPS1(body)
+  const flakes = flaky(body, seed)
   const pale = applyPS1(new THREE.MeshBasicMaterial({ color: '#d8e4ea' }))
+  const red = applyPS1(new THREE.MeshBasicMaterial({ color: RAT_EYES }))
   const add = adder(group)
 
   // Everything but the legs rides on `trunk`, which bucks with the scurry.
@@ -113,8 +121,8 @@ function buildShade(): TunnelShadeRig {
       head
     )
     add(
-      new THREE.BoxGeometry(0.03, 0.025, 0.02),
-      pale,
+      new THREE.BoxGeometry(0.04, 0.03, 0.02),
+      red,
       [x * 0.75, 0.07, 0.1],
       [0, x < 0 ? -0.5 : 0.5, 0],
       head
@@ -130,16 +138,57 @@ function buildShade(): TunnelShadeRig {
       )
     }
   }
-  // Two teeth under the snout's tip.
-  for (const x of [-0.012, 0.012]) {
+  // The radius of a cone `long` long, `wide` at its base, `z` back from
+  // its tip: where along the snout or the jaw a tooth stands.
+  const girth = (wide: number, long: number, z: number) => (wide * z) / long
+  // A row of spikes down each side of the snout, pointing down, the two
+  // at its tip the longest.
+  const spike = (
+    at: Vec3,
+    long: number,
+    down: boolean,
+    parent: THREE.Object3D
+  ) =>
     add(
-      new THREE.BoxGeometry(0.02, 0.05, 0.012),
+      new THREE.ConeGeometry(0.014, long, 4),
       pale,
-      [x, -0.06, 0.4],
-      [0.2, 0, 0],
-      head
+      [at[0], at[1] + (down ? -long / 2 : long / 2), at[2]],
+      [down ? Math.PI : 0, 0, 0],
+      parent
     )
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 5; i++) {
+      const z = 0.38 - i * 0.055
+      const r = girth(0.16, 0.48, 0.42 - z)
+      spike([side * r * 0.7, -r * 0.6, z], i === 0 ? 0.09 : 0.05, true, head)
+    }
   }
+  // The lower jaw, hanging open under the snout, spiked along its rim.
+  const jaw = joint(head, [0, -0.07, 0.02], 'rat-jaw')
+  add(
+    new THREE.ConeGeometry(0.08, 0.34, 5),
+    body,
+    [0, 0, 0.17],
+    [Math.PI / 2, 0, 0],
+    jaw
+  )
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 4; i++) {
+      const z = 0.3 - i * 0.06
+      const r = girth(0.08, 0.34, 0.34 - z)
+      spike([side * r * 0.7, r * 0.5, z], i === 0 ? 0.07 : 0.045, false, jaw)
+    }
+  }
+
+  // The shadowmen's smoke, off its back and haunches.
+  const smoke = buildShadowSmoke({
+    seed,
+    puffs: 12,
+    from: { min: [-0.15, 0.3, -0.5], max: [0.15, 0.55, 0.3] },
+    rise: 0.35,
+    drift: 0.12,
+  })
+  group.add(smoke.points)
 
   // The tail: a chain of joints from the rump, tapering, nearly as long as
   // the rat, lying along the floor and sweeping as it goes.
@@ -195,6 +244,7 @@ function buildShade(): TunnelShadeRig {
   let last = 0
   let run = 0
   let thrash = 0
+  let burnt = 0
   const update = (t: number, speed = 0) => {
     const dt = Math.min(0.1, Math.max(0, t - last))
     last = t
@@ -222,12 +272,19 @@ function buildShade(): TunnelShadeRig {
       Math.sin(t * 17) * 0.04 * idle +
       Math.sin(t * 12) * 0.4 * thrash
     head.rotation.y = Math.sin(t * 0.8) * 0.35 * idle
+    // The jaw hangs open, snapping as it runs, gaping as it burns.
+    jaw.rotation.x =
+      0.25 +
+      Math.max(0, Math.sin(phase * 2)) * 0.3 * run +
+      Math.abs(Math.sin(t * 15)) * 0.4 * thrash
     // The tail sweeps, a wave down its length, wilder burning.
     tail.forEach((seg, i) => {
       seg.rotation.x = tailBase[i]
       seg.rotation.z =
         Math.sin(t * (2 + run * 6) - i * 0.7) * (0.18 + thrash * 0.5)
     })
+    flakes.time.value = t + (seed % 10)
+    smoke.update(t, burnt)
   }
   update(0)
   return {
@@ -236,6 +293,8 @@ function buildShade(): TunnelShadeRig {
     setBurn(next) {
       const burn = Math.max(0, Math.min(1, next))
       thrash = burn * burn
+      burnt = burn
+      flakes.amount.value = flakeAmount(burn)
       body.color.copy(SHADE_BODY).lerp(SHADE_PALE, burn)
       body.opacity = 0.94 - burn * 0.4
     },

@@ -3402,7 +3402,7 @@ describe('rule 11, below: the tunnel shades walk the Undercroft', () => {
       strikers = out?.strikers ?? {}
     }
     expect(struck).toEqual(['a'])
-    expect(strikers).toEqual({ a: 'shade' })
+    expect(strikers).toEqual({ a: 'rat' })
   })
 
   it("credits a burn and XP for a shade burst in a raider's beam", () => {
@@ -3425,7 +3425,7 @@ describe('rule 11, below: the tunnel shades walk the Undercroft', () => {
       const from = { x: shade.x + 1.5, z: shade.z }
       const yaw = Math.atan2(shade.x - from.x, shade.z - from.z) + Math.PI
       const pitch = -Math.atan2(
-        CONFIG.player.eyeHeight - CONFIG.tunnel.shade.chestHeight,
+        CONFIG.player.eyeHeight - CONFIG.tunnel.rat.chestHeight,
         1.5
       )
       const at = { ...state(from), yaw, pitch, light: true }

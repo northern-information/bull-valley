@@ -57,7 +57,7 @@ const run = (
 describe('the tunnel shades', () => {
   it('start in their lairs, the Warden before the altar', () => {
     const shades = createTunnelShades()
-    expect(shades.filter((s) => s.kind === 'shade')).toHaveLength(
+    expect(shades.filter((s) => s.kind === 'rat')).toHaveLength(
       UNDERCROFT.lairs.length
     )
     const warden = shades.find((s) => s.kind === 'warden')
@@ -97,19 +97,19 @@ describe('the tunnel shades', () => {
     const lit = aiming(from, shade)
     const { bursts } = run([shade], [{ ...lit, vulnerable: false }], 2)
     expect(bursts).toHaveLength(1)
-    expect(bursts[0]).toMatchObject({ kind: 'shade', by: ['r'] })
+    expect(bursts[0]).toMatchObject({ kind: 'rat', by: ['r'] })
     expect(tunnelShadesAt([shade], place)).toEqual([])
-    run([shade], [], CONFIG.tunnel.shade.respawnSeconds + 1)
+    run([shade], [], CONFIG.tunnel.rat.respawnSeconds + 1)
     expect(tunnelShadesAt([shade], place)).toHaveLength(1)
     expect(shade.burn).toBe(0)
   })
 
   it('make the Warden take far longer to burn, over several hits', () => {
-    const { shade, warden } = CONFIG.tunnel
-    expect(shade.hits).toBe(1)
+    const { rat, warden } = CONFIG.tunnel
+    expect(rat.hits).toBe(1)
     expect(warden.hits).toBeGreaterThan(2)
     expect(warden.burnSeconds * warden.hits).toBeGreaterThan(
-      shade.burnSeconds * 6
+      rat.burnSeconds * 6
     )
   })
 

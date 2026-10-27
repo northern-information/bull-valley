@@ -230,7 +230,7 @@ export const CONFIG = {
     spiderling: 140,
     man: 320,
     spider: 480,
-    shade: 420,
+    rat: 420,
     caretaker: 750,
     warden: 1100,
   },
@@ -1497,12 +1497,12 @@ export const CONFIG = {
     hurtKeeps: 0.5,
   },
   // The tunnel shades in the Undercroft (tunnelshades.ts), the shadow rats
-  // and the Warden (`shade` is the rats' kind on the wire): each kind's
+  // and the Warden: each kind's
   // drift round its lair and its hunt (m/s; the walk is 4.2), how far it
   // sees and feels, its touch, the seconds a beam must hold it, and the
   // seconds before it forms again. The Warden keeps the deep chamber.
   tunnel: {
-    shade: {
+    rat: {
       patrolSpeed: 1.1,
       huntSpeed: 3.4,
       sightRange: 14,
@@ -1513,7 +1513,7 @@ export const CONFIG = {
       patrolRadius: 8,
       // A rat: a beam must find it low, at its back.
       chestHeight: 0.4,
-      // Beams held burnSeconds this many times burst it; one, for a shade.
+      // Beams held burnSeconds this many times burst it; one, for a rat.
       hits: 1,
       // A hit that leaves it standing: gone this long, then formed again
       // somewhere in its room at least blinkFrom metres from every raider.

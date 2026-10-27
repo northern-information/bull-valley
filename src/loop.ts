@@ -873,7 +873,7 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
           .filter(
             (t) => Math.hypot(t.x - player.pos.x, t.z - player.pos.z) <= range
           )
-          .map((t) => (t.kind === 'warden' ? 'warden' : 'tunnel-shade')),
+          .map((t) => (t.kind === 'warden' ? 'warden' : 'shadow-rat')),
         ...itemsHeld(s.inventory),
       ])
     }

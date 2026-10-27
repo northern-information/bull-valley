@@ -298,7 +298,7 @@ lore = { text = "Burn a shadow spider and it breaks into a brood of these: small
 name = { text = "The Caretaker", by = "ai" }
 lore = { text = "A hooded shade with a cold lantern who keeps the corn maze. One light does nothing to it. Two, held together, burn it, and it forms again at the heart.", by = "ai" }
 
-[book.tunnel-shade]
+[book.shadow-rat]
 name = { text = "Shadow Rat", by = "ai" }
 lore = { text = "Rats as big as dogs, black as the stone they run on, that keep to the Undercroft's rooms. Slower than you but patient, and they see in the dark. A bite costs more than a shadowman's touch. Your light undoes them, and they come back.", by = "ai" }
 

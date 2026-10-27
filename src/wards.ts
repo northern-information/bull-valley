@@ -15,13 +15,13 @@ import type { WardAxis } from './interfaces.ts'
 
 // Whatever can touch a raider.
 export type ShadowHit =
-  'man' | 'spider' | 'spiderling' | 'caretaker' | 'shade' | 'warden'
+  'man' | 'spider' | 'spiderling' | 'caretaker' | 'rat' | 'warden'
 
 export const SHADOW_HITS: readonly ShadowHit[] = [
   'spiderling',
   'man',
   'spider',
-  'shade',
+  'rat',
   'caretaker',
   'warden',
 ]
@@ -32,7 +32,7 @@ export const WARD_OF: Readonly<Record<ShadowHit, WardAxis>> = {
   spider: 'stimulated',
   spiderling: 'stimulated',
   caretaker: 'drunk',
-  shade: 'tripping',
+  rat: 'tripping',
   warden: 'tripping',
 }
 
@@ -48,7 +48,7 @@ const BOOK_SHADOWS: Readonly<Record<string, ShadowHit>> = {
   spider: 'spider',
   spiderling: 'spiderling',
   caretaker: 'caretaker',
-  'tunnel-shade': 'shade',
+  'shadow-rat': 'rat',
   warden: 'warden',
 }
 

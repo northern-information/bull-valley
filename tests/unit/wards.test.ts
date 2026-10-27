@@ -23,11 +23,11 @@ describe('wards', () => {
       spider: 'stimulated',
       spiderling: 'stimulated',
       caretaker: 'drunk',
-      shade: 'tripping',
+      rat: 'tripping',
       warden: 'tripping',
     })
     expect(wardedBy('stimulated')).toEqual(['spiderling', 'spider'])
-    expect(wardedBy('tripping')).toEqual(['shade', 'warden'])
+    expect(wardedBy('tripping')).toEqual(['rat', 'warden'])
     for (const axis of AXES) expect(wardedBy(axis).length).toBeGreaterThan(0)
   })
 
@@ -35,7 +35,7 @@ describe('wards', () => {
     expect(wardOfEntry('shadowman')).toBe('high')
     expect(wardOfEntry('spiderling')).toBe('stimulated')
     expect(wardOfEntry('caretaker')).toBe('drunk')
-    expect(wardOfEntry('tunnel-shade')).toBe('tripping')
+    expect(wardOfEntry('shadow-rat')).toBe('tripping')
     expect(wardOfEntry('warden')).toBe('tripping')
     expect(wardOfEntry('citgo')).toBeNull()
     expect(wardOfEntry('toString')).toBeNull()
@@ -51,7 +51,7 @@ describe('wards', () => {
     expect(wardOf({ ...SOBER, drunk: 0.5 }, 'caretaker')).toBeCloseTo(0.3)
     // Only the strongest other counts.
     expect(
-      wardOf({ ...SOBER, high: 0.5, drunk: 1, stimulated: 1 }, 'shade')
+      wardOf({ ...SOBER, high: 0.5, drunk: 1, stimulated: 1 }, 'rat')
     ).toBeCloseTo(CONFIG.wards.other)
   })
 

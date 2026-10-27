@@ -30,7 +30,7 @@ const CHARACTERS = new Set([
   'spiderling',
   'slurm',
   'skeleton-horse',
-  'tunnel-shade',
+  'shadow-rat',
   'tyler-jeep',
   'jericho',
 ])
@@ -52,7 +52,7 @@ const POSES = new Set([
   'shadowman-burning',
   'shadow-spider-burning',
   'caretaker-burning',
-  'tunnel-shade-burning',
+  'shadow-rat-burning',
   'warden-burning',
   'topiary-dying',
 ])
@@ -235,7 +235,7 @@ const PLACE_IDS: Record<Exclude<Place, 'elsewhere'>, readonly string[]> = {
     'dumpster-fallen',
     'shopping-cart',
   ],
-  undercroft: ['undercroft', 'trapdoor', 'tunnel-shade', 'warden'],
+  undercroft: ['undercroft', 'trapdoor', 'shadow-rat', 'warden'],
   industrial: [
     'warehouse',
     'park-sign',
@@ -363,7 +363,7 @@ const SET_NAMES: Record<AssetSet, readonly string[]> = {
     'spiderling',
     'shadow-burst',
     'caretaker',
-    'tunnel-shade',
+    'shadow-rat',
     'warden',
     'figure-shadow',
   ],

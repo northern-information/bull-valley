@@ -142,7 +142,7 @@ export class TunnelShades {
         was && dt > 0 ? Math.hypot(s.x - was.x, s.z - was.z) / dt : 0
       this.last.set(s.id, { x: s.x, z: s.z, time })
       rig.group.rotation.y =
-        was && s.kind === 'shade' && speed > 0.2
+        was && s.kind === 'rat' && speed > 0.2
           ? Math.atan2(s.x - was.x, s.z - was.z)
           : Math.atan2(player.x - s.x, player.z - s.z)
       rig.update(time, speed)

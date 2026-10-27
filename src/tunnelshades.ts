@@ -28,7 +28,7 @@ import type { Rng } from './rng.ts'
 import type { Raider } from './shadowmen.ts'
 
 type TunnelConfig = typeof CONFIG.tunnel
-export type TunnelKind = 'shade' | 'warden'
+export type TunnelKind = 'rat' | 'warden'
 
 export interface TunnelShade {
   // Never reused: the lairs in order, the Warden last.
@@ -76,7 +76,7 @@ function fresh(id: number, kind: TunnelKind, lair: XZ): TunnelShade {
 
 // Every shade in its lair, and the Warden before the altar.
 export function createTunnelShades(): TunnelShade[] {
-  const shades = UNDERCROFT.lairs.map((lair, i) => fresh(i, 'shade', lair))
+  const shades = UNDERCROFT.lairs.map((lair, i) => fresh(i, 'rat', lair))
   shades.push(fresh(shades.length, 'warden', UNDERCROFT.warden))
   return shades
 }
