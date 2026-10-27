@@ -73,6 +73,7 @@ import type { ShadowBursts } from './shadowburst.ts'
 import type { StandLedger } from './stand.ts'
 import type { Titles } from './titles.ts'
 import type { TorchHand } from './torchhand.ts'
+import type { TrafficRig } from './trafficrig.ts'
 import type { Trails } from './trails.ts'
 import type { TripSolids } from './tripsolidsrig.ts'
 import type { Truck } from './truck.ts'
@@ -489,6 +490,9 @@ export interface Game {
   pillars: WaypointMeshes
   graph: RoadGraph
   truck: Truck
+  // The valley's traffic as seen (trafficrig.ts), none under e2e, where
+  // no car may run a spec's raider down.
+  traffic: TrafficRig | null
   // Marx's radio while the truck rolls (truckradiorig.ts), none under e2e.
   radio: TruckRadio | null
   // The drive-in's film (driveinrig.ts), unheard under e2e; null without

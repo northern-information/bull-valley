@@ -527,6 +527,8 @@ describe('headlightBeam', () => {
     halfAngle: 0.45,
     height: 0.95,
     nose: 3,
+    tail: -3,
+    tailHeight: 1,
     staleMs: 1000,
   }
 
@@ -552,6 +554,8 @@ describe('headlightsDue', () => {
     halfAngle: 0.45,
     height: 0.95,
     nose: 3,
+    tail: -3,
+    tailHeight: 1,
     staleMs: 1000,
   }
   const pose = { x: 1, y: 2, z: 3, heading: 0 }

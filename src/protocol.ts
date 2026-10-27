@@ -13,6 +13,12 @@ import { isFileBody, isFileId, isFileName } from './laptop.ts'
 import { MOAT_STATION } from './moatslurms.ts'
 import { isQuestStep } from './quests.ts'
 import { isResearchLine } from './recycling.ts'
+import {
+  isLampKind,
+  isVehicleKind,
+  isVehicleSpeed,
+  TRAFFIC_LAMPS_MAX,
+} from './traffic.ts'
 import { WAYPOINT_MAX } from './waypoints.ts'
 import type { CitgoLog } from './citgos.ts'
 import type { CorpseWire } from './corpses.ts'
@@ -43,12 +49,13 @@ import type { Research, ResearchLine } from './recycling.ts'
 import type { Burst, ShadeKind, TruckPose } from './shadowmen.ts'
 import type { StandLedger } from './stand.ts'
 import type { TopiaryHealth } from './topiaries.ts'
+import type { TrafficLamp, VehicleKind } from './traffic.ts'
 import type { TunnelKind } from './tunnelshades.ts'
 import type { Waypoints } from './waypoints.ts'
 
 // Bump whenever a frame changes shape. A client on an older build is
 // closed with CLOSE.badVersion and does not knock again.
-export const PROTOCOL_VERSION = 63
+export const PROTOCOL_VERSION = 65
 
 // The one WebSocket route; the Worker also answers /auth, and everything
 // else is a static asset.
@@ -432,6 +439,16 @@ interface FallMessage {
   height: number
 }
 
+// A car of the valley's traffic ran the raider down (rule 24): where the
+// traffic drives is the clock's and the roads', which only the clients
+// know, so the valley takes the client's word for what hit them and how
+// fast (traffic.ts), and answers with a struck frame.
+interface RunOverMessage {
+  type: 'run-over'
+  kind: VehicleKind
+  speed: number
+}
+
 // `count` of `kind` out of the pack into the account's locker (stow), or
 // out of the locker into the pack (unstow), at a Citgo (rule 19). The
 // valley checks the raider's last state frame put them at one.
@@ -746,6 +763,15 @@ interface HeadlightsMessage extends TruckPose {
   type: 'headlights'
 }
 
+// Where the lamps of the traffic round this client stand, as it drives it
+// (traffic.ts): sent while cars are near, so the valley can aim them at
+// the shadowmen (shadowstep.ts seeTraffic). At most TRAFFIC_LAMPS_MAX
+// lamps.
+interface TrafficMessage {
+  type: 'traffic'
+  lamps: TrafficLamp[]
+}
+
 interface PingMessage {
   type: 'ping'
   // The sender's clock when it sent the ping; echoed in the pong.
@@ -757,6 +783,7 @@ export type ClientMessage =
   | DialMessage
   | StateMessage
   | HeadlightsMessage
+  | TrafficMessage
   | PingMessage
   | BoardMessage
   | HopOutMessage
@@ -772,6 +799,7 @@ export type ClientMessage =
   | PortalMessage
   | LootMessage
   | FallMessage
+  | RunOverMessage
   | StowMessage
   | StandTendMessage
   | RecycleTendMessage
@@ -815,6 +843,7 @@ export type NackRe = Exclude<
   | 'dial'
   | 'state'
   | 'headlights'
+  | 'traffic'
   | 'ping'
   | 'friends'
   | 'research'
@@ -2040,6 +2069,10 @@ const CLIENT_PARSERS: ClientParsers = {
   loot: ({ corpse }) => (isCount(corpse) ? { type: 'loot', corpse } : null),
   fall: ({ height }) =>
     isFallHeight(height) ? { type: 'fall', height } : null,
+  'run-over': ({ kind, speed }) =>
+    isVehicleKind(kind) && isVehicleSpeed(speed)
+      ? { type: 'run-over', kind, speed }
+      : null,
   stow: (value) => {
     const units = parseUnits(value)
     return units && { type: 'stow', ...units }
@@ -2097,6 +2130,25 @@ const CLIENT_PARSERS: ClientParsers = {
     Number.isFinite(heading)
       ? { type: 'headlights', x, y, z, heading }
       : null,
+  traffic: ({ lamps }) => {
+    if (!Array.isArray(lamps) || lamps.length > TRAFFIC_LAMPS_MAX) return null
+    const parsed: TrafficLamp[] = []
+    for (const lamp of lamps as unknown[]) {
+      if (!isRecord(lamp)) return null
+      const { kind, x, y, z, heading } = lamp
+      if (
+        !isLampKind(kind) ||
+        !isCoord(x) ||
+        !isCoord(y) ||
+        !isCoord(z) ||
+        typeof heading !== 'number' ||
+        !Number.isFinite(heading)
+      )
+        return null
+      parsed.push({ kind, x, y, z, heading })
+    }
+    return { type: 'traffic', lamps: parsed }
+  },
   ping: ({ t }) =>
     typeof t === 'number' && Number.isFinite(t) ? { type: 'ping', t } : null,
 }

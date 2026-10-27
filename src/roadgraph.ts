@@ -8,7 +8,7 @@
 
 import { projectOnSegment, unitToWorld } from './coords.ts'
 import { pick } from './rng.ts'
-import type { Metres, Road, XZ } from './interfaces.ts'
+import type { Metres, Road, RoadClass, XZ } from './interfaces.ts'
 import type { Rng } from './rng.ts'
 
 // A point on the road network, in world metres.
@@ -24,6 +24,8 @@ interface RoadEdge {
   cum: number[]
   length: number
   name: string
+  // The road's class (residential for a road given without one).
+  c: RoadClass
 }
 
 export interface RoadGraph {
@@ -98,7 +100,7 @@ function slice(
 }
 
 export function buildRoadGraph(
-  roads: readonly Pick<Road, 'n' | 'p'>[],
+  roads: readonly (Pick<Road, 'n' | 'p'> & Partial<Pick<Road, 'c'>>)[],
   metres: Metres
 ): RoadGraph {
   // First pass: how often each quantized vertex appears across all polylines.
@@ -155,6 +157,7 @@ export function buildRoadGraph(
           cum,
           length,
           name: road.n || '',
+          c: road.c ?? 'residential',
         })
       }
       runStart = i

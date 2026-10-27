@@ -565,7 +565,8 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
   }
   // The wards that have said so in the log this session, once each.
   const wardsTold = new Set<WardAxis>()
-  // Struck by a shadow, or landed hard (a fall): the valley's word on it.
+  // Struck by a shadow, landed hard (a fall) or run down by a car: the
+  // valley's word on it.
   // Static, then you come to on the forecourt when it is the last of you.
   // Everything the pack held stays on your body where you fell (rule 18):
   // the valley lays it and its pack frame has the last word, so the pack
@@ -586,7 +587,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     s.health = valley.health
     s.graceUntil = now + CONFIG.health.graceSeconds * 1000
     s.hurtAt = now
-    const ward = by === 'fall' ? null : WARD_OF[by]
+    const ward = by === 'fall' || by === 'vehicle' ? null : WARD_OF[by]
     hud.hurt()
     hud.popDamage(damage, warded, ward)
     game.sfx?.play(s.health > 0 ? 'hit' : 'shatter')
@@ -597,7 +598,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
             ? 'log.hit_caretaker'
             : by === 'fall'
               ? 'log.hit_fall'
-              : 'log.hit'
+              : by === 'vehicle'
+                ? 'log.hit_vehicle'
+                : 'log.hit'
         )
       )
       // The first time a ward takes the edge off, it says so.
@@ -630,7 +633,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
             ? 'log.tunneled'
             : by === 'fall'
               ? 'log.plunged'
-              : 'log.struck'
+              : by === 'vehicle'
+                ? 'log.run_over'
+                : 'log.struck'
       )
     )
     if (!isEmpty(items)) hud.tell(copy('log.fell'))

@@ -41,10 +41,12 @@ import {
   placeCaretaker,
   placeShadowman,
   seeHeadlights,
+  seeTraffic,
   shadeHavens,
   shadowmenNear,
   shadowRaiders,
   stepShadows,
+  trafficAt,
 } from '../../src/shadowstep.ts'
 import {
   anglerFor,
@@ -76,6 +78,7 @@ import {
   TOPIARIES,
   torchDamage,
 } from '../../src/topiaries.ts'
+import { vehicleDamage } from '../../src/traffic.ts'
 import { UNDERCROFT } from '../../src/undercroft.ts'
 import { damageOf } from '../../src/wards.ts'
 import { WAYPOINT_MAX } from '../../src/waypoints.ts'
@@ -3233,8 +3236,43 @@ describe("rule 11: the shadowmen are the valley's", () => {
     ).toBe(false)
     expect(headlightsAt(shadows, T0)).toEqual([])
     expect(seeHeadlights(shadows, state(), pose, T0)).toBe(true)
-    expect(headlightsAt(shadows, T0 + staleMs)).toHaveLength(1)
+    expect(headlightsAt(shadows, T0 + staleMs)).toHaveLength(2)
     expect(headlightsAt(shadows, T0 + staleMs + 1)).toEqual([])
+  })
+
+  it("burns in the traffic's lamps while a raider near says where they are", () => {
+    const v = seated(valley(), 'b')
+    const shadows = createShadows()
+    const placed = [{ id: 'b', at: state() }]
+    stepShadows(v, shadows, placed, mulberry32(1), { now: T0, dt: 0 })
+    shadows.field.shadowmen = []
+    // A jeep 20 m east of the raider, facing south (+Z): its taillights
+    // burn one behind it.
+    const lamp = { kind: 'jeep' as const, x: 520, y: 0, z: 500, heading: 0 }
+    expect(seeTraffic(shadows, 'b', state(), [lamp], T0)).toBe(1)
+    const id = shadows.field.nextId
+    placeShadowman(shadows, 520, 494)
+    const out = stepShadows(v, shadows, placed, mulberry32(1), {
+      now: T0,
+      dt: CONFIG.shadowmen.burnSeconds,
+    })
+    expect(out?.message.bursts).toEqual([{ id, kind: 'man', x: 520, z: 494 }])
+    expect(out?.burned).toEqual([])
+  })
+
+  it("takes the traffic's lamps only fresh, and only near the sender", () => {
+    const shadows = createShadows()
+    const { reach } = CONFIG.truck.headlights
+    const { staleMs } = CONFIG.traffic
+    const near = { kind: 'semi' as const, x: 520, y: 0, z: 500, heading: 0 }
+    const trailer = { ...near, kind: 'trailer' as const, z: 492 }
+    const far = { ...near, x: 520 + reach + 1 }
+    expect(seeTraffic(shadows, 'b', null, [near], T0)).toBe(0)
+    expect(seeTraffic(shadows, 'b', state(), [near, trailer, far], T0)).toBe(2)
+    // A tractor's headlights, its trailer's taillights.
+    expect(trafficAt(shadows, T0 + staleMs)).toHaveLength(2)
+    expect(trafficAt(shadows, T0 + staleMs + 1)).toEqual([])
+    expect(shadows.traffic).toEqual({})
   })
 
   it('sends a spider as one, its burn against its own longer time', () => {
@@ -3648,6 +3686,36 @@ describe('rule 24: geometrie', () => {
     expect(healthFor(v.valley, 'acct-a')).toBe(MAX)
     expect(
       v.step({ type: 'plunge', id: 'nobody', height: 30 }).health
+    ).toBeUndefined()
+  })
+
+  it('takes a car running a raider down off it, nothing cutting it', () => {
+    const v = valleyWith(join('a'))
+    v.step({ type: 'dose', id: 'a', kind: 'joints' })
+    const damage = vehicleDamage('bmw', 10, MAX)
+    expect(
+      v.step({ type: 'run-over', id: 'a', kind: 'bmw', speed: 10 }).health
+    ).toEqual({
+      account: 'acct-a',
+      points: MAX - damage,
+      max: MAX,
+      hit: { by: 'vehicle', damage, warded: 0 },
+    })
+    // A semi at speed then shatters it.
+    const fatal = v.step({ type: 'run-over', id: 'a', kind: 'semi', speed: 22 })
+    expect(fatal.health).toMatchObject({ points: 0, fatal: true })
+    expect(fatal.health?.hit?.by).toBe('vehicle')
+    expect(healthFor(v.valley, 'acct-a')).toBe(MAX)
+    expect(
+      v.step({ type: 'run-over', id: 'nobody', kind: 'jeep', speed: 20 }).health
+    ).toBeUndefined()
+  })
+
+  it('takes no car running down a raider in the bed', () => {
+    const v = valleyWith(join('a'))
+    v.step({ type: 'board', id: 'a', at: HERE })
+    expect(
+      v.step({ type: 'run-over', id: 'a', kind: 'semi', speed: 20 }).health
     ).toBeUndefined()
   })
 

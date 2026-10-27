@@ -141,8 +141,15 @@ import { STRIP_MALL } from './stripmall.ts'
 import { deathPose, TOPIARIES } from './topiaries.ts'
 import { buildTopiary, buildTopiaryParts, poseDeath } from './topiarymodel.ts'
 import { buildToolbox } from './torchmodel.ts'
+import {
+  buildTractor,
+  buildTrailer,
+  buildVehicle,
+  LIVERIES,
+} from './trafficmodels.ts'
 import { buildTunnelShade } from './tunnelshademodel.ts'
 import { buildTrapdoor, buildUndercroft } from './undercroftmodel.ts'
+import { buildWeedTuft } from './weeds.ts'
 import { buildWreck } from './wreck.ts'
 import { buildClutter, buildLightTower } from './yardprops.ts'
 import type { AkashicAsset, Part } from './assetkit.ts'
@@ -384,9 +391,17 @@ const FISH_LABELS: [string, string][] = [
   ['shadow-carp', 'Shadow carp'],
 ]
 
+// The traffic's cars as the Akashic names them.
+const TRAFFIC_LABELS = {
+  jeep: 'Jeep Wrangler',
+  bmw: 'BMW three-series',
+  pickup: 'Chevy pickup',
+} as const
+
 // Registry for the Akashic page, in cycle order. The truck (with its
 // driver) and the shadowman come in from their own modules, because both
 // need figure or game code; see src/akashic.ts.
+
 export const WORLD_ASSETS: AkashicAsset[] = [
   { id: 'citgo-station', label: 'Citgo station', build: sampleFuelStation },
   {
@@ -687,8 +702,26 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   {
     id: 'jeep',
     label: "Tyler's red Jeep Wrangler, the back open",
-    build: buildJeep,
+    build: () => buildJeep(),
   },
+  ...(['jeep', 'bmw', 'pickup'] as const).map((kind) => ({
+    id: `traffic-${kind}`,
+    label: `Traffic: a ${TRAFFIC_LABELS[kind]}, its lamps lit`,
+    build: () => buildVehicle(kind, 7).body,
+  })),
+  ...LIVERIES.map((livery, i) => ({
+    id: `traffic-semi-${i + 1}`,
+    label: `Traffic: a semi hauling for ${livery.name} ${livery.line}`,
+    build: () => {
+      const group = new THREE.Group()
+      const tractor = buildTractor(['#b3121a', '#1f3f7a', '#f2f2ee'][i % 3])
+      const trailer = buildTrailer(i)
+      const { kingpin, trailer: length, overhang } = CONFIG.traffic.semi
+      trailer.position.z = -kingpin - (length / 2 - overhang)
+      group.add(tractor, trailer)
+      return group
+    },
+  })),
   {
     id: 'tyler-jeep',
     label: 'Tyler in his Jeep, the radar dish on the roof cabled to the laptop',
@@ -734,6 +767,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'speaker-post',
     label: 'A drive-in speaker post',
     build: () => buildSpeakerPost(3),
+  },
+  {
+    id: 'weed-tuft',
+    label: 'A tuft of weeds, through the valley and the drive-in’s gravel',
+    build: () => buildWeedTuft(3),
   },
   {
     id: 'castle-entropy',

@@ -64,6 +64,8 @@ import {
   signOutAndReload,
 } from './titles.ts'
 import { TorchHand } from './torchhand.ts'
+import { buildTraffic } from './traffic.ts'
+import { createTrafficRig } from './trafficrig.ts'
 import { createTrails } from './trails.ts'
 import { TripSolids } from './tripsolidsrig.ts'
 import { Truck } from './truck.ts'
@@ -315,6 +317,14 @@ async function boot() {
     pillars,
     graph,
     truck,
+    traffic:
+      import.meta.env.MODE === 'test'
+        ? null
+        : createTrafficRig({
+            scene,
+            traffic: buildTraffic(graph, geo.metres),
+            groundAt: world.ground.at,
+          }),
     radio: SILENT ? null : createTruckRadio(),
     reel: world.driveIn ? createReelPlayer(world.driveIn, SILENT) : null,
     donutWake: world.donutField
