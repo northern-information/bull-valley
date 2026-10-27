@@ -67,6 +67,7 @@ import { tradeFanfare } from './tradefanfare.ts'
 import { toWaypoints } from './waypoints.ts'
 import { jarSlurm } from './world.ts'
 import {
+  askedWhereTo,
   giftsIn,
   newLeg,
   portalNews,
@@ -420,6 +421,10 @@ export function wireValley(game: Game, actions: Actions): void {
       s.onTruckRolls = [copy('log.truck_leaves'), copy('log.hop_out_hint')]
     }
     if (reason === 'ferry' && detail.by === me) hud.tell(copy('log.ride_home'))
+    // The first one in got out before picking: we are first now, and asked.
+    if (reason === 'hopped-out' && askedWhereTo(wire.truck, me)) {
+      actions.openCharter()
+    }
     // The first one in picked where he goes: the rest of the bed hears it.
     if (reason === 'charted' && bed.aboard && detail.by !== me) {
       const dest = leg.kind === 'parked' ? leg.dest : undefined

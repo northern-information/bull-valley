@@ -560,12 +560,12 @@ export const CONFIG = {
     },
     wanderMetres: 6000, // how far the outbound joyride runs
     // Matthew Marx's day (marx.ts): he reads at the tailgate this long,
-    // then does donuts this long, over and over. Climbing into the bed
-    // starts a countdown this long before he leaves (marx.ts board): on the
-    // joyride, or wherever the first one in picked on the map (charter).
-    // With no one else in the valley no countdown shows, and he leaves as
-    // soon as the pick is made; this long is only how long he waits for
-    // one.
+    // then does donuts this long, over and over. The first one into the bed
+    // picks on the map where he goes (marx.ts charter), and the pick starts
+    // a countdown countdownSeconds long before he leaves: there, or on the
+    // joyride. He waits pickSeconds for the pick, then takes the joyride.
+    // With no one else in the valley no countdown runs, and he leaves as
+    // soon as the pick is made.
     readSeconds: 300,
     donutSeconds: 300,
     // A ride earns its XP (progression.ts XP.ride) only when the drive
@@ -573,6 +573,7 @@ export const CONFIG = {
     // rideMetres): no hop round the block for it.
     rideXpMetres: 400,
     countdownSeconds: 60,
+    pickSeconds: 120,
     // The countdown shows to whoever is in the bed or this close by.
     countdownReach: 25,
     // The valley never knows the roads: it reckons a drive by road at most

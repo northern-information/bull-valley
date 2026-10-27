@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   aboard,
+  askedWhereTo,
   boardable,
   charterable,
   clockText,
@@ -158,6 +159,23 @@ describe('the charter', () => {
     expect(charterable(null, 'a')).toBe(false)
     expect(charterable(empty, null)).toBe(false)
   })
+
+  it('asks the first one in where to until the pick is made', () => {
+    const asking: Leg = {
+      kind: 'parked',
+      at: T0,
+      from: null,
+      leavesAt: T0 + 120_000,
+      picking: true,
+    }
+    const two = world(asking, ['a', 'b']).truck
+    expect(askedWhereTo(two, 'a')).toBe(true)
+    expect(askedWhereTo(two, 'b')).toBe(false)
+    expect(askedWhereTo(world(parked(T0 + 60_000), ['a']).truck, 'a')).toBe(
+      false
+    )
+    expect(askedWhereTo(null, 'a')).toBe(false)
+  })
 })
 
 describe('the countdown', () => {
@@ -169,6 +187,15 @@ describe('the countdown', () => {
     expect(countdown(world(parked()).truck, T0)).toBeNull()
     expect(countdown(world({ kind: 'joyride', at: T0 }).truck, T0)).toBeNull()
     expect(countdown(null, T0)).toBeNull()
+    // Still picking where he goes: no countdown yet.
+    const asking: Leg = {
+      kind: 'parked',
+      at: T0,
+      from: null,
+      leavesAt: T0 + 120_000,
+      picking: true,
+    }
+    expect(countdown(world(asking, ['a']).truck, T0)).toBeNull()
   })
 
   it('reads as m:ss', () => {

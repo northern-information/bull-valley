@@ -255,6 +255,9 @@ export interface Actions {
   closeMap(relock?: boolean): void
   // A known portal phone on the map clicked: fast travel there.
   fastTravel(phone: number): void
+  // Rule 3: the map opens for us to pick where Marx goes, the first one
+  // in the bed (or the next, the first gone before picking).
+  openCharter(): void
   // Rule 3: the map opened for us to pick where Marx goes ends: a point
   // picked (to), the joyride (null), or nothing asked (undefined: he left,
   // or the bed is not ours).
@@ -482,9 +485,9 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     truck.follow(s.truckPlan, (ms: number) => net.clock.toLocalMs(ms))
   }
 
-  // Into the bed: of the truck at the Citgo, where the countdown starts
-  // and the first one in picks on the map where he goes (rule 3), or of
-  // the truck we whistled, which drives us home.
+  // Into the bed: of the truck at the Citgo, where the first one in picks
+  // on the map where he goes and the pick starts the countdown (rule 3),
+  // or of the truck we whistled, which drives us home.
   const boardTruck = () => {
     if (s.aboard || !s.world) return
     closeInventory()
@@ -497,10 +500,12 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (first) openCharter()
   }
 
-  // The map, for the first one in to pick where Marx drives.
+  // The map, for the first one in to pick where Marx drives: he asks.
   const openCharter = () => {
-    if (!hud.map) return
+    if (!hud.map || s.charting) return
+    closeInventory()
     closeBook()
+    npcSays('marx', copy('marx.where_to'))
     s.charting = true
     withPanel(() => {
       s.mapOpen = hud.showMap(true, true)
@@ -520,11 +525,12 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (to === undefined || !s.aboard) return
     const spot = to && nearestRoadPoint(game.truckContext.graph, to.x, to.z)
     const dest = spot ? { x: spot.x, z: spot.z } : null
-    hud.tell(
-      dest && hud.map
-        ? copy('log.charter', { place: hud.map.placeOf(dest) })
-        : copy('log.charter_joyride')
-    )
+    if (dest && hud.map) {
+      hud.tell(copy('log.charter', { place: hud.map.placeOf(dest) }))
+      npcSays('marx', copy('marx.got_it'))
+    } else {
+      hud.tell(copy('log.charter_joyride'))
+    }
     net.send({ type: 'charter', to: dest })
   }
 
@@ -2087,6 +2093,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     openMap,
     closeMap,
     fastTravel,
+    openCharter,
     endCharter,
     applyDropTaken,
     toggleFlashlight,

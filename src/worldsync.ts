@@ -70,6 +70,16 @@ export function charterable(
   return truck.riders.length === 0 || truck.riders[0] === me
 }
 
+// Rule 3: whether Marx is asking this raider where to: they are the first
+// one in the bed of the parked truck, and no pick is made yet.
+export function askedWhereTo(
+  truck: TruckState | null,
+  me: string | null
+): boolean {
+  const leg = truck?.leg
+  return leg?.kind === 'parked' && !!leg.picking && truck?.riders[0] === me
+}
+
 // The bed as this raider holds it: in it or not, and whether a board is
 // asked and not yet answered.
 interface BedState {
@@ -122,13 +132,16 @@ export function newLeg(before: Leg | null, after: Leg): boolean {
 }
 
 // Seconds until the truck leaves with whoever is in the bed, or null when
-// no countdown runs. Never below 0.
+// no countdown runs (the bed empty, or the first one in still picking
+// where he goes). Never below 0.
 export function countdown(
   truck: TruckState | null,
   now: number
 ): number | null {
   const leg = truck?.leg
-  if (leg?.kind !== 'parked' || leg.leavesAt === null) return null
+  if (leg?.kind !== 'parked' || leg.leavesAt === null || leg.picking) {
+    return null
+  }
   return Math.max(0, Math.ceil((leg.leavesAt - now) / 1000))
 }
 

@@ -602,16 +602,31 @@ describe("rule 3: Marx's truck is the valley's", () => {
     })
   })
 
-  it('counts down once someone is in the bed, then takes them on the joyride', () => {
+  it('asks the first one in where to, counts down from the pick, then takes them on the joyride', () => {
     const v = valleyWith(join('a'), join('b'))
     const r = v.step({ type: 'board', id: 'a', at: HERE })
     expect(reasons(r)).toEqual(['boarded'])
-    const leaves = T0 + CONFIG.truck.countdownSeconds * SEC
+    const gives = T0 + CONFIG.truck.pickSeconds * SEC
     expect(r.broadcast[0].world?.truck).toEqual({
+      leg: {
+        kind: 'parked',
+        at: T0,
+        from: null,
+        leavesAt: gives,
+        picking: true,
+      },
+      riders: ['a'],
+    })
+    expect(r.alarm).toBe(gives)
+    // The long way: the countdown starts now.
+    expect(reasons(v.step({ type: 'charter', id: 'a', to: null }))).toEqual([
+      'charted',
+    ])
+    const leaves = T0 + CONFIG.truck.countdownSeconds * SEC
+    expect(v.valley.world?.truck).toEqual({
       leg: { kind: 'parked', at: T0, from: null, leavesAt: leaves },
       riders: ['a'],
     })
-    expect(r.alarm).toBe(leaves)
     v.tick(CONFIG.truck.countdownSeconds * SEC)
     expect(reasons(v.step({ type: 'clock' }))).toEqual(['depart'])
     expect(v.valley.world?.truck).toEqual({
@@ -2721,7 +2736,8 @@ describe('rule 22: XP for what a raider does', () => {
       join('c'),
       { type: 'board', id: 'a', at: HERE },
       { type: 'board', id: 'b', at: HERE },
-      { type: 'board', id: 'c', at: HERE }
+      { type: 'board', id: 'c', at: HERE },
+      { type: 'charter', id: 'a', to: null }
     )
     v.tick(CONFIG.truck.countdownSeconds * SEC)
     expect(v.step({ type: 'clock' }).xp).toBeUndefined()
@@ -2756,7 +2772,8 @@ describe('rule 22: XP for what a raider does', () => {
       join('a'),
       { ...join('a2'), account: 'acct-a' } as ValleyAction,
       { type: 'board', id: 'a', at: HERE },
-      { type: 'board', id: 'a2', at: HERE }
+      { type: 'board', id: 'a2', at: HERE },
+      { type: 'charter', id: 'a', to: null }
     )
     v.tick(CONFIG.truck.countdownSeconds * SEC + ROUTES.joyrideMs)
     expect(v.step({ type: 'clock' }).xp).toEqual([
