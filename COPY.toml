@@ -654,6 +654,7 @@ none = { text = "No Citgo yet. Stand on a forecourt.", by = "ai" }
 hint = { text = "Click a portal phone to fast travel, anywhere else to pin a waypoint.", by = "ai" }
 hint_away = { text = "Fast travel needs a portal phone: get one from Tyler, or stand at one. Click anywhere to pin a waypoint.", by = "ai" }
 hint_charter = { text = "Click where Marx should take you. M for the long way, E to hop out.", by = "ai" }
+hint_aboard = { text = "No fast travel from the truck bed: hop out first. Click anywhere to pin a waypoint.", by = "ai" }
 hint_below = { text = "No signal in the Undercroft: climb out to fast travel. Click anywhere to pin a waypoint.", by = "ai" }
 zoom = { text = "Scroll to zoom, drag to pan.", by = "ai" }
 somewhere = { text = "the middle of nowhere", by = "ai" }
