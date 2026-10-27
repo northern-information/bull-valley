@@ -18,10 +18,10 @@ import {
   buildDriveInScreen,
   buildProjector,
   buildSpeakerPost,
-  buildWeedTuft,
 } from './driveinmodel.ts'
 import { buildPayphone } from './payphonemodel.ts'
 import { mulberry32 } from './rng.ts'
+import { buildWeeds } from './weeds.ts'
 import { MUD_LIFT } from './worldsurfaces.ts'
 import type { PortalPhone } from './citgos.ts'
 import type { Ground } from './ground.ts'
@@ -191,24 +191,12 @@ export function buildDriveIn(
     walls.addWall(at, at, 0.12, undefined, true)
   }
 
-  // The weeds through the gravel, one instanced tuft, walked through.
-  const tuft = buildWeedTuft(DRIVE_IN.seed)
-  const spots = weedSpots()
-  const weeds = new THREE.InstancedMesh(
-    tuft.geometry,
-    tuft.material,
-    spots.length
+  // The weeds through the gravel, walked through.
+  const weeds = buildWeeds(
+    weedSpots().map((spot) => ({ ...spot, ...world(spot) })),
+    ground.at,
+    DRIVE_IN.seed
   )
-  const dummy = new THREE.Object3D()
-  spots.forEach((spot, i) => {
-    const at = world(spot)
-    dummy.position.set(at.x, ground.at(at.x, at.z), at.z)
-    dummy.rotation.set(0, spot.yaw, 0)
-    dummy.scale.set(1, spot.scale, 1)
-    dummy.updateMatrix()
-    weeds.setMatrixAt(i, dummy.matrix)
-  })
-  weeds.instanceMatrix.needsUpdate = true
   weeds.name = 'drive-in-weeds'
   group.add(weeds)
 

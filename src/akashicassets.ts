@@ -48,7 +48,6 @@ import {
   buildDriveInScreen,
   buildProjector,
   buildSpeakerPost,
-  buildWeedTuft,
 } from './driveinmodel.ts'
 import { buildTyler } from './figure.ts'
 import { buildFireRoots, buildRaincloud } from './fire.ts'
@@ -144,6 +143,7 @@ import { buildTopiary, buildTopiaryParts, poseDeath } from './topiarymodel.ts'
 import { buildToolbox } from './torchmodel.ts'
 import { buildTunnelShade } from './tunnelshademodel.ts'
 import { buildTrapdoor, buildUndercroft } from './undercroftmodel.ts'
+import { buildWeedTuft } from './weeds.ts'
 import { buildWreck } from './wreck.ts'
 import { buildClutter, buildLightTower } from './yardprops.ts'
 import type { AkashicAsset, Part } from './assetkit.ts'
@@ -733,8 +733,8 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     build: () => buildSpeakerPost(3),
   },
   {
-    id: 'drive-in-weeds',
-    label: 'A tuft of weeds through the drive-in’s gravel',
+    id: 'weed-tuft',
+    label: 'A tuft of weeds, through the valley and the drive-in’s gravel',
     build: () => buildWeedTuft(3),
   },
   {

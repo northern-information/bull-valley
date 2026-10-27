@@ -71,6 +71,8 @@ import {
 } from './stripmall.ts'
 import { inUndercroft, UNDERCROFT } from './undercroft.ts'
 import { Walls } from './walls.ts'
+import { buildWeeds } from './weeds.ts'
+import { placeWeeds } from './weedspots.ts'
 import { buildRoads, buildShoulders, buildWater } from './worldsurfaces.ts'
 import type { DishArray, PortalRig, Wreck } from './assets.ts'
 import type { Sight } from './book.ts'
@@ -483,6 +485,46 @@ export function buildWorld(
     ? buildIndustrialSite(spawnStation, heightAt, ground, walls)
     : null
   if (industrial) group.add(industrial.group)
+  // Where nothing grows: what is built and kept clear, by the trees' own
+  // margins. The weeds keep out of the same.
+  const clearOf = (x: number, z: number): boolean =>
+    (maze ? maze.covers(x, z, CONFIG.maze.treeClear) : false) ||
+    (spawnStation
+      ? onDriveIn(mazePlaceOf(spawnStation), { x, z }, CONFIG.driveIn.treeClear)
+      : false) ||
+    (spawnStation
+      ? onLookout(
+          mazePlaceOf(spawnStation),
+          { x, z },
+          LOOKOUT.spread + CONFIG.maze.lookout.clear
+        )
+      : false) ||
+    (donutField
+      ? Math.hypot(x - donutField.x, z - donutField.z) <
+        donutField.radius + DONUT_TREE_CLEAR
+      : false) ||
+    (wreckAt
+      ? Math.hypot(x - wreckAt[0], z - wreckAt[2]) < CONFIG.wreck.treeClear
+      : false) ||
+    // A pond's landing stands in the open.
+    pondsAt.some(
+      (p) => Math.hypot(x - p.landing.x, z - p.landing.z) < POND_TREE_CLEAR
+    ) ||
+    dishSpots.some(
+      (d) => Math.hypot(x - d.x, z - d.z) < CONFIG.dishes.treeClear
+    ) ||
+    (plaza ? onMallGrounds(plaza.origin, x, z, STORE_TREE_CLEAR) : false) ||
+    (croft
+      ? inUndercroft(croft.rig.place, { x, z }, CROFT_TREE_CLEAR)
+      : false) ||
+    (industrial
+      ? onParkGrounds(industrial.origin, x, z, CONFIG.industrial.treeClear)
+      : false) ||
+    // The lone pine stands alone among the dishes.
+    (spawnStation ? insideDishArray(spawnStation, x, z) : false) ||
+    onMoat(x, z) ||
+    // No tree grows through a store or its back room.
+    fuel.points.some((p) => onStoreGrounds(p, x, z, STORE_TREE_CLEAR))
   group.add(
     buildTrees(
       geo,
@@ -490,48 +532,7 @@ export function buildWorld(
       ground.at,
       mask,
       rng,
-      (x, z) =>
-        (maze ? maze.covers(x, z, CONFIG.maze.treeClear) : false) ||
-        (spawnStation
-          ? onDriveIn(
-              mazePlaceOf(spawnStation),
-              { x, z },
-              CONFIG.driveIn.treeClear
-            )
-          : false) ||
-        (spawnStation
-          ? onLookout(
-              mazePlaceOf(spawnStation),
-              { x, z },
-              LOOKOUT.spread + CONFIG.maze.lookout.clear
-            )
-          : false) ||
-        (donutField
-          ? Math.hypot(x - donutField.x, z - donutField.z) <
-            donutField.radius + DONUT_TREE_CLEAR
-          : false) ||
-        (wreckAt
-          ? Math.hypot(x - wreckAt[0], z - wreckAt[2]) < CONFIG.wreck.treeClear
-          : false) ||
-        // A pond's landing stands in the open.
-        pondsAt.some(
-          (p) => Math.hypot(x - p.landing.x, z - p.landing.z) < POND_TREE_CLEAR
-        ) ||
-        dishSpots.some(
-          (d) => Math.hypot(x - d.x, z - d.z) < CONFIG.dishes.treeClear
-        ) ||
-        (plaza ? onMallGrounds(plaza.origin, x, z, STORE_TREE_CLEAR) : false) ||
-        (croft
-          ? inUndercroft(croft.rig.place, { x, z }, CROFT_TREE_CLEAR)
-          : false) ||
-        (industrial
-          ? onParkGrounds(industrial.origin, x, z, CONFIG.industrial.treeClear)
-          : false) ||
-        // The lone pine stands alone among the dishes.
-        (spawnStation ? insideDishArray(spawnStation, x, z) : false) ||
-        onMoat(x, z) ||
-        // No tree grows through a store or its back room.
-        fuel.points.some((p) => onStoreGrounds(p, x, z, STORE_TREE_CLEAR)),
+      clearOf,
       pine ? [pine.tree] : []
     )
   )
@@ -558,6 +559,13 @@ export function buildWorld(
   )
   group.add(streetlights.group)
   group.add(buildReeds(geo, metres, ground.at, rng))
+  // Weeds come up all over, in clumps, on their own seed.
+  group.add(
+    buildWeeds(
+      placeWeeds(metres, (u, v) => mask.blocked(u, v), clearOf),
+      ground.at
+    )
+  )
   group.add(buildGraveyards(geo, metres, ground.at, rng))
   group.add(fuel.group)
   const landmarks = buildLandmarks(geo, metres, ground.at)

@@ -18,8 +18,10 @@
 import { CONFIG } from './config.ts'
 import { mazeToWorld, worldToMaze } from './maze.ts'
 import { mulberry32, range } from './rng.ts'
+import { weedAt } from './weedspots.ts'
 import type { XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
+import type { WeedSpot } from './weedspots.ts'
 
 export const DRIVE_IN = {
   // The screen: its middle this far along, this wide and tall, its foot
@@ -172,14 +174,14 @@ export function inBooth(p: XZ, margin = 0): boolean {
 // The weeds through the gravel, drive-in-local, the same for everyone:
 // scattered over the lot and crowded round the cars, never in the booth.
 // Each with the yaw and the height it grows to.
-export function weedSpots(): (XZ & { yaw: number; scale: number })[] {
+export function weedSpots(): WeedSpot[] {
   const rng = mulberry32(DRIVE_IN.seed ^ 0x3eed)
   const { half } = CONFIG.driveIn
-  const spots: (XZ & { yaw: number; scale: number })[] = []
+  const spots: WeedSpot[] = []
   const grow = (x: number, z: number) => {
     const p = { x, z }
     if (Math.abs(x) > half.x || Math.abs(z) > half.z || inBooth(p, 0.3)) return
-    spots.push({ ...p, yaw: rng() * Math.PI * 2, scale: range(rng, 0.7, 1.6) })
+    spots.push(weedAt(rng, x, z))
   }
   for (let i = 0; i < DRIVE_IN.weeds; i++) {
     grow(range(rng, -half.x, half.x), range(rng, -half.z, half.z))

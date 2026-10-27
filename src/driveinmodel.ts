@@ -1,5 +1,4 @@
 import * as THREE from 'three'
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import {
   lambert,
   makeGlowSprite,
@@ -14,7 +13,7 @@ import type { CarKind } from './drivein.ts'
 // The drive-in's pieces past the corn maze's far end (drivein.ts lays
 // them out, driveinsite.ts stands them on the lot): the screen on its
 // steel, the cinder-block booth and its projector, a burnt-out car in
-// any of four shapes, a speaker post, and the weeds through the gravel. Each faces +Z with its origin
+// any of four shapes, and a speaker post. Each faces +Z with its origin
 // on the ground under its middle.
 
 type Box = [number, number, number]
@@ -561,35 +560,4 @@ export function buildSpeakerPost(seed = 1): THREE.Group {
   }
   mergeStatic(group)
   return group
-}
-
-// --- Weeds -----------------------------------------------------------------
-
-// A tuft of weeds come up through the gravel: a few blades fanned out from
-// one root, in a dry green, some gone to straw. One geometry for every tuft
-// on the lot (driveinsite.ts instances it); stands on its root.
-export function buildWeedTuft(seed = 1): THREE.Mesh {
-  const rng = mulberry32(seed)
-  const blades: THREE.BufferGeometry[] = []
-  const greens = ['#4f5a2e', '#5d6634', '#6f6a3a', '#7d7046']
-  const colour = new THREE.Color()
-  const count = 10
-  for (let i = 0; i < count; i++) {
-    const tall = range(rng, 0.25, 0.6)
-    const blade = new THREE.PlaneGeometry(0.07, tall)
-    blade.translate(0, tall / 2, 0)
-    blade.rotateX(range(rng, -0.7, 0.7))
-    blade.rotateY((i / count) * Math.PI + range(rng, -0.2, 0.2))
-    colour.set(pick(rng, greens))
-    const colours: number[] = []
-    for (let v = 0; v < blade.attributes.position.count; v++) {
-      colours.push(colour.r, colour.g, colour.b)
-    }
-    blade.setAttribute('color', new THREE.Float32BufferAttribute(colours, 3))
-    blades.push(blade)
-  }
-  const material = lambert({ vertexColors: true, side: THREE.DoubleSide })
-  const tuft = new THREE.Mesh(mergeGeometries(blades), material)
-  tuft.name = 'weed-tuft'
-  return tuft
 }
