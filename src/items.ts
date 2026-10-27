@@ -616,10 +616,12 @@ export const ITEMS = [
     category: 'key-item',
     start: 0,
   },
-  // What every raider carries (sharedworld.ts rule 38): the flashlight and
-  // the Citgo phone from the first welcome, and Matthew Marx's whistle
-  // from the first time the account meets him. Each sits on the hotbar
-  // and is used from the hand (held.ts) as anything else is.
+  // What every raider carries (sharedworld.ts rule 38): the flashlight
+  // from the first welcome, the portal phone from the first time the
+  // account meets Tyler Etters (the id is the Citgo phone's, as packs keep
+  // it), and Matthew Marx's whistle from the first time it meets him. Each
+  // sits on the hotbar and is used from the hand (held.ts) as anything
+  // else is.
   {
     id: 'flashlight',
     category: 'key-item',
@@ -628,7 +630,7 @@ export const ITEMS = [
   {
     id: 'citgo-phone',
     category: 'key-item',
-    start: 1,
+    start: 0,
   },
   {
     id: 'marx-whistle',

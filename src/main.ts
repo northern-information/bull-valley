@@ -6,7 +6,7 @@ import { BvAudio } from './audio.ts'
 import { refreshSession } from './auth.ts'
 import { mountBuildTag } from './buildtag.ts'
 import { CaretakerShade } from './caretakerrig.ts'
-import { mapCitgos } from './citgomap.ts'
+import { mapCitgos, phoneLabel } from './citgomap.ts'
 import { CONFIG } from './config.ts'
 import { Constellations } from './constellationrig.ts'
 import { unitToWorld } from './coords.ts'
@@ -177,14 +177,16 @@ async function boot() {
     name: road.n,
     points: road.p.map(([u, v]) => unitToWorld(u, v, geo.metres)),
   }))
+  const citgos = mapCitgos(world.fuelPoints, mapRoads)
   hud.mountMap({
     roads: mapRoads,
     metres: geo.metres,
-    citgos: mapCitgos(world.fuelPoints, mapRoads),
-    phones: world.payphones.map(({ x, z }) => ({
-      x,
-      z,
-      label: copy('map.payphone'),
+    citgos,
+    phones: world.payphones.map((phone) => ({
+      x: phone.x,
+      z: phone.z,
+      station: phone.station,
+      label: phoneLabel(phone, (station) => citgos[station]?.label ?? ''),
     })),
   })
 

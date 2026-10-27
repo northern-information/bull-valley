@@ -1,12 +1,13 @@
 // The map (M): the valley from above, its roads and every Citgo, the ones
 // the account has stood at lit in Citgo red and the last of them (where
-// the phone's portal goes) ringed and named, every payphone the account
-// has found a pale blue dot (one not found is not shown), with the raider
-// an arrow among them, and each of their party (sharedworld.ts rule 34) a
-// named arrow of its own, and each of the raider's own bodies a bone-white
-// cross where it lies until they take their things back (corpses.ts,
-// sharedworld.ts rule 18). Clicking a visited Citgo or a found payphone fast
-// travels there (actions.ts, citgos.ts fastTravel). Opened for a charter
+// the phone's portal goes) ringed and named, every portal phone the
+// account knows a pale blue dot (the one by a visited Citgo's door, or one
+// found; one not known is not shown), with the raider an arrow among them,
+// and each of their party (sharedworld.ts rule 34) a named arrow of its
+// own, and each of the raider's own bodies a bone-white cross where it
+// lies until they take their things back (corpses.ts, sharedworld.ts rule
+// 18). Clicking a known portal phone fast travels there (actions.ts,
+// citgos.ts fastTravel). Opened for a charter
 // (the first one into Marx's bed, marx.ts charter), a click anywhere picks
 // where he drives instead. Otherwise a click anywhere else pins a waypoint
 // there (waypoints.ts, sharedworld.ts rule 37), and a click on a pin lifts
@@ -16,30 +17,32 @@
 // frame while it is open.
 
 import { context2d, EGGSHELL, MONO } from './canvas.ts'
-import { phonesOf, roadNameNear, surveyedStations } from './citgos.ts'
+import { knownPhones, roadNameNear, surveyedStations } from './citgos.ts'
 import { unitToWorld } from './coords.ts'
 import { copy } from './copy.ts'
 import { el } from './dom.ts'
 import { liftWaypoint, placeWaypoint, WAYPOINT_MAX } from './waypoints.ts'
-import type { CitgoLog, MapRoad, Stop } from './citgos.ts'
+import type { CitgoLog, MapRoad, PortalPhone } from './citgos.ts'
 import type { Facing } from './drops.ts'
 import type { Geo, Metres, XZ } from './interfaces.ts'
 import type { Waypoints } from './waypoints.ts'
 
-// One Citgo or payphone on the map: where it stands, and what it is called
-// there.
+// One Citgo or portal phone on the map: where it stands, and what it is
+// called there; a portal phone by a Citgo's door names its station.
 interface MapCitgo extends XZ {
   label: string
+  station?: number
 }
 
 // What one frame of the open map shows: where the raider stands and faces,
-// their Citgos and payphones, the one they stand at and may fast travel
-// from (null: out in the valley), where each of their party placed in the
-// valley stands and faces, their waypoints, and where their own bodies lie.
+// their Citgos and portal phones, whether they may fast travel from where
+// they stand (a portal phone in the pack, or one stood at), where each of
+// their party placed in the valley stands and faces, their waypoints, and
+// where their own bodies lie.
 interface MapFrame {
   me: Facing
   log: CitgoLog
-  here: Stop | null
+  travel: boolean
   party?: readonly (Facing & { name: string })[]
   marks?: Waypoints
   bodies?: readonly (XZ & { id: number })[]
@@ -50,7 +53,7 @@ const SIZE = 720
 // Pixels round a Citgo a pointer may land and still pick it.
 const PICK = 14
 const CITGO = '#ff4a1c'
-const PAYPHONE = '#9ec5ff'
+const PHONE = '#9ec5ff'
 const RAIDER = '#60a5fa'
 const PARTY = '#22d3ee'
 const PIN = '#f0ead6'
@@ -67,9 +70,8 @@ const DRAG = 4
 
 export class CitgoMap {
   readonly root: HTMLElement
-  // A visited Citgo or a found payphone clicked: actions.ts fast travels
-  // there.
-  onTravel?: (to: Stop) => void
+  // A known portal phone clicked: actions.ts fast travels there.
+  onTravel?: (phone: number) => void
   // Opened for a charter, a point clicked: actions.ts has Marx drive there.
   onCharter?: (to: XZ) => void
   // A pin placed or lifted: every waypoint as it should now stand, for
@@ -83,8 +85,9 @@ export class CitgoMap {
   private readonly hint: HTMLElement
   private readonly citgos: readonly MapCitgo[]
   private readonly phones: readonly MapCitgo[]
-  // The payphones found, as the last frame drew them: only those pick.
-  private found: readonly number[] = []
+  // The portal phones known, as the last frame drew them: only those
+  // pick.
+  private known: readonly number[] = []
   private readonly roads: readonly MapRoad[]
   // World metres per canvas pixel unzoomed, how far in it is zoomed, and
   // the world point at its middle.
@@ -98,7 +101,7 @@ export class CitgoMap {
   // The roads as drawn for the view they were drawn at.
   private base: HTMLCanvasElement | null = null
   private baseView = ''
-  private hovered: Stop | null = null
+  private hovered: number | null = null
   // Whether a click picks where Marx drives (a charter), and the world
   // point under the pointer while it does.
   private charter = false
@@ -224,12 +227,12 @@ export class CitgoMap {
       const dragged = this.press?.dragged
       this.press = null
       if (dragged) return
-      const stop = this.pick(e)
+      const phone = this.pick(e)
       if (this.charter) {
-        const to = stop === null ? this.toWorld(e) : this.placeOfStop(stop)
+        const to = phone === null ? this.toWorld(e) : this.phones[phone]
         if (to) this.onCharter?.({ x: to.x, z: to.z })
-      } else if (stop !== null) {
-        this.onTravel?.(stop)
+      } else if (phone !== null) {
+        this.onTravel?.(phone)
       } else {
         const pin = this.pickPin(e)
         if (pin !== null) {
@@ -248,9 +251,9 @@ export class CitgoMap {
     return this.citgos[station]?.label ?? ''
   }
 
-  // A Citgo or a payphone, as the map has it.
-  private placeOfStop(stop: Stop): MapCitgo | undefined {
-    return 'citgo' in stop ? this.citgos[stop.citgo] : this.phones[stop.phone]
+  // What the map calls portal phone `phone`.
+  phoneLabel(phone: number): string {
+    return this.phones[phone]?.label ?? ''
   }
 
   // What a point is called: the Citgo it is by, or the road it is near.
@@ -320,15 +323,14 @@ export class CitgoMap {
     this.centre = { x: clamp(this.centre.x), z: clamp(this.centre.z) }
   }
 
-  // The Citgo or found payphone under the pointer, or null.
-  private pick(e: MouseEvent): Stop | null {
-    const stops: Stop[] = this.citgos.map((_, citgo) => ({ citgo }))
-    for (const phone of this.found) {
-      if (this.phones[phone]) stops.push({ phone })
-    }
-    const at = stops.map((stop) => this.placeOfStop(stop) as MapCitgo)
-    const i = this.nearest(e, at)
-    return i === null ? null : stops[i]
+  // The known portal phone under the pointer, or null.
+  private pick(e: MouseEvent): number | null {
+    const known = this.known.filter((phone) => this.phones[phone])
+    const i = this.nearest(
+      e,
+      known.map((phone) => this.phones[phone])
+    )
+    return i === null ? null : known[i]
   }
 
   // The waypoint under the pointer, or null.
@@ -355,14 +357,6 @@ export class CitgoMap {
       }
     })
     return best
-  }
-
-  private isHovered(stop: Stop): boolean {
-    const h = this.hovered
-    if (h === null) return false
-    return 'citgo' in stop
-      ? 'citgo' in h && h.citgo === stop.citgo
-      : 'phone' in h && h.phone === stop.phone
   }
 
   // The roads, drawn once for each view.
@@ -407,7 +401,14 @@ export class CitgoMap {
     ctx.restore()
   }
 
-  draw({ me, log, here, party = [], marks = [], bodies = [] }: MapFrame): void {
+  draw({
+    me,
+    log,
+    travel,
+    party = [],
+    marks = [],
+    bodies = [],
+  }: MapFrame): void {
     this.marks = marks
     if (this.hoveredPin !== null && this.hoveredPin >= marks.length) {
       this.hoveredPin = null
@@ -436,27 +437,27 @@ export class CitgoMap {
         ctx.arc(x, y, 11, 0, Math.PI * 2)
         ctx.stroke()
       }
-      if (i === log.last || this.isHovered({ citgo: i })) {
+      if (i === log.last) {
         ctx.fillStyle = EGGSHELL
         ctx.fillText(c.label, x, y - 14)
       }
     })
-    // The payphones found, each a dot, named under the pointer.
-    this.found = phonesOf(log)
-    for (const phone of this.found) {
+    // The portal phones known, each a dot, named under the pointer.
+    this.known = knownPhones(log, this.phones)
+    for (const phone of this.known) {
       const p = this.phones[phone] as MapCitgo | undefined
       if (!p) continue
       const { x, y } = this.toCanvas(p)
-      ctx.fillStyle = PAYPHONE
+      ctx.fillStyle = PHONE
       ctx.beginPath()
-      ctx.arc(x, y, 5, 0, Math.PI * 2)
+      ctx.arc(x, y, 4, 0, Math.PI * 2)
       ctx.fill()
-      if (this.isHovered({ phone })) {
+      if (phone === this.hovered) {
         ctx.fillStyle = EGGSHELL
         ctx.fillText(p.label, x, y - 12)
       }
     }
-    this.canvas.dataset.phones = this.found.join(',')
+    this.canvas.dataset.phones = this.known.join(',')
     // The waypoints: numbered diamonds, the hovered one named.
     marks.forEach((mark, i) => {
       const { x, y } = this.toCanvas(mark)
@@ -508,7 +509,7 @@ export class CitgoMap {
     // A charter: a cross where the pointer is, named.
     if (this.charter && this.pointer) {
       const at =
-        (this.hovered && this.placeOfStop(this.hovered)) ?? this.pointer
+        (this.hovered !== null && this.phones[this.hovered]) || this.pointer
       const p = this.toCanvas(at)
       ctx.strokeStyle = EGGSHELL
       ctx.lineWidth = 2
@@ -538,9 +539,9 @@ export class CitgoMap {
       : copy('map.none')
     this.hint.textContent = this.charter
       ? copy('map.hint_charter')
-      : here === null
-        ? copy('map.hint_away')
-        : copy('map.hint')
+      : travel
+        ? copy('map.hint')
+        : copy('map.hint_away')
   }
 }
 
@@ -560,6 +561,17 @@ export function mapCitgos(
         : copy('map.citgo_unnamed', { n: i + 1 }),
     }
   })
+}
+
+// What the map calls a portal phone: by the Citgo it stands at, named by
+// `citgo`, or the castle's or the drive-in's.
+export function phoneLabel(
+  phone: Pick<PortalPhone, 'site' | 'station'>,
+  citgo: (station: number) => string
+): string {
+  if (phone.site === 'castle') return copy('map.phone_castle')
+  if (phone.site === 'drive-in') return copy('map.phone_drive_in')
+  return copy('map.phone_citgo', { citgo: citgo(phone.station ?? -1) })
 }
 
 // Every Citgo's name, indexed like world.fuelPoints, straight from the

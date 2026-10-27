@@ -2,6 +2,7 @@
 // through. boot() installs it last, after the input listeners, and only in
 // dev builds, so production bundles never carry it.
 
+import { phoneOfCitgo } from './citgos.ts'
 import { unitToWorld } from './coords.ts'
 import { isSfxId, SFX_IDS } from './sfx.ts'
 import { levelsAt } from './wardlevels.ts'
@@ -179,11 +180,11 @@ interface BvHook {
   select(slot: number): void
   pressFish(dir: ArrowDir): void
   // A Citgo portal opened ahead of the raider at once, as if the phone had
-  // dialed it through; and fast travel to Citgo `station`, as if clicked
-  // on the map.
+  // dialed it through; and fast travel to the portal phone by Citgo
+  // `station`'s door, as if clicked on the map.
   openPortal(): void
   fastTravel(station: number): void
-  // Fast travel to payphone `phone`.
+  // Fast travel to portal phone `phone` (world.payphones).
   phoneTravel(phone: number): void
   // A shadowman standing still at world (x, z), through a dev frame.
   // A spider instead when `spider` (CONFIG.shadowmen.spider).
@@ -436,8 +437,11 @@ export function installDevHook(game: Game, actions: Actions): void {
     select: (slot: number) => actions.select(slot),
     pressFish: (dir: ArrowDir) => game.fishHud.press(dir),
     openPortal: () => actions.openPortal(),
-    fastTravel: (station: number) => actions.fastTravel({ citgo: station }),
-    phoneTravel: (phone: number) => actions.fastTravel({ phone }),
+    fastTravel: (station: number) => {
+      const phone = phoneOfCitgo(game.world.payphones, station)
+      if (phone !== null) actions.fastTravel(phone)
+    },
+    phoneTravel: (phone: number) => actions.fastTravel(phone),
     placeShadowman(x: number, z: number, kind: boolean | ShadeKind = 'man') {
       // true is a spider, as it always was.
       const shade: ShadeKind =

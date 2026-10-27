@@ -246,22 +246,24 @@
 //    first it ever stood at (the spawn Citgo), it pays
 //    CONFIG.bounties.citgo into the wallet (Reduced.earn) and earns citgo
 //    XP (rule 22). A raider on foot, out of the bed and away from their
-//    last Citgo, opens a Citgo portal with the phone: it stands a little
+//    last Citgo, opens a Citgo portal with the portal phone: it stands a little
 //    ahead of where their last state frame put them, its twin in a free
 //    slot of the ring on that Citgo's lot, where the world was opened with
 //    it (SharedWorld.rings). Anyone walking into either end comes out of
-//    the other, and fast travel from one visited Citgo to another is the
-//    client's: where a raider stands is their own client's word, so the
-//    valley keeps only the log and the portals. An account keeps one
-//    portal open at a time (opening another closes the first), each for
+//    the other, and fast travel to a portal phone is the client's: where
+//    a raider stands is their own client's word, so the valley keeps only
+//    the log and the portals. An account keeps one portal open at a time
+//    (opening another closes the first), each for
 //    CONFIG.portal.lifeSeconds; the day's turn leaves them. The valley
-//    keeps every payphone each account has found in the same log
+//    keeps every portal phone each account has found in the same log
 //    (CitgoLog.phones): a raider on foot whose last state frame put them
 //    within CONFIG.castle.yard.payphone.reach of one the world was opened
-//    with (SharedWorld.payphones) finds it (phoneVisits, a `find-phone`
-//    action). It pays nothing and is never the last Citgo; fast travel
-//    leaves from and comes to a found payphone as it does a visited
-//    Citgo.
+//    with (SharedWorld.payphones: the castle's, the drive-in's, one by
+//    each Citgo's door) finds it (phoneVisits, a `find-phone` action). It
+//    pays nothing and is never the last Citgo. Fast travel goes to a
+//    portal phone found, or to the one by a visited Citgo's door
+//    (citgos.ts knownPhones), from anywhere with the portal phone in the
+//    pack, or from a portal phone without it.
 // 29. Bull Valley Dial-Up: a raider may dial in from a phone with no body
 //    in the valley (a `dial` action, Member.dialup). They open no world
 //    and the truck pays them no mind; they never send a state frame, so
@@ -379,15 +381,17 @@
 //    every socket on the account hears the list it kept. The compass and
 //    the pillars they draw are the client's.
 // 38. The kit (items.ts, held.ts): every account carries the flashlight
-//    and the Citgo phone from its first welcome (items.ts `start`), and
-//    Matthew Marx gives it his whistle the first time it meets him (rule
-//    20: the Book of Shadows' `marx`), once. giftsOwed reads what is owed
-//    off the pack, the locker and the book, so an account that met him
-//    before the whistle was a thing is given it at its next welcome. All
-//    three are key items: kept through a death (rule 18), never dropped
-//    or passed. A whistle (`call`) needs the whistle in the pack, and a
-//    portal (`open-portal`, rule 28) the phone (ValleyContext.holdings
-//    in, as the valley just read them).
+//    from its first welcome (items.ts `start`); Tyler Etters gives it the
+//    portal phone (`citgo-phone`, as packs keep it) the first time it
+//    meets him (rule 20: the Book of Shadows' `tyler`), and Matthew Marx
+//    his whistle the first time it meets him (`marx`), each once. An
+//    account opened before Tyler gave the phone was given it at its first
+//    welcome. giftsOwed reads what is owed off the pack, the locker and the
+//    book, so an account that met him before the whistle was a thing is
+//    given it at its next welcome. All three are key items: kept through
+//    a death (rule 18), never dropped or passed. A whistle (`call`) needs
+//    the whistle in the pack, and a portal (`open-portal`, rule 28) the
+//    phone (ValleyContext.holdings in, as the valley just read them).
 // 39. The topiaries and the torch (topiaries.ts): the hedge animals in
 //    the corn maze stand where the valley's clock has them (nothing on
 //    the wire), but the valley keeps each one's health
@@ -689,7 +693,7 @@ interface SharedWorld {
   rings: XZ[]
   portals: ValleyPortal[]
   nextPortal: number
-  // Rule 28: where each payphone stands.
+  // Rule 28: where each portal phone stands.
   payphones: XZ[]
   // Rule 39: each topiary's health, in TOPIARIES order, and socket id ->
   // when (valley ms) its last swing of a torch landed (never on the wire).

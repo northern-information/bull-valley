@@ -10,11 +10,13 @@ import {
 } from './assetkit.ts'
 import { canvas } from './canvas.ts'
 
-// The payphone on Castle Entropy's rim (castleyard.ts payphoneSpot): a
+// A portal phone, the payphone fast travel goes to (citgos.ts): on Castle
+// Entropy's rim (castleyard.ts payphoneSpot), by every Citgo's door
+// (spawnlot.ts placeCitgoPhones) and at the drive-in (driveinsite.ts). A
 // steel post and a stainless half-booth on it, the phone's grey body
 // with its keypad and coin slot, the handset in its cradle on a coiled
-// cord, a hood over it all with a lit PAY PHONE panel, and the hood's
-// light glowing so it can be found from across the yard. Origin on the
+// cord, a hood over it all with a lit PORTAL PHONE panel, and the hood's
+// light glowing so it can be found from across a lot. Origin on the
 // ground under the post, its face toward +x.
 
 // The panel over the hood, painted as the trade dress was, not copy.
@@ -24,10 +26,10 @@ const signArt = memo(() => {
   ctx.fillStyle = '#e8eef8'
   ctx.fillRect(4, 4, w - 8, 3)
   ctx.fillRect(4, h - 7, w - 8, 3)
-  ctx.font = 'bold 34px Helvetica, Arial, sans-serif'
+  ctx.font = 'bold 25px Helvetica, Arial, sans-serif'
   ctx.textAlign = 'center'
   ctx.textBaseline = 'middle'
-  ctx.fillText('PAY PHONE', w / 2, h / 2 + 2)
+  ctx.fillText('PORTAL PHONE', w / 2, h / 2 + 2)
   return artTexture(art)
 })
 

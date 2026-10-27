@@ -17,12 +17,12 @@ import {
   onlineLine,
 } from './chat.ts'
 import {
-  arrivalAt,
   arrivalAtPhone,
   citgoAt,
   citgoLines,
   fastTravel as fastTravelTo,
-  stopAt,
+  knownPhones,
+  phoneAt,
 } from './citgos.ts'
 import { CONFIG } from './config.ts'
 import { openCookDialog } from './cookdialog.ts'
@@ -103,7 +103,7 @@ import { dose, levelsAt, SOBER } from './wardlevels.ts'
 import { WARD_OF } from './wards.ts'
 import { charterable } from './worldsync.ts'
 import type { ChatCommand, CrewFrame } from './chat.ts'
-import type { CitgoLog, Stop } from './citgos.ts'
+import type { CitgoLog, PortalPhone } from './citgos.ts'
 import type { CosmeticId } from './cosmetics.ts'
 import type { EmoteId } from './emotes.ts'
 import type { Hurt } from './fall.ts'
@@ -253,8 +253,8 @@ export interface Actions {
   // closeBook's.
   openMap(): void
   closeMap(relock?: boolean): void
-  // A Citgo or a payphone on the map clicked: fast travel there.
-  fastTravel(to: Stop): void
+  // A known portal phone on the map clicked: fast travel there.
+  fastTravel(phone: number): void
   // Rule 3: the map opened for us to pick where Marx goes ends: a point
   // picked (to), the joyride (null), or nothing asked (undefined: he left,
   // or the bed is not ours).
@@ -962,11 +962,18 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const shelveKind = (kind: string) => keepHotbar(shelve(s.hotbar, kind))
 
-  // Rule 38: Marx's whistle, given the first time we meet him.
+  // Rule 38: Marx's whistle, given the first time we meet him, and
+  // Tyler's portal phone, the first time we meet him.
   const gifted = (kind: string) => {
-    if (kind !== 'marx-whistle') return
-    npcSays('marx', copy('marx.whistle_gift'))
-    hud.tell(copy('log.whistle_given'))
+    if (kind === 'marx-whistle') {
+      npcSays('marx', copy('marx.whistle_gift'))
+      hud.tell(copy('log.whistle_given'))
+    } else if (kind === 'citgo-phone') {
+      npcSays('tyler', copy('tyler.phone_gift'))
+      hud.tell(copy('log.phone_given'))
+    } else {
+      return
+    }
     shelveKind(kind)
   }
 
@@ -1556,6 +1563,16 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
           openShop(interaction.station)
           return
         }
+        // Met for the first time with no portal phone, Tyler's first word
+        // is the one he hands over (rule 38), said as the pack frame the
+        // meeting brings lands (gifted); his lines start after.
+        if (
+          interaction.npc === 'tyler' &&
+          s.pending.book.has('tyler') &&
+          (s.inventory['citgo-phone'] ?? 0) <= 0
+        ) {
+          return
+        }
         speakTo(interaction.npc)
         return
       case 'trade':
@@ -1817,8 +1834,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   const citgoLabel = (station: number | null) =>
     station === null ? '' : (hud.map?.label(station) ?? '')
-  const stopLabel = (stop: Stop) =>
-    'citgo' in stop ? citgoLabel(stop.citgo) : copy('map.payphone')
+  const phoneLabel = (phone: number) => hud.map?.phoneLabel(phone) ?? ''
 
   const applyCitgos = (log: CitgoLog, quiet = false) => {
     const before = s.citgos
@@ -1826,7 +1842,7 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     // Before Begin there is no one to tell: the spawn Citgo is found then.
     if (quiet || !s.started) return
     const inWorld = s.world !== null
-    const lines = citgoLines(before, log, citgoLabel, inWorld)
+    const lines = citgoLines(before, log, citgoLabel, inWorld, world.payphones)
     for (const line of lines) hud.tell(line)
     if (lines.length) game.sfx?.play('discovery')
   }
@@ -1938,37 +1954,40 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
     if (relock) engagePointer()
   }
 
-  // From the Citgo or the found payphone we stand at to a Citgo visited
-  // or a payphone found (citgos.ts fastTravel): set down in the middle of
-  // the Citgo's portal ring, or in front of the payphone. Where we stand is
-  // our own word, so the valley hears it from the next state frame.
-  const fastTravel = (stop: Stop) => {
+  // To a portal phone the account knows (citgos.ts fastTravel), from
+  // anywhere with the portal phone in the pack, or from any portal phone
+  // without it: set down in front of it, facing it. Where we stand is our
+  // own word, so the valley hears it from the next state frame.
+  const fastTravel = (phone: number) => {
     if (s.aboard) {
       hud.tell(copy('log.travel_aboard'))
       return
     }
-    const here = stopAt(player.pos, world.fuelPoints, world.payphones)
-    const verdict = fastTravelTo(s.citgos, here, stop)
+    const to = world.payphones[phone] as PortalPhone | undefined
+    if (!to) return
+    const verdict = fastTravelTo(
+      knownPhones(s.citgos, world.payphones),
+      phoneAt(player.pos, world.payphones),
+      phone,
+      (s.inventory['citgo-phone'] ?? 0) > 0
+    )
     if (verdict !== 'ok') {
       hud.tell(
-        verdict === 'not-at-citgo'
+        verdict === 'no-phone'
           ? copy('log.travel_away')
           : verdict === 'here'
             ? copy('log.travel_here')
-            : copy('log.travel_unvisited', { citgo: stopLabel(stop) })
+            : copy('log.travel_unvisited')
       )
       return
     }
-    const to =
-      'citgo' in stop
-        ? arrivalAt(world.rings[stop.citgo], world.fuelPoints[stop.citgo])
-        : arrivalAtPhone(world.payphones[stop.phone])
-    player.relocate(to.x, to.z, to.yaw)
+    const at = arrivalAtPhone(to)
+    player.relocate(at.x, at.z, at.yaw)
     s.emoting = null
     s.portalGraceUntil = performance.now() + GRACE_MS
     closeMap(true)
     game.sfx?.play('portal-through')
-    hud.tell(copy('log.travel', { citgo: stopLabel(stop) }))
+    hud.tell(copy('log.travel', { place: phoneLabel(phone) }))
   }
   // --- Rule 37: waypoints -------------------------------------------------
 

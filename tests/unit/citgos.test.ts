@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { citgoNames } from '../../src/citgomap.ts'
 import {
-  arrivalAt,
   arrivalAtPhone,
   citgoAt,
   citgoLines,
   fastTravel,
   findPhone,
+  knownPhones,
   NO_CITGOS,
   phoneAt,
+  phoneOfCitgo,
   phonesOf,
   roadNameNear,
-  stopAt,
   surveyedStations,
   visit,
 } from '../../src/citgos.ts'
@@ -52,50 +52,70 @@ describe('the log of Citgos', () => {
   })
 })
 
+// The castle's portal phone, the drive-in's, and one by each of three
+// Citgos' doors, as world.ts orders them.
+const PHONES = [
+  { site: 'castle' as const },
+  { site: 'drive-in' as const },
+  { site: 'citgo' as const, station: 0 },
+  { site: 'citgo' as const, station: 1 },
+  { site: 'citgo' as const, station: 2 },
+]
+
+describe('the portal phones an account knows', () => {
+  it('knows each found, then each by a visited Citgo', () => {
+    expect(knownPhones(NO_CITGOS, PHONES)).toEqual([])
+    expect(knownPhones({ last: 2, visited: [2, 0] }, PHONES)).toEqual([2, 4])
+    expect(
+      knownPhones({ last: 0, visited: [0], phones: [1, 0] }, PHONES)
+    ).toEqual([1, 0, 2])
+    // One found by its door as well as its Citgo is known once.
+    expect(knownPhones({ last: 0, visited: [0], phones: [2] }, PHONES)).toEqual(
+      [2]
+    )
+    // One the world no longer places is not known.
+    expect(
+      knownPhones({ last: null, visited: [], phones: [9] }, PHONES)
+    ).toEqual([])
+  })
+
+  it("finds the one by a Citgo's door", () => {
+    expect(phoneOfCitgo(PHONES, 1)).toBe(3)
+    expect(phoneOfCitgo(PHONES, 7)).toBeNull()
+  })
+})
+
 describe('fast travel', () => {
-  const log = { last: 0, visited: [0, 1], phones: [0] }
+  const known = knownPhones({ last: 0, visited: [0, 1], phones: [0] }, PHONES)
 
-  it('goes from a Citgo to one visited', () => {
-    expect(fastTravel(log, { citgo: 0 }, { citgo: 1 })).toBe('ok')
+  it('goes from anywhere to a portal phone known, with one in the pack', () => {
+    expect(fastTravel(known, null, 3, true)).toBe('ok')
+    expect(fastTravel(known, null, 0, true)).toBe('ok')
+    expect(fastTravel(known, 4, 2, true)).toBe('ok')
   })
 
-  it('leaves only from a Citgo, never to one unseen or to where you stand', () => {
-    expect(fastTravel(log, null, { citgo: 1 })).toBe('not-at-citgo')
-    expect(fastTravel(log, { citgo: 0 }, { citgo: 2 })).toBe('not-visited')
-    expect(fastTravel(log, { citgo: 1 }, { citgo: 1 })).toBe('here')
+  it('goes without one in the pack only from beside a portal phone', () => {
+    expect(fastTravel(known, null, 3, false)).toBe('no-phone')
+    expect(fastTravel(known, 2, 3, false)).toBe('ok')
+    // One not yet found is still a phone to call from.
+    expect(fastTravel(known, 1, 0, false)).toBe('ok')
   })
 
-  it('goes to and from a payphone found, as from a Citgo', () => {
-    expect(fastTravel(log, { citgo: 1 }, { phone: 0 })).toBe('ok')
-    expect(fastTravel(log, { phone: 0 }, { citgo: 1 })).toBe('ok')
-    expect(fastTravel(log, { phone: 0 }, { phone: 0 })).toBe('here')
-    expect(fastTravel(log, { citgo: 0 }, { phone: 1 })).toBe('not-visited')
-    // A payphone not yet found is no place to leave from.
-    expect(fastTravel(log, { phone: 1 }, { citgo: 0 })).toBe('not-at-citgo')
-    // A log kept before there were payphones has found none.
-    const old = { last: 0, visited: [0, 1] }
-    expect(fastTravel(old, { citgo: 0 }, { phone: 0 })).toBe('not-visited')
+  it('never goes to one not known, or to where you stand', () => {
+    expect(fastTravel(known, null, 4, true)).toBe('not-found')
+    expect(fastTravel(known, null, 1, true)).toBe('not-found')
+    expect(fastTravel(known, 3, 3, true)).toBe('here')
   })
 
-  it('knows where a raider stands: a Citgo first, else a payphone', () => {
+  it('knows the portal phone a raider stands at', () => {
     const phones = [{ x: 500, z: 0 }]
-    expect(stopAt({ x: 2, z: 0 }, STATIONS, phones)).toEqual({ citgo: 0 })
-    expect(stopAt({ x: 501, z: 1 }, STATIONS, phones)).toEqual({ phone: 0 })
     const reach = CONFIG.castle.yard.payphone.reach
-    expect(stopAt({ x: 500 + reach + 0.01, z: 0 }, STATIONS, phones)).toBeNull()
+    expect(phoneAt({ x: 501, z: 1 }, phones)).toBe(0)
     expect(phoneAt({ x: 500, z: reach }, phones)).toBe(0)
+    expect(phoneAt({ x: 500 + reach + 0.01, z: 0 }, phones)).toBeNull()
   })
 
-  it('sets you down at the ring, facing the pump island', () => {
-    const to = arrivalAt({ x: 10, z: 0 }, { x: 0, z: 0 })
-    expect(to.x).toBe(10)
-    expect(to.z).toBe(0)
-    // The camera looks along (-sin yaw, -cos yaw): toward -x.
-    expect(-Math.sin(to.yaw)).toBeCloseTo(-1, 9)
-    expect(-Math.cos(to.yaw)).toBeCloseTo(0, 9)
-  })
-
-  it('sets you down in front of a payphone, facing it', () => {
+  it('sets you down in front of a portal phone, facing it', () => {
     // Its face looks along +z.
     const to = arrivalAtPhone({ x: 4, z: 4, yaw: Math.PI / 2 })
     expect(to.x).toBeCloseTo(4, 9)
@@ -105,7 +125,7 @@ describe('fast travel', () => {
   })
 })
 
-describe('the payphones found', () => {
+describe('the portal phones found', () => {
   it('writes each once, in the order found, and leaves the last Citgo', () => {
     const one = findPhone({ last: 2, visited: [2] }, 1)
     expect(one).toEqual({ last: 2, visited: [2], phones: [1] })
@@ -114,13 +134,17 @@ describe('the payphones found', () => {
     expect(phonesOf(NO_CITGOS)).toEqual([])
   })
 
-  it('says each payphone found in the log', () => {
+  it('says each portal phone found in the log', () => {
     const before = { last: 0, visited: [0] }
     const after = findPhone(before, 0)
-    expect(citgoLines(before, after, () => 'x', true)).toEqual([
+    expect(citgoLines(before, after, () => 'x', true, PHONES)).toEqual([
       copy('log.payphone_found'),
     ])
-    expect(citgoLines(after, after, () => 'x', true)).toEqual([])
+    expect(citgoLines(after, after, () => 'x', true, PHONES)).toEqual([])
+    // The one by a visited Citgo's door was known already: no news.
+    expect(
+      citgoLines(before, findPhone(before, 2), () => 'x', true, PHONES)
+    ).toEqual([])
   })
 })
 

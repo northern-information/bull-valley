@@ -527,7 +527,7 @@ test('a raider who walks off the rim lands on a pipe, hurt', async ({
   expect(await health(page)).toBeGreaterThan(0)
 })
 
-test('the payphone on the rim, once found, is a stop for fast travel', async ({
+test('the portal phone on the rim, once found, is a stop for fast travel', async ({
   page,
 }) => {
   test.slow()
@@ -535,7 +535,7 @@ test('the payphone on the rim, once found, is a stop for fast travel', async ({
   const phoneAt = () =>
     page.evaluate(() => {
       const phone = window.__bv?.world.payphones[0]
-      if (!phone) throw new Error('No payphone in the valley')
+      if (!phone) throw new Error('No portal phone on the rim')
       return { x: phone.x, z: phone.z }
     })
   const fromPhone = async () => {
@@ -568,18 +568,19 @@ test('the payphone on the rim, once found, is a stop for fast travel', async ({
     copy('log.payphone_found')
   )
 
-  // From the payphone to the spawn Citgo, and back again.
+  // From it to the spawn Citgo's portal phone, and back again: from one
+  // portal phone to another needs none in the pack.
   const home = await page.evaluate(() => window.__bv?.citgos.last ?? 0)
   await page.evaluate((i) => window.__bv?.fastTravel(i), home)
   await expect
     .poll(() =>
       page.evaluate((i) => {
         const bv = window.__bv!
-        const ring = bv.world.rings[i]
-        return Math.hypot(bv.player.pos.x - ring.x, bv.player.pos.z - ring.z)
+        const phone = bv.world.payphones.find((p) => p.station === i)!
+        return Math.hypot(bv.player.pos.x - phone.x, bv.player.pos.z - phone.z)
       }, home)
     )
-    .toBeLessThan(1)
+    .toBeLessThan(2.5)
   await page.evaluate(() => window.__bv?.phoneTravel(0))
   await expect.poll(fromPhone).toBeLessThan(2.5)
 })

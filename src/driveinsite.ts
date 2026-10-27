@@ -18,8 +18,10 @@ import {
   buildProjector,
   buildSpeakerPost,
 } from './driveinmodel.ts'
+import { buildPayphone } from './payphonemodel.ts'
 import { mulberry32 } from './rng.ts'
 import { MUD_LIFT } from './worldsurfaces.ts'
+import type { PortalPhone } from './citgos.ts'
 import type { Ground } from './ground.ts'
 import type { HeightAt, Vec3, XZ } from './interfaces.ts'
 import type { MazePlace } from './maze.ts'
@@ -28,8 +30,9 @@ import type { Walls } from './walls.ts'
 // The drive-in stood on the ground past the corn maze's far end
 // (drivein.ts lays it out, driveinmodel.ts draws its pieces): the gravel
 // lot draped on the terrain and registered on the Ground, the screen, the
-// booth on a floor of its own with the projector inside, the burnt-out
-// cars and the speaker posts, each walled where it blocks. driveinrig.ts
+// booth on a floor of its own with the projector inside, the portal phone
+// beside it, the burnt-out cars and the speaker posts, each walled where it
+// blocks. driveinrig.ts
 // runs the film on it.
 
 export interface DriveInSite {
@@ -43,6 +46,8 @@ export interface DriveInSite {
   // of the screen's face, where the sound comes from.
   projector: XZ
   screen: Vec3
+  // The portal phone beside the booth (CONFIG.portal.phones.driveIn).
+  phone: PortalPhone
 }
 
 // The gravel the lot is spread with, a texture this many metres across.
@@ -145,6 +150,18 @@ export function buildDriveIn(
   group.add(projector.group)
   walls.addWall(projectorAt, projectorAt, 0.4)
 
+  // The portal phone beside the booth, its face across the lot
+  // (drive-in-local +x), on the gravel.
+  const { phones } = CONFIG.portal
+  const phoneAt = world(phones.driveIn)
+  const across = world({ x: phones.driveIn.x + 1, z: phones.driveIn.z })
+  const phoneYaw = Math.atan2(across.z - phoneAt.z, across.x - phoneAt.x)
+  const phone = buildPayphone()
+  phone.position.set(phoneAt.x, ground.at(phoneAt.x, phoneAt.z), phoneAt.z)
+  phone.rotation.y = -phoneYaw
+  group.add(phone)
+  walls.addWall(phoneAt, phoneAt, phones.radius)
+
   // The burnt-out cars, each nosed at the screen and walled down its
   // length, and the speaker posts between them.
   for (const car of carSpots()) {
@@ -196,6 +213,7 @@ export function buildDriveIn(
     reels: projector.reels,
     projector: projectorAt,
     screen: [middle.x, middle.y, middle.z],
+    phone: { x: phoneAt.x, z: phoneAt.z, yaw: phoneYaw, site: 'drive-in' },
   }
 }
 

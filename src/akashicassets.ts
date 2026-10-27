@@ -773,12 +773,13 @@ export const WORLD_ASSETS: AkashicAsset[] = [
   },
   {
     id: 'payphone',
-    label: "The payphone on the castle's rim",
+    label:
+      "A portal phone, by every Citgo's door, at the drive-in and on the castle's rim",
     build: buildPayphone,
   },
   {
     id: 'jericho',
-    label: 'Jericho, the Candlebearer, by the payphone',
+    label: 'Jericho, the Candlebearer, by the portal phone',
     build: () => buildJericho().group,
   },
   {

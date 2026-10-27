@@ -270,9 +270,11 @@ export const BOUNTIES: Readonly<Record<string, number>> = {
 }
 
 // What an entry gives the first time it is found, and keeps given
-// (sharedworld.ts rule 38): Marx's whistle, for meeting Marx.
+// (sharedworld.ts rule 38): Marx's whistle, for meeting Marx, and the
+// portal phone, for meeting Tyler.
 export const GIFTS: Readonly<Record<string, string>> = {
   marx: 'marx-whistle',
+  tyler: 'citgo-phone',
 }
 
 export function bountyOf(found: readonly string[]): number {
