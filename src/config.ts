@@ -1534,7 +1534,7 @@ export const CONFIG = {
       burnSeconds: 2.2,
       respawnSeconds: 300,
       patrolRadius: 30,
-      chestHeight: 1.8,
+      chestHeight: 1.65,
       hits: 4,
       blinkSeconds: 1.6,
       blinkFrom: 9,
