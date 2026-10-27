@@ -36,14 +36,15 @@ interface MapCitgo extends XZ {
 
 // What one frame of the open map shows: where the raider stands and faces,
 // their Citgos and portal phones, whether they may fast travel from where
-// they stand (a portal phone in the pack, or one stood at; 'below' in the
-// Undercroft, where no call carries up), where each of
+// they stand (a portal phone in the pack, or one stood at; 'aboard' in
+// the truck bed, 'below' in the Undercroft, where no call carries up),
+// where each of
 // their party placed in the valley stands and faces, their waypoints, and
 // where their own bodies lie.
 interface MapFrame {
   me: Facing
   log: CitgoLog
-  travel: boolean | 'below'
+  travel: boolean | 'aboard' | 'below'
   party?: readonly (Facing & { name: string })[]
   marks?: Waypoints
   bodies?: readonly (XZ & { id: number })[]
@@ -540,11 +541,13 @@ export class CitgoMap {
       : copy('map.none')
     this.hint.textContent = this.charter
       ? copy('map.hint_charter')
-      : travel === 'below'
-        ? copy('map.hint_below')
-        : travel
-          ? copy('map.hint')
-          : copy('map.hint_away')
+      : travel === 'aboard'
+        ? copy('map.hint_aboard')
+        : travel === 'below'
+          ? copy('map.hint_below')
+          : travel
+            ? copy('map.hint')
+            : copy('map.hint_away')
   }
 }
 
