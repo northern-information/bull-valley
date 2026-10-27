@@ -971,6 +971,24 @@ describe('the lookout tower', () => {
   })
 })
 
+describe('the fog wall', () => {
+  const fog = { x: 250, z: 250 }
+  const at = (player: { x: number; z: number }, spot: typeof fog | null) =>
+    resolveInteraction(input({ player, fog: spot }))
+
+  it('passes through at the fog, only while it is offered', () => {
+    expect(at({ x: 251, z: 250 }, fog)).toEqual({ kind: 'fog' })
+    expect(at({ x: 251, z: 250 }, null)).toBeNull()
+    expect(
+      at({ x: fog.x + CONFIG.undercroft.climbReach + 0.1, z: 250 }, fog)
+    ).toBeNull()
+  })
+
+  it('says so at the bottom of the view', () => {
+    expect(interactionPrompt({ kind: 'fog' })).toBe(copy('prompts.fog'))
+  })
+})
+
 describe('hallucinations', () => {
   const me = { x: 250, z: 250 }
   const person = { id: 3, x: 251, z: 250, shape: 'raider' as const }

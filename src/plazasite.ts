@@ -14,7 +14,9 @@ import {
 } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { applyPose, buildFigure } from './figure.ts'
-import { mazeToWorld } from './maze.ts'
+import { FOG_GATE, FOG_IN, FOG_SPOT, FOG_WALL, inChamber } from './fogwall.ts'
+import { buildFogWall } from './fogwallrig.ts'
+import { mazeToWorld, worldToMaze } from './maze.ts'
 import { samplePose } from './poses.ts'
 import { nearestRoadside } from './stations.ts'
 import { toLocal, toWorld } from './store.ts'
@@ -61,6 +63,13 @@ export interface CroftRig {
   // Where a raider stands after climbing, and the way they face.
   trapdoor: Spawn
   ladder: Spawn
+  // The fog wall across the deep chamber's door (fogwall.ts): where E
+  // passes through it, where that leaves a raider, whether a point is on
+  // its inner side, and whether the Warden stands, for the fog to show.
+  fog: XZ
+  through: Spawn
+  chamber(x: number, z: number): boolean
+  setFog(standing: boolean): void
   inside(x: number, z: number): boolean
   update(t: number): void
 }
@@ -115,6 +124,21 @@ export function buildCroft(
   croft.group.rotation.y = -place.yaw
   group.add(croft.group)
 
+  // The fog wall in the deep chamber's door, a gate on the walls while the
+  // Warden stands (the loop says who it lets by, walls.setGates).
+  const fogA = mazeToWorld(place, FOG_WALL.a)
+  const fogB = mazeToWorld(place, FOG_WALL.b)
+  walls.addGate(fogA, fogB, FOG_WALL.half, FOG_GATE)
+  const fogWall = buildFogWall(
+    Math.hypot(fogB.x - fogA.x, fogB.z - fogA.z),
+    FOG_WALL.height
+  )
+  fogWall.group.position.set((fogA.x + fogB.x) / 2, deck, (fogA.z + fogB.z) / 2)
+  fogWall.group.rotation.y = Math.atan2(-(fogB.z - fogA.z), fogB.x - fogA.x)
+  group.add(fogWall.group)
+  const through = mazeToWorld(place, FOG_IN)
+  const onward = mazeToWorld(place, FOG_IN.face)
+
   // The trapdoor in the office floor.
   const hatch = buildTrapdoor()
   const [tx, , tz] = toWorld(plaza.origin, [
@@ -149,8 +173,19 @@ export function buildCroft(
         z: foot.z,
         yaw: Math.atan2(-(face.x - foot.x), -(face.z - foot.z)),
       },
+      fog: mazeToWorld(place, FOG_SPOT),
+      through: {
+        x: through.x,
+        z: through.z,
+        yaw: Math.atan2(-(onward.x - through.x), -(onward.z - through.z)),
+      },
+      chamber: (x, z) => inChamber(worldToMaze(place, { x, z })),
+      setFog: (standing) => fogWall.set(standing),
       inside: (x, z) => inUndercroft(place, { x, z }),
-      update: (t) => croft.update(t),
+      update: (t) => {
+        croft.update(t)
+        fogWall.update(t)
+      },
     },
   }
 }

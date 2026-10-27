@@ -61,6 +61,7 @@ chat_log_label = { text = "Chat", by = "ai" }
 chat_input_label = { text = "Say to the valley", by = "ai" }
 wards_label = { text = "Wards: high {high}%, stimulated {stimulated}%, drunk {drunk}%, tripping {tripping}%", by = "ai" }
 health_label = { text = "Geometrie: {health} of {max}", by = "ai" }
+boss_label = { text = "{name}: {share}% left", by = "ai" }
 party_label = { text = "{name}: geometrie {health} of {max}", by = "ai" }
 damage = { text = "−{damage}", by = "ai" }
 warded = { text = "−{warded} warded", by = "ai" }
@@ -589,6 +590,8 @@ stand_offline = { text = "No signal. The stand is shut.", by = "ai" }
 locked = { text = "Locked. The handle does not give.", by = "ai" }
 descend = { text = "You climb down out of the light. The rungs are older than the store.", by = "ai" }
 ascend = { text = "You climb back up into the office. The fluorescent hum is almost a comfort.", by = "ai" }
+fog = { text = "The fog closes behind you. Something heavy turns toward the sound.", by = "ai" }
+fog_lifts = { text = "The fog at the door thins to nothing. The chamber is quiet.", by = "ai" }
 climb_tower = { text = "You climb the lookout. Up here the corn lies open below you, and nothing in the dark can reach you.", by = "ai" }
 leave_tower = { text = "You climb back down. The corn closes over the view again.", by = "ai" }
 torch_taken = { text = "You take a torch out of the toolbox and strike it. The rag catches with a soft whump.", by = "ai" }
@@ -707,6 +710,7 @@ lay = { text = "E — Lay the Rose", by = "ai" }
 find = { text = "E — Take the Floppy Disk", by = "ai" }
 descend = { text = "E — Climb Down", by = "ai" }
 ascend = { text = "E — Climb Up", by = "ai" }
+fog = { text = "E — Pass Through the Fog", by = "ai" }
 inspect = { text = "E — Inspect {name}", by = "ai" }
 climb_tower = { text = "E — Climb the Lookout", by = "ai" }
 leave_tower = { text = "E — Climb Down", by = "ai" }
