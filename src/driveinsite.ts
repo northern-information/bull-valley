@@ -10,6 +10,7 @@ import {
   driveInToWorld,
   PROJECTOR_AT,
   speakerPosts,
+  weedSpots,
 } from './drivein.ts'
 import {
   buildBurntCar,
@@ -20,6 +21,7 @@ import {
 } from './driveinmodel.ts'
 import { buildPayphone } from './payphonemodel.ts'
 import { mulberry32 } from './rng.ts'
+import { buildWeeds } from './weeds.ts'
 import { MUD_LIFT } from './worldsurfaces.ts'
 import type { PortalPhone } from './citgos.ts'
 import type { Ground } from './ground.ts'
@@ -32,7 +34,7 @@ import type { Walls } from './walls.ts'
 // lot draped on the terrain and registered on the Ground, the screen, the
 // booth on a floor of its own with the projector inside, the portal phone
 // beside it, the burnt-out cars and the speaker posts, each walled where it
-// blocks. driveinrig.ts
+// blocks, and the weeds through the gravel. driveinrig.ts
 // runs the film on it.
 
 export interface DriveInSite {
@@ -188,6 +190,15 @@ export function buildDriveIn(
     group.add(model)
     walls.addWall(at, at, 0.12, undefined, true)
   }
+
+  // The weeds through the gravel, walked through.
+  const weeds = buildWeeds(
+    weedSpots().map((spot) => ({ ...spot, ...world(spot) })),
+    ground.at,
+    DRIVE_IN.seed
+  )
+  weeds.name = 'drive-in-weeds'
+  group.add(weeds)
 
   // The beam from the lens to the picture's corners, faint, seen only in
   // the fog and only while a film plays.

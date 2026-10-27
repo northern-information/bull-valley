@@ -194,6 +194,7 @@ const THREE_AND_DOM = [
   'valleysync',
   'vitalshud',
   'waypointmeshes',
+  'weeds',
   'world',
   'worldsurfaces',
   'wreck',

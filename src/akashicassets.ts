@@ -149,6 +149,7 @@ import {
 } from './trafficmodels.ts'
 import { buildTunnelShade } from './tunnelshademodel.ts'
 import { buildTrapdoor, buildUndercroft } from './undercroftmodel.ts'
+import { buildWeedTuft } from './weeds.ts'
 import { buildWreck } from './wreck.ts'
 import { buildClutter, buildLightTower } from './yardprops.ts'
 import type { AkashicAsset, Part } from './assetkit.ts'
@@ -766,6 +767,11 @@ export const WORLD_ASSETS: AkashicAsset[] = [
     id: 'speaker-post',
     label: 'A drive-in speaker post',
     build: () => buildSpeakerPost(3),
+  },
+  {
+    id: 'weed-tuft',
+    label: 'A tuft of weeds, through the valley and the drive-in’s gravel',
+    build: () => buildWeedTuft(3),
   },
   {
     id: 'castle-entropy',

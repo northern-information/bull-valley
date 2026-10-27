@@ -134,7 +134,8 @@ export interface DriveInBooth {
 
 // The projection booth: a squat cinder-block hut under a flat tar roof,
 // its door (no door left in it) in the back wall, a port in the front wall
-// for the beam, a bare bulb inside. Faces +Z (the port); sized by
+// for the beam, a bare bulb inside, and nothing else: the room is empty
+// but for the projector (driveinsite.ts stands it there). Faces +Z (the port); sized by
 // DRIVE_IN.booth.
 export function buildDriveInBooth(): DriveInBooth {
   const { width, depth, height, wallHalf, door } = DRIVE_IN.booth
@@ -181,10 +182,32 @@ export function buildDriveInBooth(): DriveInBooth {
     )
   }
   boxIn(group, [door, 0.6, t], [0, height - 0.3, -hz], blockDark)
-  // Courses of darker block, smoke up the front from an old fire, and the
-  // roof, lapping the walls, its tar paper curling at the edge.
+  // Courses of darker block on the outside faces only, so nothing crosses
+  // the empty room, broken at the door and the port; smoke up the front
+  // from an old fire; and the roof, lapping the walls, its tar paper
+  // curling at the edge.
+  const course = 0.05
+  const skin = wallHalf + 0.01
   for (let y = 0.4; y < height; y += 0.8) {
-    boxIn(group, [width + 0.02, 0.05, depth + 0.02], [0, y, 0], blockDark)
+    for (const x of [-hx - skin, hx + skin]) {
+      boxIn(group, [0.02, course, depth + 0.02], [x, y, 0], blockDark)
+    }
+    const inPort = Math.abs(y - port.y) < port.h / 2 + course
+    const inDoor = y < height - 0.6 + course
+    for (const [z, gap] of [
+      [hz + skin, inPort ? port.w : 0],
+      [-hz - skin, inDoor ? door : 0],
+    ]) {
+      const run = (width - gap) / 2
+      for (const s of gap ? [-1, 1] : [0]) {
+        boxIn(
+          group,
+          [gap ? run : width + 0.02, course, 0.02],
+          [s * (gap / 2 + run / 2), y, z],
+          blockDark
+        )
+      }
+    }
   }
   boxIn(
     group,
@@ -200,17 +223,6 @@ export function buildDriveInBooth(): DriveInBooth {
     tar,
     [0.35, 0, 0]
   )
-  // A shelf of film cans along the left wall.
-  const can = lambert({ color: '#7c7a74' })
-  boxIn(group, [0.35, 0.05, depth * 0.7], [-hx + 0.3, 1.1, 0], blockDark)
-  for (let i = 0; i < 5; i++) {
-    const disc = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.17, 0.17, 0.05, 10),
-      can
-    )
-    disc.position.set(-hx + 0.3, 1.16 + (i % 2) * 0.05, -hz * 0.6 + i * 0.4)
-    group.add(disc)
-  }
   mergeStatic(group)
   // The bare bulb on its cord.
   boxIn(group, [0.01, 0.5, 0.01], [0, height - 0.25, -0.3], tar)
