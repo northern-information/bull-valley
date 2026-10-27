@@ -120,7 +120,7 @@ describe('the ossuary', () => {
   })
 })
 
-describe('the backrooms', () => {
+describe('the warren', () => {
   const stoneRows = 17
   const stoneCols = 29
   const floors = (inside: (r: number, c: number) => boolean) => {
@@ -151,27 +151,19 @@ describe('the backrooms', () => {
     expect(doors).toEqual(['13,28', '16,3', '16,13'])
   })
 
-  it('are papered, lower than the stone, and lit by tubes only out there', () => {
-    const paper = UNDERCROFT.boxes.filter((b) => b.finish === 'wallpaper')
-    expect(paper.length).toBeGreaterThan(40)
-    for (const b of paper) {
-      expect(inStone({ x: b.center[0], z: b.center[2] })).toBe(false)
-      expect(b.size[1]).toBe(UNDERCROFT.low)
-    }
-    expect(UNDERCROFT.low).toBeLessThan(UNDERCROFT.height)
-    const tubes = UNDERCROFT.boxes.filter((b) =>
-      ['tube', 'flicker', 'dead'].includes(b.finish)
+  it('are bare stone, as high as the rooms, with nothing lit', () => {
+    const out = UNDERCROFT.boxes.filter(
+      (b) => !inStone({ x: b.center[0], z: b.center[2] })
     )
-    expect(tubes.length).toBeGreaterThan(100)
-    for (const b of tubes) {
-      expect(inStone({ x: b.center[0], z: b.center[2] })).toBe(false)
+    const walls = out.filter((b) => b.name.startsWith('stone-'))
+    expect(walls.length).toBeGreaterThan(40)
+    for (const b of walls) {
+      expect(b.finish).toBe('stone')
+      expect(b.size[1]).toBe(UNDERCROFT.height)
     }
-    // Some fail; most hold.
-    expect(tubes.filter((b) => b.finish === 'tube').length).toBeGreaterThan(
-      tubes.length * 0.75
-    )
-    expect(tubes.some((b) => b.finish === 'flicker')).toBe(true)
-    expect(tubes.some((b) => b.finish === 'dead')).toBe(true)
+    // Nothing else stands out there: no fittings, no light of its own.
+    const rest = out.filter((b) => !walls.includes(b)).map((b) => b.name)
+    expect(rest.sort()).toEqual(['floor', 'vault'])
   })
 
   it('have shades of their own and something worth the walk', () => {
