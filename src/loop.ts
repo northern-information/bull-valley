@@ -674,15 +674,15 @@ export function startLoop(game: Game, actions: Actions, targets: Targets) {
       .map((m) => m.name)
       .filter((name) => name !== game.pick.username)
 
-  // Whether fast travel may leave from here: off the truck, with the
-  // portal phone in the pack or standing at a portal phone; or 'below',
-  // in the Undercroft, where no call carries up.
-  const canTravel = (): boolean | 'below' => {
+  // Whether fast travel may leave from here: with the portal phone in the
+  // pack or standing at a portal phone; or why not: 'aboard', in the
+  // truck bed, or 'below', in the Undercroft, where no call carries up.
+  const canTravel = (): boolean | 'aboard' | 'below' => {
+    if (s.aboard) return 'aboard'
     if (world.undercroft?.inside(player.pos.x, player.pos.z)) return 'below'
     return (
-      !s.aboard &&
-      ((s.inventory['citgo-phone'] ?? 0) > 0 ||
-        phoneAt(player.pos, world.payphones) !== null)
+      (s.inventory['citgo-phone'] ?? 0) > 0 ||
+      phoneAt(player.pos, world.payphones) !== null
     )
   }
 
