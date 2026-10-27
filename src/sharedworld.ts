@@ -31,7 +31,8 @@
 //    standing in it.
 // 5. One whistle at a time, and only an empty truck answers it: it drives
 //    to the whistler, who climbs in and is driven home to the Citgo. A
-//    whistler who leaves sends it home empty.
+//    whistler who leaves sends it home empty. No whistle carries up out of
+//    the Undercroft.
 // 6. The day turns at midnight Central (daily.ts): every pickup is back,
 //    the shelves are full again, and what lay dropped is gone (the
 //    tombstones stay, rule 17).
@@ -2049,6 +2050,15 @@ function onTruck(
   // Rule 38: no whistle, no call.
   if (action.type === 'call' && !carries(holdings, 'marx-whistle')) {
     return done(valley, now, { broadcast: [], reply: nack(re, 'no-whistle') })
+  }
+  // No whistle carries up out of the Undercroft.
+  if (
+    action.type === 'call' &&
+    action.at &&
+    world.undercroft &&
+    inUndercroft(world.undercroft, action.at)
+  ) {
+    return done(valley, now, { broadcast: [], reply: nack(re, 'below') })
   }
   // Where the bed is to climb into: parked at home, or come to a
   // whistle; and a whistle only from where the valley heard the

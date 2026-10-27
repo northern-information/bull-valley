@@ -937,6 +937,19 @@ describe('rule 5: the whistle', () => {
   const from = { x: 10, z: 10 }
   const to = { x: 400, z: 900 }
 
+  it('carries no whistle up out of the Undercroft', () => {
+    const croft = { x: -7000, z: -7000, yaw: 0 }
+    const v = valleyWith({ ...join('a'), undercroft: croft } as ValleyAction)
+    const deep = { x: croft.x + 4, z: croft.z + 4 }
+    expect(
+      v.step({ type: 'call', id: 'a', from, at: deep }).reply?.reason
+    ).toBe('below')
+    expect(v.valley.world?.truck.leg.kind).not.toBe('called')
+    expect(reasons(v.step({ type: 'call', id: 'a', from, at: to }))).toEqual([
+      'called',
+    ])
+  })
+
   it('brings the empty truck to the whistler, and takes them home', () => {
     const v = valleyWith(join('a'), join('b'))
     const r = v.step({ type: 'call', id: 'a', from, at: to })
