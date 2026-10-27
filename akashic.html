@@ -130,18 +130,51 @@
         border: 1px solid var(--fi-slate);
         padding: 2px 6px;
       }
-      .ak-kinds {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 4px;
-        margin-bottom: 8px;
+      .ak-assets {
+        width: 360px;
+        max-height: calc(100vh - 64px);
+        overflow-y: auto;
       }
-      .ak-panel .ak-kinds button {
+      .ak-kinds {
+        display: grid;
+        grid-template-columns: repeat(3, auto);
+        gap: 2px 10px;
+        margin: 0 0 8px;
+        padding: 0;
+        border: 0;
+      }
+      .ak-kinds label {
+        white-space: nowrap;
+      }
+      .ak-assets .ak-row > label {
+        width: 4.5em;
+        flex: none;
+        color: var(--fi-slate);
+      }
+      .ak-count {
+        flex: 1;
+        color: var(--fi-slate);
+      }
+      .ak-panel button:disabled {
+        opacity: 0.4;
+      }
+      .ak-panel .ak-list {
+        width: 100%;
+        height: 16em;
+        margin-bottom: 8px;
+        padding: 0;
+      }
+      .ak-list optgroup {
+        color: var(--fi-cyan);
+        font-style: normal;
+      }
+      .ak-list option {
+        color: var(--bv-eggshell);
         padding: 0 6px;
       }
-      .ak-kinds button[aria-pressed="true"] {
-        border-color: var(--fi-cyan);
-        color: var(--fi-cyan);
+      .ak-list option:checked {
+        background: var(--fi-cyan);
+        color: #020617;
       }
       .ak-panel :focus-visible {
         outline: 3px solid var(--fi-cyan);
@@ -260,7 +293,7 @@
         Map [M]
       </button>
     </nav>
-    <section class="ak-panel" aria-label="Asset viewer">
+    <section class="ak-panel ak-assets" aria-label="Asset viewer">
       <h1>Akashic</h1>
       <div class="ak-row">
         <input
@@ -273,13 +306,32 @@
           spellcheck="false"
         />
       </div>
-      <div class="ak-kinds" role="group" aria-label="Kind"></div>
+      <fieldset class="ak-kinds" aria-label="Kind"></fieldset>
+      <div class="ak-row">
+        <label for="ak-place">Where</label>
+        <select id="ak-place" name="place" class="ak-place"></select>
+      </div>
+      <div class="ak-row">
+        <label for="ak-set">Set</label>
+        <select id="ak-set" name="set" class="ak-set"></select>
+      </div>
+      <div class="ak-row">
+        <span class="ak-count" aria-live="polite"></span>
+        <button type="button" class="ak-clear">Clear filters</button>
+      </div>
+      <select
+        name="asset"
+        class="ak-list"
+        size="16"
+        aria-label="Asset"
+      ></select>
       <div class="ak-row">
         <button type="button" data-step="-1" aria-label="Previous asset">
-          ←
+          ← Prev
         </button>
-        <select name="asset" aria-label="Asset"></select>
-        <button type="button" data-step="1" aria-label="Next asset">→</button>
+        <button type="button" data-step="1" aria-label="Next asset">
+          Next →
+        </button>
       </div>
       <div class="ak-toggles"></div>
       <p class="ak-stats" aria-live="polite"></p>

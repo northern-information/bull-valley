@@ -10,9 +10,16 @@ import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import {
   ASSET_KINDS,
+  ASSET_SETS,
   assetMatches,
+  inSet,
   KIND_LABELS,
   kindOf,
+  NO_FILTER,
+  PLACE_LABELS,
+  placeOf,
+  PLACES,
+  SET_LABELS,
 } from './akashicfilter.ts'
 import { mountMap } from './akashicmap.ts'
 import {
@@ -53,7 +60,7 @@ import { strikeReach } from './shadowbodies.ts'
 import { buildShadowman } from './shadowmanmodel.ts'
 import { poseCarlsten } from './slurmrig.ts'
 import { buildTruckMesh } from './truck.ts'
-import type { KindFilter } from './akashicfilter.ts'
+import type { AssetFilter, AssetSet, Place } from './akashicfilter.ts'
 import type { MapHook } from './akashicmap.ts'
 import type { AkashicAsset } from './assets.ts'
 import type { EmoteId } from './emotes.ts'
@@ -67,8 +74,8 @@ interface AkashicHook {
   // Play or hold what moves; held, it stands at HOLD_SECONDS.
   animate(on: boolean): void
   readonly current: string | undefined
-  // Narrow the list to a kind and a search; the ids it then shows.
-  filter(kind: KindFilter, search?: string): void
+  // Narrow the list (what is not given is cleared); the ids it then shows.
+  filter(filter: Partial<AssetFilter>): void
   readonly shown: string[]
   // Assets or the map; the map's own hook.
   mode(mode: Mode): void
@@ -478,7 +485,7 @@ function setWireframe(object: THREE.Object3D, on: boolean): void {
 
 // --- Asset selection -----------------------------------------------------
 
-const select = requireElement<HTMLSelectElement>('.ak-panel select')
+const select = requireElement<HTMLSelectElement>('.ak-list')
 select.addEventListener('change', () => selectAsset(select.value))
 for (const btn of document.querySelectorAll<HTMLElement>('[data-step]')) {
   btn.addEventListener('click', () => step(Number(btn.dataset.step)))
@@ -546,7 +553,7 @@ function selectAsset(id: string): void {
   setView(35, 20, dist)
 
   // A deep link or the hook may pick an asset the filters hide.
-  if (!shown.some((a) => a.id === asset.id)) setFilter('all', '')
+  if (!shown.some((a) => a.id === asset.id)) setFilter(NO_FILTER)
   select.value = asset.id
   if (mode === 'assets' && location.hash.slice(1) !== asset.id) {
     history.replaceState(null, '', `#${asset.id}`)
@@ -570,41 +577,105 @@ function step(delta: number): void {
 
 const searchEl = requireElement<HTMLInputElement>('.ak-search')
 const kindsEl = requireElement<HTMLElement>('.ak-kinds')
-let kind: KindFilter = 'all'
+const placeEl = requireElement<HTMLSelectElement>('.ak-place')
+const setEl = requireElement<HTMLSelectElement>('.ak-set')
+const countEl = requireElement<HTMLElement>('.ak-count')
+const clearEl = requireElement<HTMLButtonElement>('.ak-clear')
+let filter: AssetFilter = NO_FILTER
 let shown: AkashicAsset[] = ASSETS
 
-const kindButtons = (['all', ...ASSET_KINDS] as const).map((k) => {
-  const count =
-    k === 'all'
-      ? ASSETS.length
-      : ASSETS.filter((a) => kindOf(a.id) === k).length
-  const btn = document.createElement('button')
-  btn.type = 'button'
-  btn.dataset.kind = k
-  btn.textContent = `${KIND_LABELS[k]} ${count}`
-  btn.addEventListener('click', () => setFilter(k, searchEl.value))
-  kindsEl.append(btn)
-  return btn
+const kindInputs = ASSET_KINDS.map((k) => {
+  const count = ASSETS.filter((a) => kindOf(a.id) === k).length
+  const label = document.createElement('label')
+  const input = document.createElement('input')
+  input.type = 'checkbox'
+  input.name = `kind-${k}`
+  input.value = k
+  input.addEventListener('change', () => {
+    const kinds = ASSET_KINDS.filter((_, i) => kindInputs[i].checked)
+    setFilter({ ...filter, kinds })
+  })
+  label.append(input, ` ${KIND_LABELS[k]} ${count}`)
+  kindsEl.append(label)
+  return input
 })
 
-searchEl.addEventListener('input', () => setFilter(kind, searchEl.value))
+// A dropdown of choices, each with how many assets it holds; one holding
+// none is left out.
+function fillChoices<C extends string>(
+  el: HTMLSelectElement,
+  any: string,
+  choices: readonly C[],
+  labels: Record<C, string>,
+  holds: (id: string, c: C) => boolean
+): void {
+  el.add(new Option(`${any} ${ASSETS.length}`, ''))
+  for (const c of choices) {
+    const count = ASSETS.filter((a) => holds(a.id, c)).length
+    if (count) el.add(new Option(`${labels[c]} ${count}`, c))
+  }
+}
+fillChoices(
+  placeEl,
+  'Anywhere',
+  PLACES,
+  PLACE_LABELS,
+  (id, p) => placeOf(id) === p
+)
+fillChoices(setEl, 'Any set', ASSET_SETS, SET_LABELS, inSet)
+const placeOfChoice = (v: string): Place | null =>
+  PLACES.find((p) => p === v) ?? null
+const setOfChoice = (v: string): AssetSet | null =>
+  ASSET_SETS.find((s) => s === v) ?? null
+placeEl.addEventListener('change', () =>
+  setFilter({ ...filter, place: placeOfChoice(placeEl.value) })
+)
+setEl.addEventListener('change', () =>
+  setFilter({ ...filter, set: setOfChoice(setEl.value) })
+)
+clearEl.addEventListener('click', () => setFilter(NO_FILTER))
+
+searchEl.addEventListener('input', () =>
+  setFilter({ ...filter, search: searchEl.value })
+)
 searchEl.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    if (searchEl.value) setFilter(kind, '')
+    if (searchEl.value) setFilter({ ...filter, search: '' })
     else searchEl.blur()
-  } else if (e.key === 'Enter') searchEl.blur()
+  } else if (e.key === 'Enter') {
+    // Enter shows the first match and hands the keys back to the view.
+    if (shown.length && current?.asset.id !== shown[0].id) {
+      selectAsset(shown[0].id)
+    }
+    searchEl.blur()
+  }
 })
 
-// Refill the list; if the shown asset falls out of it, show its first.
-function setFilter(next: KindFilter, search: string): void {
-  kind = next
-  searchEl.value = search
-  for (const b of kindButtons) {
-    b.setAttribute('aria-pressed', String(b.dataset.kind === kind))
-  }
-  shown = ASSETS.filter((a) => assetMatches(a, kind, search))
+// Refill the list, grouped by kind; if the shown asset falls out of it,
+// show its first.
+function setFilter(next: Partial<AssetFilter>): void {
+  filter = { ...NO_FILTER, ...next }
+  searchEl.value = filter.search
+  ASSET_KINDS.forEach((k, i) => {
+    kindInputs[i].checked = filter.kinds.includes(k)
+  })
+  placeEl.value = filter.place ?? ''
+  setEl.value = filter.set ?? ''
+  shown = ASSETS.filter((a) => assetMatches(a, filter))
+  countEl.textContent = `${shown.length} of ${ASSETS.length}`
+  clearEl.disabled =
+    !filter.kinds.length && !filter.place && !filter.set && !filter.search
   select.replaceChildren()
-  for (const asset of shown) select.add(new Option(asset.label, asset.id))
+  for (const k of ASSET_KINDS) {
+    const ofKind = shown.filter((a) => kindOf(a.id) === k)
+    if (!ofKind.length) continue
+    const group = document.createElement('optgroup')
+    group.label = `${KIND_LABELS[k]} (${ofKind.length})`
+    for (const asset of ofKind) group.append(new Option(asset.label, asset.id))
+    select.append(group)
+  }
+  // The arrows walk the list in the order it reads.
+  shown = ASSET_KINDS.flatMap((k) => shown.filter((a) => kindOf(a.id) === k))
   if (!shown.length) {
     select.add(new Option('No asset matches', ''))
     select.disabled = true
@@ -615,7 +686,7 @@ function setFilter(next: KindFilter, search: string): void {
     select.value = current.asset.id
   } else if (current) selectAsset(shown[0].id)
 }
-setFilter('all', '')
+setFilter(NO_FILTER)
 
 // Azimuth 0 looks at the asset's front (+Z); degrees, elevation above the
 // ground plane. Distance defaults to the current one.
@@ -739,7 +810,7 @@ window.__akashic = {
   get current() {
     return current?.asset.id
   },
-  filter: (k, search = '') => setFilter(k, search),
+  filter: setFilter,
   get shown() {
     return shown.map((a) => a.id)
   },
