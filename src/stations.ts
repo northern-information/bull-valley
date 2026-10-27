@@ -71,7 +71,7 @@ export function stationFacing(
 }
 
 // Low-poly Citgo stations at every fuel point inside the frame: a walk-in
-// store, canopy over a pump island, tall lit road sign, and an asphalt lot
+// store, canopy over a bank of four pump islands, tall lit road sign, and an asphalt lot
 // between them and the road. Each station faces its nearest road, with the
 // pump island FUEL_LAYOUT.roadEdgeDistance back from the road's edge and
 // the store behind it: the OSM fuel point only says which road and roughly
@@ -100,9 +100,11 @@ export function buildFuelStations(
   }
   const store = parts.store.map((part) => instanced(part, count))
   const canopies = instanced(parts.canopy, count)
-  const canopyPoles = instanced(parts.canopyPole, count * 2)
-  const pumps = parts.pump.map((part) => instanced(part, count * 2))
-  const canopyLights = instanced(parts.canopyLight, count * 2)
+  const polesPer = L.canopyPoles.length
+  const pumpsPer = L.pumps.length
+  const canopyPoles = instanced(parts.canopyPole, count * polesPer)
+  const pumps = parts.pump.map((part) => instanced(part, count * pumpsPer))
+  const canopyLights = instanced(parts.canopyLight, count * pumpsPer)
   const cansPer = L.trashCans.length
   const trashCans = parts.trashCan.map((part) =>
     instanced(part, count * cansPer)
@@ -168,21 +170,21 @@ export function buildFuelStations(
       walls.addWall(wall.a, wall.b, wall.half, undefined, wall.low)
     }
 
-    // Canopy and pump island at the fuel point itself, on the lot.
+    // Canopy and pump islands about the fuel point itself, on the lot.
     dummy.position.set(x, y, z)
     dummy.updateMatrix()
     canopies.setMatrixAt(i, dummy.matrix)
-    for (let p = 0; p < 2; p++) {
-      const off = p === 0 ? L.canopyPoleOffset : -L.canopyPoleOffset
+    L.canopyPoles.forEach((off, p) => {
       dummy.position.set(x - sin * off, y, z + cos * off)
       dummy.updateMatrix()
-      canopyPoles.setMatrixAt(i * 2 + p, dummy.matrix)
-      const pumpOff = p === 0 ? L.pumpOffset : -L.pumpOffset
-      dummy.position.set(x - sin * pumpOff, y, z + cos * pumpOff)
+      canopyPoles.setMatrixAt(i * polesPer + p, dummy.matrix)
+    })
+    L.pumps.forEach((off, p) => {
+      dummy.position.set(x - sin * off, y, z + cos * off)
       dummy.updateMatrix()
-      for (const mesh of pumps) mesh.setMatrixAt(i * 2 + p, dummy.matrix)
-      canopyLights.setMatrixAt(i * 2 + p, dummy.matrix)
-    }
+      for (const mesh of pumps) mesh.setMatrixAt(i * pumpsPer + p, dummy.matrix)
+      canopyLights.setMatrixAt(i * pumpsPer + p, dummy.matrix)
+    })
     // Trash cans, each on its own ground sample.
     L.trashCans.forEach(([tx, , tz], t) => {
       const cx = x + cos * tx - sin * tz

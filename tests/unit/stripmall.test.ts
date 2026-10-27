@@ -231,8 +231,8 @@ describe('STRIP_MALL', () => {
   })
 
   it('runs its lot on to the Citgo lot', () => {
-    // The Citgo's lot is 20 m either side of its pump island.
-    expect(STRIP_MALL.lot.z1 + CONFIG.stripMall.at.z).toBe(-20)
+    // The Citgo's lot is 26 m either side of its forecourt's middle.
+    expect(STRIP_MALL.lot.z1 + CONFIG.stripMall.at.z).toBe(-26)
   })
 })
 

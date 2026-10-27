@@ -15,7 +15,7 @@ import { isRod } from './items.ts'
 import { buildPickup } from './pickups.ts'
 import { buildDumpster } from './plazamodel.ts'
 import { applyPS1 } from './ps1.ts'
-import { CANOPY, STORE_LAYOUT } from './store.ts'
+import { CANOPY, PUMP_ISLANDS, STORE_LAYOUT } from './store.ts'
 import type { Part } from './assetkit.ts'
 import type { Vec3 } from './interfaces.ts'
 import type { StoreFinish, StoreSign } from './store.ts'
@@ -50,7 +50,7 @@ function makeCitgoSignTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(canvas)
 }
 
-// Station-local layout: the pump island at the origin, local +X toward the
+// Station-local layout: the pump islands about the origin, local +X toward the
 // road, the store behind it along -X (its shell and shelves are laid out in
 // STORE_LAYOUT, store.ts). `along` offsets run on the local Z
 // axis (the pump island's long side, parallel to the road). world.ts turns
@@ -59,9 +59,18 @@ function makeCitgoSignTexture(): THREE.CanvasTexture {
 // inside the lot's road frontage. The lot is the asphalt from the store
 // front to the frontage. The sign sits on its own ground sample in the
 // world, so `sign` gives a ground offset plus height.
+const CANOPY_POLE_OFFSET = 2.6
+const PUMP_OFFSET = CANOPY_POLE_OFFSET * 0.55
+const BANK_END = PUMP_ISLANDS[PUMP_ISLANDS.length - 1]
+
 export const FUEL_LAYOUT = {
-  canopyPoleOffset: 2.6,
-  pumpOffset: 2.6 * 0.55,
+  // Along local Z: every pump, two to an island either side of its middle,
+  // and the canopy's poles at each island's ends.
+  pumps: PUMP_ISLANDS.flatMap((z) => [z + PUMP_OFFSET, z - PUMP_OFFSET]),
+  canopyPoles: PUMP_ISLANDS.flatMap((z) => [
+    z + CANOPY_POLE_OFFSET,
+    z - CANOPY_POLE_OFFSET,
+  ]),
   roadEdgeDistance: 12,
   // The sign stands at the lot's road-side corner, off the pump island's
   // axis, so it never blocks the view from the island to the road.
@@ -71,14 +80,14 @@ export const FUEL_LAYOUT = {
   glowScale: 9,
   // Along local X from the store front to the road centreline (the sample
   // stops at the road edge); halfWidth spans local Z, room to park either
-  // side of the pumps.
-  lot: { back: STORE_LAYOUT.front, halfWidth: 20 },
+  // side of the pumps' bank.
+  lot: { back: STORE_LAYOUT.front, halfWidth: 26 },
   lotColor: '#262a30',
-  // Trash cans, station-local: one at each end of the pump island past the
-  // canopy poles, one beside the store door on the lot.
+  // Trash cans, station-local: one at each end of the bank of islands past
+  // the canopy poles, one beside the store door on the lot.
   trashCans: [
-    [0, 0, 3.3],
-    [0, 0, -3.3],
+    [0, 0, BANK_END + 3.3],
+    [0, 0, -BANK_END - 3.3],
     [STORE_LAYOUT.front + 0.5, 0, -1.6],
   ] as readonly Vec3[],
 }
