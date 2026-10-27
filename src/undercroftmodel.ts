@@ -4,6 +4,7 @@ import {
   artTexture,
   castShadows,
   lambert,
+  layered,
   makeGlowSprite,
   makeGlowTexture,
   setMotion,
@@ -59,6 +60,9 @@ const CROFT_FINISH: Record<CroftFinish, () => THREE.Material> = {
   cloth: () => lambert({ color: '#5a1418' }),
 }
 
+// The finishes laid over another (layered): the flooded room's water.
+const OVER: Partial<Record<CroftFinish, number>> = { water: 1 }
+
 interface UndercroftRig {
   group: THREE.Group
   // The candles' flicker.
@@ -83,7 +87,10 @@ export function buildUndercroft(): UndercroftRig {
   }
   let flame: THREE.MeshBasicMaterial | null = null
   for (const [finish, geometries] of byFinish) {
-    const material = CROFT_FINISH[finish]()
+    const over = OVER[finish]
+    const material = over
+      ? layered(CROFT_FINISH[finish](), over)
+      : CROFT_FINISH[finish]()
     const mesh = new THREE.Mesh(mergeGeometries(geometries), material)
     mesh.name = `undercroft-${finish}`
     mesh.receiveShadow = true
@@ -95,18 +102,24 @@ export function buildUndercroft(): UndercroftRig {
     const cut = sign.art === 'sigil'
     const mesh = new THREE.Mesh(
       new THREE.PlaneGeometry(...sign.size),
-      lambert({
-        map: texture,
-        transparent: cut,
-        alphaTest: cut ? 0.1 : 0,
-        depthWrite: !cut,
-        emissive: new THREE.Color(
-          sign.name === 'altar-sigil' ? '#ff3020' : '#ffffff'
-        ),
-        emissiveMap: texture,
-        emissiveIntensity:
-          sign.name === 'altar-sigil' ? 0.6 : sign.art === 'sigil' ? 0.5 : 0.12,
-      })
+      layered(
+        lambert({
+          map: texture,
+          transparent: cut,
+          alphaTest: cut ? 0.1 : 0,
+          depthWrite: !cut,
+          emissive: new THREE.Color(
+            sign.name === 'altar-sigil' ? '#ff3020' : '#ffffff'
+          ),
+          emissiveMap: texture,
+          emissiveIntensity:
+            sign.name === 'altar-sigil'
+              ? 0.6
+              : sign.art === 'sigil'
+                ? 0.5
+                : 0.12,
+        })
+      )
     )
     mesh.name = `undercroft-${sign.name}`
     mesh.position.set(...sign.center)
