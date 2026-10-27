@@ -6,6 +6,7 @@
 
 import { PACK_IN_MENU, WORLD } from './bindings.ts'
 import { BookHud } from './bookhud.ts'
+import { BossHud } from './bosshud.ts'
 import { BuffHud } from './buffhud.ts'
 import { burst } from './catchburst.ts'
 import { ChatHud } from './chathud.ts'
@@ -106,6 +107,8 @@ export class Hud {
   pack: PackHud
   // Geometrie and the wards, in the upper left.
   vitals: VitalsHud
+  // The Warden's bar along the bottom, in the deep chamber (bosshud.ts).
+  boss: BossHud
   // The buffs over the hotbar, winding down.
   buffs: BuffHud
   hurtWash: HTMLDivElement
@@ -178,6 +181,9 @@ export class Hud {
 
     // Geometrie and the wards: the tetrahedron and the bar, upper left.
     this.vitals = new VitalsHud(ui)
+
+    // The boss's bar, bottom center over the hotbar.
+    this.boss = new BossHud(ui)
 
     // The phone in a PS1-style flipper hand, dialing a Citgo portal.
     // phone.ts draws the hand, the phone and the screen into this one
@@ -538,6 +544,13 @@ export class Hud {
   setBuffs(buffs: readonly Buff[]): void {
     this.buffs.set(buffs)
     this.root.classList.toggle('bv-shell--buffs', buffs.length > 0)
+  }
+
+  // The Warden's bar along the bottom with `share` of it left, or null to
+  // put it away; the chat log rides up over it while it shows.
+  setBoss(share: number | null): void {
+    this.boss.set(share)
+    this.root.classList.toggle('bv-shell--boss', share !== null)
   }
 
   // The geometrie bar at `points` of `max`.

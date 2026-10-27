@@ -517,6 +517,12 @@ canvas {
   );
 }
 
+/* The boss's bar up (bosshud.ts): the log rides over it, wherever the
+   hotbar and the buffs leave it. */
+.bv-shell.bv-shell--boss .bv-dock {
+  bottom: calc(1rem + var(--bv-cell) + 8px + var(--bv-buff) + 5.4rem);
+}
+
 /* Chat: a quiet log that fades out a while after the last line, and a
    field under it while typing. Eight lines show; older ones scroll, with
    no scrollbar (the wheel and PageUp/PageDown move it). Each line dims by
@@ -717,6 +723,38 @@ canvas {
 .bv-vitals-rise .bv-vitals-fill,
 .bv-vitals-rise .bv-vitals-lost {
   transition: width 0.6s steps(8);
+}
+
+/* The boss's bar (bosshud.ts), as Dark Souls lays one along the bottom of
+   the view: its name small and spaced over a long thin bar, over the
+   hotbar and the buffs, the same gilt hairline and crimson as ours with
+   the same yellow trail. */
+.bv-boss {
+  position: absolute;
+  left: 50%;
+  bottom: calc(1rem + var(--bv-cell) + 8px + var(--bv-buff) + 1.6rem);
+  width: min(46rem, calc(100% - 2rem));
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.bv-boss-name {
+  margin: 0 0 0.3rem;
+  color: rgb(240 234 214 / 92%);
+  letter-spacing: 0.14em;
+  text-shadow: 2px 2px 0 var(--fi-black-shadow);
+}
+
+.bv-boss-bar {
+  position: relative;
+  box-sizing: border-box;
+  overflow: hidden;
+  height: 0.8rem;
+  background: rgb(10 6 5 / 78%);
+  border: 1px solid rgb(150 130 100 / 65%);
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 80%),
+    3px 3px 0 var(--fi-black-shadow);
 }
 
 /* Every other raider in the valley, nearest first: a name small over a
