@@ -408,7 +408,8 @@ export const CONFIG = {
   // metres in front of the other, facing away from it. Each account keeps
   // one open at a time, for lifeSeconds. Every lot has a ring of `slots`
   // portal ends, `ringRadius` metres round `ring` (station-local like the
-  // bush: past the pump island's far end, clear of Moab and the lamps),
+  // bush: past the far end of the pump islands, clear of Moab, the trash
+  // can and the lamps),
   // each facing out. After a portal or fast travel, no portal takes a
   // raider for graceSeconds, whatever stands where they come out. Fast
   // travel goes to a portal phone (`phones`): one by every Citgo's door,
@@ -423,7 +424,7 @@ export const CONFIG = {
     radius: 0.9,
     exit: 2.2,
     lifeSeconds: 180,
-    ring: { x: 2, z: 13.5 },
+    ring: { x: 2, z: 21 },
     ringRadius: 3.5,
     slots: 6,
     visitReach: 25,
@@ -782,7 +783,7 @@ export const CONFIG = {
     // at the store's back corner (world.ts STATION_LAMPS), toward the
     // pumps, turned to face them. It blocks, and every account keeps its
     // own outpost there (stand.ts).
-    at: { x: -3.6, z: -17.2 },
+    at: { x: -3.6, z: -23.2 },
     // It blocks as a capsule along its table (assets.ts CABBAGE_STAND):
     // this far either side of its middle, this wide.
     halfLength: 1.0,
@@ -1202,8 +1203,8 @@ export const CONFIG = {
     // from the corn maze's near corner, in the grass just past the lot's
     // end, where it left the road for the tree. `toward` is the way its
     // nose points, at the tree (assets.ts WRECK). Scenery: it only blocks.
-    at: { x: 6.5, z: 27 },
-    toward: { x: 3.5, z: 25.5 },
+    at: { x: 6.5, z: 33 },
+    toward: { x: 3.5, z: 31.5 },
     // It blocks as a capsule down its length (this far either side of its
     // middle, this wide), and the tree like a post.
     halfLength: 1.6,
@@ -1596,10 +1597,11 @@ export const CONFIG = {
     crawlSeconds: 2.5,
     // The tooth slides out and back in once a period.
     toothPeriod: [1.1, 2.2],
-    // Carlsten sees the first land and comes out after this long, walking
-    // brisk (he has done this before), and stands this far off each one.
+    // Carlsten sees the first land and comes out after this long, at a
+    // jog (he has done this before, and the canopy over four islands is
+    // long), and stands this far off each one.
     reactSeconds: 1.2,
-    walkSpeed: 2.1,
+    walkSpeed: 3.2,
     standOff: 0.8,
     // His swing: the bat raised, brought down (the slurm bursts at the
     // end of it), and a beat to recover before the next.

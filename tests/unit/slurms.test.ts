@@ -19,10 +19,26 @@ import {
   treads,
   underfoot,
 } from '../../src/slurms.ts'
-import { STORE_LAYOUT } from '../../src/store.ts'
+import { PUMP_ISLANDS, STORE_LAYOUT } from '../../src/store.ts'
 import type { Slurm, SlurmEvent } from '../../src/slurms.ts'
 
 const STATIONS = [0, 1, 7, 14]
+
+// Whether `at` stands on one of the pump islands under the canopy.
+const underIsland = (at: { x: number; z: number }): boolean =>
+  PUMP_ISLANDS.some((z) => Math.abs(at.x) < 0.8 && Math.abs(at.z - z) < 2.2)
+
+// The same pose: equal, but for the last bit of a float (a walk cut short
+// lands where the whole one passes by a different product).
+function expectSamePlace(a: object, b: object): void {
+  const bv = b as Record<string, unknown>
+  expect(Object.keys(a).sort()).toEqual(Object.keys(b).sort())
+  for (const [key, value] of Object.entries(a)) {
+    if (typeof value === 'number')
+      expect(value).toBeCloseTo(bv[key] as number, 9)
+    else expect(value).toEqual(bv[key])
+  }
+}
 const SLOTS = Array.from({ length: 400 }, (_, i) => 29_000_000 + i)
 
 function* events(): Generator<SlurmEvent> {
@@ -164,11 +180,8 @@ describe('the drop at a moment', () => {
           expect(Math.abs(at.z)).toBeLessThan(STORE_LAYOUT.doorWidth / 2)
           outside = true
         }
-        // Never through the pump island under the canopy.
-        if (each.dripline !== 'eave') {
-          const under = Math.abs(at.x) < 0.8 && Math.abs(at.z) < 2.2
-          expect(under).toBe(false)
-        }
+        // Never through a pump island under the canopy.
+        if (each.dripline !== 'eave') expect(underIsland(at)).toBe(false)
       }
       expect(outside).toBe(true)
       expect([...actions].sort()).toEqual(
@@ -228,7 +241,8 @@ describe('trodden on before Carlsten gets there', () => {
       trodden[0] = d
       const after = afterTrodden(event, trodden)
       for (let t = 0; t < d; t += 0.1) {
-        expect(slurmScene(after, t).carlsten).toEqual(
+        expectSamePlace(
+          slurmScene(after, t).carlsten,
           slurmScene(event, t).carlsten
         )
       }
@@ -333,10 +347,7 @@ describe('trodden on before Carlsten gets there', () => {
           expect(Math.abs(at.z)).toBeLessThan(STORE_LAYOUT.doorWidth / 2)
           outside = true
         }
-        if (after.dripline !== 'eave') {
-          const under = Math.abs(at.x) < 0.8 && Math.abs(at.z) < 2.2
-          expect(under).toBe(false)
-        }
+        if (after.dripline !== 'eave') expect(underIsland(at)).toBe(false)
       }
       expect(slurmScene(after, after.back).carlsten).toEqual(AT_COUNTER)
     }

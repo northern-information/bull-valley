@@ -628,6 +628,7 @@ travel_unvisited = { text = "You have not found that portal phone yet.", by = "a
 travel_here = { text = "You are already here.", by = "ai" }
 waypoints_refused = { text = "Easy on the pins. Try again in a moment.", by = "ai" }
 travel_aboard = { text = "Not from the truck bed.", by = "ai" }
+travel_below = { text = "No signal down here. The call dies in the stone.", by = "ai" }
 
 # What a trip shows that is not there, bursting (src/hallucinations.ts).
 
@@ -655,6 +656,8 @@ none = { text = "No Citgo yet. Stand on a forecourt.", by = "ai" }
 hint = { text = "Click a portal phone to fast travel, anywhere else to pin a waypoint.", by = "ai" }
 hint_away = { text = "Fast travel needs a portal phone: get one from Tyler, or stand at one. Click anywhere to pin a waypoint.", by = "ai" }
 hint_charter = { text = "Click where Marx should take you. M for the long way, E to hop out.", by = "ai" }
+hint_aboard = { text = "No fast travel from the truck bed: hop out first. Click anywhere to pin a waypoint.", by = "ai" }
+hint_below = { text = "No signal in the Undercroft: climb out to fast travel. Click anywhere to pin a waypoint.", by = "ai" }
 zoom = { text = "Scroll to zoom, drag to pan.", by = "ai" }
 somewhere = { text = "the middle of nowhere", by = "ai" }
 citgo = { text = "Citgo on {road}", by = "ai" }

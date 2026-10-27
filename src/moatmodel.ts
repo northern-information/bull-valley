@@ -3,6 +3,7 @@ import {
   artTexture,
   castShadows,
   lambert,
+  layered,
   memo,
   mergeStatic,
 } from './assetkit.ts'
@@ -289,15 +290,17 @@ export function buildMoat(build: MoatBuild): MoatRig {
   mergeStatic(group)
 
   // The trickle: a strip of black water down the channel's middle, its
-  // sheen creeping along.
-  const water = lambert({
-    color: '#0d1a26',
-    emissive: new THREE.Color('#0a2238'),
-    emissiveIntensity: 0.6,
-    map: concreteTexture('#5a7890'),
-    transparent: true,
-    opacity: 0.85,
-  })
+  // sheen creeping along, drawn over the floor it runs on.
+  const water = layered(
+    lambert({
+      color: '#0d1a26',
+      emissive: new THREE.Color('#0a2238'),
+      emissiveIntensity: 0.6,
+      map: concreteTexture('#5a7890'),
+      transparent: true,
+      opacity: 0.85,
+    })
+  )
   const line = build.trickle
   const wp: number[] = []
   const wu: number[] = []

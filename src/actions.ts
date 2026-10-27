@@ -1961,11 +1961,16 @@ export function createActions(game: Game, engagePointer: () => void): Actions {
 
   // To a portal phone the account knows (citgos.ts fastTravel), from
   // anywhere with the portal phone in the pack, or from any portal phone
-  // without it: set down in front of it, facing it. Where we stand is our
-  // own word, so the valley hears it from the next state frame.
+  // without it: set down in front of it, facing it. No call carries up
+  // out of the Undercroft, as no whistle does. Where we stand is our own
+  // word, so the valley hears it from the next state frame.
   const fastTravel = (phone: number) => {
     if (s.aboard) {
       hud.tell(copy('log.travel_aboard'))
+      return
+    }
+    if (world.undercroft?.inside(player.pos.x, player.pos.z)) {
+      hud.tell(copy('log.travel_below'))
       return
     }
     const to = world.payphones[phone] as PortalPhone | undefined

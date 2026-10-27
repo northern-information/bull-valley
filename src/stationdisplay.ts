@@ -5,7 +5,6 @@ import {
   buildShelfDisplay,
   CANOPY,
   castShadows,
-  FUEL_LAYOUT,
 } from './assets.ts'
 import { CONFIG } from './config.ts'
 import { copy } from './copy.ts'
@@ -13,14 +12,15 @@ import { applyPose, buildFigure } from './figure.ts'
 import { README } from './laptopreadme.ts'
 import { samplePose } from './poses.ts'
 import { createSlurms } from './slurmrig.ts'
-import { onShelf, STORE_LAYOUT, storeCenter } from './store.ts'
+import { onShelf, PUMP_ISLANDS, STORE_LAYOUT, storeCenter } from './store.ts'
 import type { Ground } from './ground.ts'
 import type { Vec3 } from './interfaces.ts'
 import type { FuelPoint, ShelfDisplay } from './world.ts'
 
 // The station lights, in station-local space: one spot under every
-// fluorescent panel, the four in the store and the two under the canopy,
-// all pointing down and all throwing shadows. A panel is an area light,
+// fluorescent panel in the store and one over each pump island under the
+// canopy (not one per tube: eight more shadow passes buy nothing), all
+// pointing down and all throwing shadows. A panel is an area light,
 // so each spot is wide and firm-edged and the neighbours overlap into an
 // even ceiling glow instead of pools. Like the shelf display they ride to
 // the nearest station, because a spotlight at every Citgo would cost a
@@ -86,9 +86,9 @@ function buildStationLights(): StationLights {
       STATION_LIGHTS.store
     )
   }
-  // One under each canopy tube, over its pump.
+  // One under the canopy over each island, between its two tubes.
   const tubeY = CANOPY.height - CANOPY.thickness / 2 - STATION_LIGHTS.drop
-  for (const z of [FUEL_LAYOUT.pumpOffset, -FUEL_LAYOUT.pumpOffset]) {
+  for (const z of PUMP_ISLANDS) {
     hang([0, tubeY, z], STATION_LIGHTS.canopy)
   }
   return {
