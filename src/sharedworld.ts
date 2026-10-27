@@ -74,9 +74,9 @@
 //    knows the roads, so it aims them from where a raider near the truck
 //    last said it stood (seeHeadlights), and only while that is fresh.
 //    Under Bull Valley Plaza, in the Undercroft the world was opened with
-//    (undercroft.ts), the tunnel shades walk instead (tunnelshades.ts): a
+//    (undercroft.ts), the Undercroft's foes walk instead (undercroftfoes.ts): a
 //    raider down there is out of the shadowmen's field and the Caretaker's
-//    reach, and the shades hunt them, strike them the same way, and burst
+//    reach, and the foes hunt them, strike them the same way, and burst
 //    in one beam into dimes, the Warden among them. Up on the lookout
 //    tower by the maze's gate (lookout.ts) no shadow reaches a raider: no
 //    shadowman rushes them and the Caretaker never hunts them, though their
@@ -688,7 +688,7 @@ interface SharedWorld {
   // and where the floppy disk lies for his last, or null.
   gron: XZ | null
   disk: XZ | null
-  // Where the Undercroft lies, or null (rule 11: the tunnel shades).
+  // Where the Undercroft lies, or null (rule 11: the Undercroft's foes).
   undercroft: MazePlace | null
   // Where Castle Entropy's moat lies, or null (rule 11: the valley cuts it
   // into the ground its shadowmen walk).

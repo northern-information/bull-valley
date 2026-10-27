@@ -89,7 +89,7 @@ export interface Flakes {
 // is dropped by a hash of the cell and the body's seed, so the holes ride
 // the limbs and look the same on every client. Laid over whatever the
 // material compiles to already (ps1.ts applyPS1's wobble). The shadowmen's
-// and the tunnel's rats' (tunnelshademodel.ts), so every shadow of the
+// and the shadow rats' (ratmodel.ts), so every shadow of the
 // kind is flaky the same way: set `time` each frame and `amount` from
 // `flakeAmount` as it burns.
 export function flaky(material: THREE.Material, seed: number): Flakes {

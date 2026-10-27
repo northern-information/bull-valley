@@ -1,6 +1,6 @@
 // The Elden Ring bar over every enemy (healthbar.ts): the shadowmen, the
 // spiders and spiderlings (shadowbodies.ts), the Caretaker
-// (caretakerrig.ts), and the tunnel shades and their Warden (tunnelrig.ts).
+// (caretakerrig.ts), and the shadow rats and their Warden (undercroftfoesrig.ts).
 // Each is a sprite of its own over the body, never a child of it, so it
 // holds still while the body shakes and flickers. A body's bar is built the
 // first time it is hurt within range (shadowsync.ts barShown), shown while

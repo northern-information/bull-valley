@@ -302,3 +302,45 @@ export function meshBounds(object: THREE.Object3D): THREE.Box3 {
   })
   return box
 }
+
+// A body that walks and burns, the Undercroft's foes' (ratmodel.ts,
+// wardenmodel.ts): update takes the clock and how fast it is walking
+// (m/s), setBurn how far a beam has burnt it (0 to 1).
+export interface FoeRig {
+  group: THREE.Group
+  update(t: number, speed?: number): void
+  setBurn(burn: number): void
+}
+
+// Adds a mesh at `at`, turned by `turn`, under `parent` (the group by
+// default), for a body built of parts.
+export type Add = (
+  geometry: THREE.BufferGeometry,
+  material: THREE.Material,
+  at: Vec3,
+  turn?: Vec3,
+  parent?: THREE.Object3D
+) => THREE.Mesh
+
+export function adder(group: THREE.Group): Add {
+  return (geometry, material, at, turn = [0, 0, 0], parent = group) => {
+    const mesh = new THREE.Mesh(geometry, material)
+    mesh.position.set(...at)
+    mesh.rotation.set(...turn)
+    parent.add(mesh)
+    return mesh
+  }
+}
+
+// A pivot at `at` under `parent`, for a limb or the head to turn on.
+export function joint(
+  parent: THREE.Object3D,
+  at: Vec3,
+  name: string
+): THREE.Group {
+  const pivot = new THREE.Group()
+  pivot.name = name
+  pivot.position.set(...at)
+  parent.add(pivot)
+  return pivot
+}

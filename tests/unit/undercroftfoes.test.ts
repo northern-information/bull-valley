@@ -3,15 +3,15 @@ import { CONFIG } from '../../src/config.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import { beamFrom } from '../../src/shadowmen.ts'
-import {
-  createTunnelShades,
-  stepTunnelShades,
-  tunnelShadesAt,
-} from '../../src/tunnelshades.ts'
 import { inRoom, ROOMS, UNDERCROFT } from '../../src/undercroft.ts'
+import {
+  createUndercroftFoes,
+  stepUndercroftFoes,
+  undercroftFoesAt,
+} from '../../src/undercroftfoes.ts'
 import type { XZ } from '../../src/interfaces.ts'
 import type { Raider } from '../../src/shadowmen.ts'
-import type { TunnelShade } from '../../src/tunnelshades.ts'
+import type { UndercroftFoe } from '../../src/undercroftfoes.ts'
 
 const place = { x: -7000, z: -7000, yaw: 0 }
 const world = (p: XZ) => mazeToWorld(place, p)
@@ -33,16 +33,16 @@ function aiming(at: XZ, target: XZ): Raider {
 }
 
 const run = (
-  shades: TunnelShade[],
+  foes: UndercroftFoe[],
   raiders: Raider[],
   seconds: number,
   calm = false
 ) => {
   const rng = mulberry32(7)
   const struck: string[] = []
-  const bursts: ReturnType<typeof stepTunnelShades>['bursts'] = []
+  const bursts: ReturnType<typeof stepUndercroftFoes>['bursts'] = []
   for (let t = 0; t < seconds; t += 0.1) {
-    const out = stepTunnelShades(shades, rng, {
+    const out = stepUndercroftFoes(foes, rng, {
       dt: 0.1,
       raiders,
       place,
@@ -54,54 +54,54 @@ const run = (
   return { struck, bursts }
 }
 
-describe('the tunnel shades', () => {
+describe('the foes of the Undercroft', () => {
   it('start in their lairs, the Warden before the altar', () => {
-    const shades = createTunnelShades()
-    expect(shades.filter((s) => s.kind === 'rat')).toHaveLength(
+    const foes = createUndercroftFoes()
+    expect(foes.filter((s) => s.kind === 'rat')).toHaveLength(
       UNDERCROFT.lairs.length
     )
-    const warden = shades.find((s) => s.kind === 'warden')
+    const warden = foes.find((s) => s.kind === 'warden')
     expect(warden).toMatchObject(UNDERCROFT.warden)
-    expect(new Set(shades.map((s) => s.id)).size).toBe(shades.length)
+    expect(new Set(foes.map((s) => s.id)).size).toBe(foes.length)
   })
 
   it('drift round their lairs with no one below', () => {
-    const shades = createTunnelShades()
-    run(shades, [], 60)
-    for (const shade of shades) {
-      const d = Math.hypot(shade.x - shade.lair.x, shade.z - shade.lair.z)
-      expect(d).toBeLessThanOrEqual(CONFIG.tunnel[shade.kind].patrolRadius + 1)
+    const foes = createUndercroftFoes()
+    run(foes, [], 60)
+    for (const foe of foes) {
+      const d = Math.hypot(foe.x - foe.lair.x, foe.z - foe.lair.z)
+      expect(d).toBeLessThanOrEqual(CONFIG.tunnel[foe.kind].patrolRadius + 1)
     }
   })
 
   it('hunt a raider they see down the passages, and strike them', () => {
-    const shade = createTunnelShades()[0]
-    const prey = { x: shade.lair.x + 4, z: shade.lair.z }
-    const { struck } = run([shade], [raider(prey)], 10)
+    const foe = createUndercroftFoes()[0]
+    const prey = { x: foe.lair.x + 4, z: foe.lair.z }
+    const { struck } = run([foe], [raider(prey)], 10)
     expect(struck).toContain('r')
   })
 
   it('leave a raider alone when calm, or one who cannot be struck', () => {
-    const shade = createTunnelShades()[0]
-    const prey = { x: shade.lair.x + 4, z: shade.lair.z }
-    expect(run([shade], [raider(prey)], 10, true).struck).toEqual([])
-    const again = createTunnelShades()[0]
+    const foe = createUndercroftFoes()[0]
+    const prey = { x: foe.lair.x + 4, z: foe.lair.z }
+    expect(run([foe], [raider(prey)], 10, true).struck).toEqual([])
+    const again = createUndercroftFoes()[0]
     expect(
       run([again], [raider(prey, { vulnerable: false })], 10).struck
     ).toEqual([])
   })
 
   it('burst in one beam held long enough, and form again in their lair', () => {
-    const shade = createTunnelShades()[0]
-    const from = { x: shade.lair.x + 5, z: shade.lair.z }
-    const lit = aiming(from, shade)
-    const { bursts } = run([shade], [{ ...lit, vulnerable: false }], 2)
+    const foe = createUndercroftFoes()[0]
+    const from = { x: foe.lair.x + 5, z: foe.lair.z }
+    const lit = aiming(from, foe)
+    const { bursts } = run([foe], [{ ...lit, vulnerable: false }], 2)
     expect(bursts).toHaveLength(1)
     expect(bursts[0]).toMatchObject({ kind: 'rat', by: ['r'] })
-    expect(tunnelShadesAt([shade], place)).toEqual([])
-    run([shade], [], CONFIG.tunnel.rat.respawnSeconds + 1)
-    expect(tunnelShadesAt([shade], place)).toHaveLength(1)
-    expect(shade.burn).toBe(0)
+    expect(undercroftFoesAt([foe], place)).toEqual([])
+    run([foe], [], CONFIG.tunnel.rat.respawnSeconds + 1)
+    expect(undercroftFoesAt([foe], place)).toHaveLength(1)
+    expect(foe.burn).toBe(0)
   })
 
   it('make the Warden take far longer to burn, over several hits', () => {
@@ -114,7 +114,7 @@ describe('the tunnel shades', () => {
   })
 
   it('throw the Warden into the dark at each hit, to form again elsewhere, until the last bursts it', () => {
-    const warden = createTunnelShades().find((s) => s.kind === 'warden')
+    const warden = createUndercroftFoes().find((s) => s.kind === 'warden')
     if (!warden) throw new Error('no Warden')
     const rng = mulberry32(3)
     const wounds: XZ[] = []
@@ -122,11 +122,11 @@ describe('the tunnel shades', () => {
     const spots: XZ[] = []
     let hidden = 0
     for (let t = 0; t < 60 && bursts.length === 0; t += 0.1) {
-      if (tunnelShadesAt([warden], place).length === 0) hidden++
+      if (undercroftFoesAt([warden], place).length === 0) hidden++
       // Whoever holds the light stands a step off wherever it is.
       const from = { x: warden.x + 1.5, z: warden.z }
       const lit = { ...aiming(from, warden), vulnerable: false }
-      const out = stepTunnelShades([warden], rng, {
+      const out = stepUndercroftFoes([warden], rng, {
         dt: 0.1,
         raiders: [lit],
         place,
@@ -148,18 +148,18 @@ describe('the tunnel shades', () => {
       )
     ).toBe(true)
     expect(warden.wounds).toBe(hits)
-    expect(tunnelShadesAt([warden], place)).toEqual([])
+    expect(undercroftFoesAt([warden], place)).toEqual([])
   })
 
   it('throw the Warden away from every raider when the chamber has room', () => {
-    const warden = createTunnelShades().find((s) => s.kind === 'warden')
+    const warden = createUndercroftFoes().find((s) => s.kind === 'warden')
     if (!warden) throw new Error('no Warden')
     const rng = mulberry32(5)
     let from = warden as XZ
     for (let t = 0; t < 10 && warden.wounds === 0; t += 0.1) {
       from = { x: warden.x + 1.5, z: warden.z }
       const lit = { ...aiming(from, warden), vulnerable: false }
-      stepTunnelShades([warden], rng, { dt: 0.1, raiders: [lit], place })
+      stepUndercroftFoes([warden], rng, { dt: 0.1, raiders: [lit], place })
     }
     expect(warden.wounds).toBe(1)
     expect(
@@ -168,7 +168,7 @@ describe('the tunnel shades', () => {
   })
 
   it('throw the Warden as far from everyone as it can when the chamber is crowded', () => {
-    const warden = createTunnelShades().find((s) => s.kind === 'warden')
+    const warden = createUndercroftFoes().find((s) => s.kind === 'warden')
     if (!warden) throw new Error('no Warden')
     const rng = mulberry32(5)
     const { deep } = ROOMS
@@ -185,7 +185,7 @@ describe('the tunnel shades', () => {
         ...aiming({ x: warden.x + 1.5, z: warden.z }, warden),
         vulnerable: false,
       }
-      stepTunnelShades([warden], rng, {
+      stepUndercroftFoes([warden], rng, {
         dt: 0.1,
         raiders: [lit, ...crowd],
         place,
@@ -196,34 +196,34 @@ describe('the tunnel shades', () => {
   })
 
   it('give up on a raider it has lost sight of, once it forgets them', () => {
-    const shade = createTunnelShades()[0]
-    const near = raider({ x: shade.lair.x + 4, z: shade.lair.z })
-    stepTunnelShades([shade], mulberry32(1), {
+    const foe = createUndercroftFoes()[0]
+    const near = raider({ x: foe.lair.x + 4, z: foe.lair.z })
+    stepUndercroftFoes([foe], mulberry32(1), {
       dt: 0.1,
       raiders: [near],
       place,
     })
-    expect(shade.target).toBe('r')
+    expect(foe.target).toBe('r')
     // Gone out of sight and reach: back in the entry chamber.
     const far = raider({ x: ROOMS.entry.x0, z: ROOMS.entry.z0 })
     const seconds = CONFIG.tunnel.forgetSeconds + 1
     for (let t = 0; t < seconds; t += 0.1) {
-      stepTunnelShades([shade], mulberry32(1), {
+      stepUndercroftFoes([foe], mulberry32(1), {
         dt: 0.1,
         raiders: [far],
         place,
       })
     }
-    expect(shade.target).toBeNull()
+    expect(foe.target).toBeNull()
   })
 
   it('let the Warden roam the whole of its chamber, never out of it', () => {
-    const warden = createTunnelShades().find((s) => s.kind === 'warden')
+    const warden = createUndercroftFoes().find((s) => s.kind === 'warden')
     if (!warden) throw new Error('no Warden')
     const rng = mulberry32(11)
     let far = 0
     for (let t = 0; t < 240; t += 0.1) {
-      stepTunnelShades([warden], rng, { dt: 0.1, raiders: [], place })
+      stepUndercroftFoes([warden], rng, { dt: 0.1, raiders: [], place })
       expect(inRoom(ROOMS.deep, warden, 0.5)).toBe(true)
       far = Math.max(
         far,
@@ -237,7 +237,7 @@ describe('the tunnel shades', () => {
   })
 
   it('keep the Warden in its chamber: it hunts no one outside it', () => {
-    const warden = createTunnelShades().find((s) => s.kind === 'warden')
+    const warden = createUndercroftFoes().find((s) => s.kind === 'warden')
     if (!warden) throw new Error('no Warden')
     // Just through the way out of the deep chamber, into the ossuary.
     const outside = { x: ROOMS.ossuary.x0 + 1, z: UNDERCROFT.warden.z + 3 }

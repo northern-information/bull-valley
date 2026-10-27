@@ -1496,7 +1496,7 @@ export const CONFIG = {
     // A run that comes back hurt brings this share of each roll home.
     hurtKeeps: 0.5,
   },
-  // The tunnel shades in the Undercroft (tunnelshades.ts), the shadow rats
+  // The Undercroft's foes (undercroftfoes.ts), the shadow rats
   // and the Warden: each kind's
   // drift round its lair and its hunt (m/s; the walk is 4.2), how far it
   // sees and feels, its touch, the seconds a beam must hold it, and the
@@ -1796,7 +1796,7 @@ export const CONFIG = {
     deathSeconds: 4.5,
   },
   // The Elden Ring bar over an enemy (healthbar.ts, enemybars.ts): every
-  // shadow, the Caretaker, the tunnel shades and the Warden, and the
+  // shadow, the Caretaker, the shadow rats and the Warden, and the
   // topiaries. It shows once it is hurt (a beam on it, a hit it stands, a
   // torch's blow), to a raider within `range` metres, `over` metres above
   // the top of its body, `perMetre` as wide as the body is tall (never

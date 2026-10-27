@@ -4,7 +4,7 @@
 // a beat and draining after it, as our own geometrie's does (vitalshud.ts).
 // It stays up the whole time a raider is in the deep chamber with the
 // Warden standing, hurt or whole, and goes once they leave or it bursts.
-// The loop hands it the Warden every frame (tunnelrig.ts); it touches the
+// The loop hands it the Warden every frame (undercroftfoesrig.ts); it touches the
 // page only when the share or whether it shows changes.
 
 import { copy } from './copy.ts'

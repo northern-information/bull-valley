@@ -3,14 +3,14 @@
 // rough-cut rooms older than the plaza, older than the valley's roads: an
 // entry chamber, a hall of candles, a flooded room, the room where Erwin's
 // chalk triangle was first drawn, an ossuary, and the deep chamber where
-// the Warden keeps an altar. The tunnel shades walk it (tunnelshades.ts).
+// the Warden keeps an altar. The Undercroft's foes walk it (undercroftfoes.ts).
 // Past the flooded room, the chalk room and the ossuary the stone runs on
 // into the warren: bare stone bays, much alike, twice as much floor again
 // as the rooms, laid out by a fixed seed (lay) so the valley and every
 // raider walk the same.
 //
 // It is laid out like the corn maze, as a grid of stone (`#`) and floor
-// (`.`) cells, so the shades walk it with the Caretaker's own pathing
+// (`.`) cells, so the foes walk it with the Caretaker's own pathing
 // (caretaker.ts mazeMap, routeTo, clearBetween). In its own metres: x down
 // the grid's rows, z along its columns, y up from the floor. The valley
 // is a heightfield and nothing can stand under it, so the Undercroft is a
@@ -653,7 +653,7 @@ const LOOT: readonly CroftLoot[] = [
   { kind: 'jim-beam', count: 1, ...bayMiddle(1, 8) },
 ]
 
-// Where each tunnel shade keeps to (tunnelshades.ts), and the Warden's
+// Where each shadow rat keeps to (undercroftfoes.ts), and the Warden's
 // place before the altar.
 const LAIRS: readonly XZ[] = [
   at(4, 11),
@@ -687,7 +687,7 @@ export const UNDERCROFT = {
 
 let built: MazeMap | null = null
 
-// The Undercroft as the shades walk it, worked out once.
+// The Undercroft as the foes walk it, worked out once.
 export function theUndercroft(): MazeMap {
   built ??= mazeMap(UNDERCROFT_GRID, UNDERCROFT_SIZE, WALL)
   return built

@@ -71,7 +71,7 @@ import { TripSolids } from './tripsolidsrig.ts'
 import { Truck } from './truck.ts'
 import { joyrideMs } from './truckplan.ts'
 import { createTruckRadio } from './truckradiorig.ts'
-import { TunnelShades } from './tunnelrig.ts'
+import { UndercroftFoes } from './undercroftfoesrig.ts'
 import { wireValley } from './valleysync.ts'
 import { createWaypointMeshes } from './waypointmeshes.ts'
 import { buildWorld } from './world.ts'
@@ -367,7 +367,7 @@ async function boot() {
       groundAt: world.ground.at,
       place: world.mazePlace,
     }),
-    tunnel: new TunnelShades({
+    tunnel: new UndercroftFoes({
       scene,
       groundAt: world.ground.at,
       place: world.undercroft?.place ?? null,

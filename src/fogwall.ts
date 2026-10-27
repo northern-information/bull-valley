@@ -13,7 +13,7 @@
 
 import { inRoom, ROOMS, UNDERCROFT } from './undercroft.ts'
 import type { XZ } from './interfaces.ts'
-import type { TunnelKind } from './tunnelshades.ts'
+import type { FoeKind } from './undercroftfoes.ts'
 
 // The deep chamber's door, from the ossuary below it: the grid cell the
 // fog stands in.
@@ -66,10 +66,10 @@ export function inChamber(p: XZ): boolean {
   return inRoom(ROOMS.deep, p, cell) && p.x < MID.x
 }
 
-// What a frame of the valley's says of the tunnel shades.
+// What a frame of the valley's says of the Undercroft's foes.
 interface TunnelFrame {
-  tunnel: readonly { kind: TunnelKind }[]
-  tunnelBursts: readonly { kind: TunnelKind }[]
+  tunnel: readonly { kind: FoeKind }[]
+  tunnelBursts: readonly { kind: FoeKind }[]
 }
 
 // Whether the Warden stands after a frame, given whether it did: it does

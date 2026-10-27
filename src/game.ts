@@ -79,7 +79,7 @@ import type { TripSolids } from './tripsolidsrig.ts'
 import type { Truck } from './truck.ts'
 import type { TruckContext, TruckPlan } from './truckplan.ts'
 import type { TruckRadio } from './truckradiorig.ts'
-import type { TunnelShades } from './tunnelrig.ts'
+import type { UndercroftFoes } from './undercroftfoesrig.ts'
 import type { WardState } from './wardlevels.ts'
 import type { WaypointMeshes } from './waypointmeshes.ts'
 import type { Waypoints } from './waypoints.ts'
@@ -528,8 +528,8 @@ export interface Game {
   shadowmen: ShadowBodies
   // The Caretaker in the corn maze.
   caretaker: CaretakerShade
-  // The tunnel shades in the Undercroft.
-  tunnel: TunnelShades
+  // The Undercroft's foes.
+  tunnel: UndercroftFoes
   // Shadowmen bursting in the beam.
   bursts: ShadowBursts
   // What a trip shows this raider that is not there (hallucinationrig.ts):

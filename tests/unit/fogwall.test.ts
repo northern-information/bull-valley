@@ -125,7 +125,7 @@ describe('whether the Warden stands', () => {
     expect(wardenStands(true, frame(['rat']))).toBe(true)
   })
 
-  it('falls when a frame says it burst, and not for a shade', () => {
+  it('falls when a frame says it burst, and not for a rat', () => {
     expect(wardenStands(true, frame([], ['warden']))).toBe(false)
     expect(wardenStands(true, frame([], ['rat']))).toBe(true)
   })

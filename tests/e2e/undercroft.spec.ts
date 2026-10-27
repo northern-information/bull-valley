@@ -3,7 +3,7 @@ import { beginRaid, expect, faceSpot, heardWhere, test } from './fixtures.ts'
 import type { Page } from '@playwright/test'
 
 // The Undercroft: down the trapdoor in the Video Vault's office to the old
-// stone under Bull Valley Plaza, where the tunnel shades walk (rule 11)
+// stone under Bull Valley Plaza, where the Undercroft's foes walk (rule 11)
 // and the altar keeps a bar of gold a day (rule 4), and no fast travel
 // leaves; and back up.
 
@@ -44,7 +44,7 @@ test('the trapdoor goes down to the Undercroft, its gold, and back up', async ({
   await expect(page.locator('.bv-chat')).toContainText(copy('log.descend'))
   await heardWhere(page)
 
-  // The tunnel shades walk down here, in every frame the valley sends.
+  // The Undercroft's foes walk down here, in every frame the valley sends.
   await expect
     .poll(() => page.evaluate(() => window.__bv?.tunnel.length ?? 0))
     .toBeGreaterThan(0)

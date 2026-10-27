@@ -2,7 +2,7 @@
 // four levels (wardlevels.ts) is a layer of armor against its own shadows:
 // high against the shadowmen, stimulated against the spiders and their
 // spiderlings, drunk against the Caretaker, a trip against the
-// Undercroft's tunnel shades and the Warden. Each shadow's touch takes its
+// Undercroft's shadow rats and the Warden. Each shadow's touch takes its
 // own hit off geometrie (CONFIG.damage, give or take its spread on the
 // valley's roll), and the wards cut it: the matching corner by up to
 // CONFIG.wards.matching, the strongest other by up to `other`, never past

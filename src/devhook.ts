@@ -36,7 +36,7 @@ import type {
   FriendWire,
   PartyWire,
   PeerStateWire,
-  TunnelShadeWire,
+  UndercroftFoeWire,
   WorldWire,
 } from './protocol.ts'
 import type { Research } from './recycling.ts'
@@ -63,8 +63,8 @@ interface BvHook {
   readonly traffic: PlacedCar[]
   shadowmen: ShadowBodies
   caretaker: CaretakerShade
-  // The Undercroft's tunnel shades as last drawn.
-  readonly tunnel: TunnelShadeWire[]
+  // The Undercroft's foes as last drawn.
+  readonly tunnel: UndercroftFoeWire[]
   mist: MistCards
   // Times a touch shattered this raider's geometrie and put them back at
   // the Citgo.

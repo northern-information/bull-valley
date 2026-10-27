@@ -1,4 +1,4 @@
-// The tunnel shades: the shadows that walk only the Undercroft
+// The Undercroft's foes: the shadows that walk only the Undercroft
 // (undercroft.ts), under Bull Valley Plaza. Each keeps to its own room,
 // drifting slowly round where it lairs; a raider it sees (or feels very
 // close) it hunts down the passages, slower than a walk, and its touch is
@@ -11,10 +11,10 @@
 // away from every raider, until the last hit bursts it.
 //
 // Pure, no three.js. In the Undercroft's own metres; MazePlace carries a
-// raider's world position in and a shade's out, as for the Caretaker,
+// raider's world position in and a foe's out, as for the Caretaker,
 // whose pathing they share (caretaker.ts routeTo, clearBetween, advance).
 // The valley steps them beside the shadowmen (sharedworld.ts rule 11), and
-// tunnelrig.ts draws them. Tune them in CONFIG.tunnel.
+// undercroftfoesrig.ts draws them. Tune them in CONFIG.tunnel.
 
 import { advance, clearBetween, routeTo } from './caretaker.ts'
 import { CONFIG } from './config.ts'
@@ -28,12 +28,12 @@ import type { Rng } from './rng.ts'
 import type { Raider } from './shadowmen.ts'
 
 type TunnelConfig = typeof CONFIG.tunnel
-export type TunnelKind = 'rat' | 'warden'
+export type FoeKind = 'rat' | 'warden'
 
-export interface TunnelShade {
+export interface UndercroftFoe {
   // Never reused: the lairs in order, the Warden last.
   id: number
-  kind: TunnelKind
+  kind: FoeKind
   // Where it keeps to and forms again, in the Undercroft's metres.
   lair: XZ
   x: number
@@ -55,7 +55,7 @@ export interface TunnelShade {
   gone: number
 }
 
-function fresh(id: number, kind: TunnelKind, lair: XZ): TunnelShade {
+function fresh(id: number, kind: FoeKind, lair: XZ): UndercroftFoe {
   return {
     id,
     kind,
@@ -74,11 +74,11 @@ function fresh(id: number, kind: TunnelKind, lair: XZ): TunnelShade {
   }
 }
 
-// Every shade in its lair, and the Warden before the altar.
-export function createTunnelShades(): TunnelShade[] {
-  const shades = UNDERCROFT.lairs.map((lair, i) => fresh(i, 'rat', lair))
-  shades.push(fresh(shades.length, 'warden', UNDERCROFT.warden))
-  return shades
+// Every foe in its lair, and the Warden before the altar.
+export function createUndercroftFoes(): UndercroftFoe[] {
+  const foes = UNDERCROFT.lairs.map((lair, i) => fresh(i, 'rat', lair))
+  foes.push(fresh(foes.length, 'warden', UNDERCROFT.warden))
+  return foes
 }
 
 interface TunnelStep {
@@ -86,43 +86,43 @@ interface TunnelStep {
   // Every raider the valley knows, in world metres.
   raiders: readonly Raider[]
   place: MazePlace
-  // A dev valley's calm: no shade hunts anyone.
+  // A dev valley's calm: no foe hunts anyone.
   calm?: boolean
 }
 
 // One that burst this step, in world metres, and the raiders whose beams
 // held it.
-export interface TunnelBurst extends XZ {
-  kind: TunnelKind
+export interface FoeBurst extends XZ {
+  kind: FoeKind
   by: string[]
 }
 
-export interface TunnelUpdate {
+export interface FoeUpdate {
   struck: string[]
   // What touched each raider struck.
-  strikers: Record<string, TunnelKind>
-  bursts: TunnelBurst[]
+  strikers: Record<string, FoeKind>
+  bursts: FoeBurst[]
   // Where one took a hit and went into the dark, standing yet, in world
   // metres.
-  wounds: (XZ & { kind: TunnelKind })[]
+  wounds: (XZ & { kind: FoeKind })[]
 }
 
-function giveUp(shade: TunnelShade): void {
-  shade.target = null
-  shade.lastSeen = null
-  shade.forget = 0
-  shade.route = []
+function giveUp(foe: UndercroftFoe): void {
+  foe.target = null
+  foe.lastSeen = null
+  foe.forget = 0
+  foe.route = []
 }
 
-// One step of every shade, dt seconds on. Mutates the shades.
-export function stepTunnelShades(
-  shades: TunnelShade[],
+// One step of every foe, dt seconds on. Mutates the foes.
+export function stepUndercroftFoes(
+  foes: UndercroftFoe[],
   rng: Rng,
   { dt, raiders, place, calm = false }: TunnelStep,
   cfg: TunnelConfig = CONFIG.tunnel,
   map: MazeMap = theUndercroft()
-): TunnelUpdate {
-  const out: TunnelUpdate = {
+): FoeUpdate {
+  const out: FoeUpdate = {
     struck: [],
     strikers: {},
     bursts: [],
@@ -130,53 +130,51 @@ export function stepTunnelShades(
   }
   const local = raiders.map((r) => ({ r, at: worldToMaze(place, r) }))
   const below = local.filter(({ at }) => inMaze(map.size, at.x, at.z))
-  for (const shade of shades) {
-    const tune = cfg[shade.kind]
-    if (shade.gone > 0) {
-      shade.gone = Math.max(0, shade.gone - dt)
-      if (shade.gone === 0)
-        Object.assign(shade, fresh(shade.id, shade.kind, shade.lair))
+  for (const foe of foes) {
+    const tune = cfg[foe.kind]
+    if (foe.gone > 0) {
+      foe.gone = Math.max(0, foe.gone - dt)
+      if (foe.gone === 0) Object.assign(foe, fresh(foe.id, foe.kind, foe.lair))
       continue
     }
-    if (shade.blink > 0) {
-      shade.blink = Math.max(0, shade.blink - dt)
+    if (foe.blink > 0) {
+      foe.blink = Math.max(0, foe.blink - dt)
       continue
     }
 
     // Any one raider's beam, with nothing but air between.
-    const world = mazeToWorld(place, shade)
+    const world = mazeToWorld(place, foe)
     const holders: string[] = []
     for (const { r, at } of below) {
       if (!r.beam) continue
       const chest = { ...world, y: r.beam.floor + tune.chestHeight }
-      if (inBeam(r.beam, chest) && clearBetween(map, at, shade, 0)) {
+      if (inBeam(r.beam, chest) && clearBetween(map, at, foe, 0)) {
         holders.push(r.id)
       }
     }
-    shade.burn =
-      holders.length > 0 ? shade.burn + dt : Math.max(0, shade.burn - dt)
-    if (shade.burn >= tune.burnSeconds) {
-      giveUp(shade)
-      shade.burn = 0
-      shade.wounds += 1
-      if (shade.wounds < tune.hits) {
+    foe.burn = holders.length > 0 ? foe.burn + dt : Math.max(0, foe.burn - dt)
+    if (foe.burn >= tune.burnSeconds) {
+      giveUp(foe)
+      foe.burn = 0
+      foe.wounds += 1
+      if (foe.wounds < tune.hits) {
         // A hit it stands: into the dark, to form again elsewhere.
-        out.wounds.push({ ...world, kind: shade.kind })
+        out.wounds.push({ ...world, kind: foe.kind })
         const to = blinkSpot(
-          shade,
+          foe,
           below,
           map,
           rng,
           tune.blinkFrom,
           tune.patrolRadius
         )
-        shade.x = to.x
-        shade.z = to.z
-        shade.blink = tune.blinkSeconds
+        foe.x = to.x
+        foe.z = to.z
+        foe.blink = tune.blinkSeconds
         continue
       }
-      out.bursts.push({ ...world, kind: shade.kind, by: holders })
-      shade.gone = tune.respawnSeconds
+      out.bursts.push({ ...world, kind: foe.kind, by: holders })
+      foe.gone = tune.respawnSeconds
       continue
     }
 
@@ -186,103 +184,102 @@ export function stepTunnelShades(
       ? []
       : below.filter(
           ({ r, at }) =>
-            r.vulnerable && (shade.kind !== 'warden' || inRoom(ROOMS.deep, at))
+            r.vulnerable && (foe.kind !== 'warden' || inRoom(ROOMS.deep, at))
         )
     const sees = (at: XZ) => {
-      const d = Math.hypot(at.x - shade.x, at.z - shade.z)
+      const d = Math.hypot(at.x - foe.x, at.z - foe.z)
       return (
         d <= tune.senseRadius ||
-        (d <= tune.sightRange && clearBetween(map, shade, at, 0))
+        (d <= tune.sightRange && clearBetween(map, foe, at, 0))
       )
     }
-    let quarry = shade.target
-      ? prey.find(({ r }) => r.id === shade.target)
+    let quarry = foe.target
+      ? prey.find(({ r }) => r.id === foe.target)
       : undefined
-    if (shade.target && !quarry) giveUp(shade)
+    if (foe.target && !quarry) giveUp(foe)
     if (quarry) {
       if (sees(quarry.at)) {
-        shade.lastSeen = quarry.at
-        shade.forget = cfg.forgetSeconds
+        foe.lastSeen = quarry.at
+        foe.forget = cfg.forgetSeconds
       } else {
-        shade.forget -= dt
-        if (shade.forget <= 0) giveUp(shade)
+        foe.forget -= dt
+        if (foe.forget <= 0) giveUp(foe)
         quarry = undefined
       }
     }
-    if (!shade.target) {
+    if (!foe.target) {
       let best = Infinity
       for (const p of prey) {
-        const d = Math.hypot(p.at.x - shade.x, p.at.z - shade.z)
+        const d = Math.hypot(p.at.x - foe.x, p.at.z - foe.z)
         if (d < best && sees(p.at)) {
           best = d
           quarry = p
         }
       }
       if (quarry) {
-        shade.target = quarry.r.id
-        shade.lastSeen = quarry.at
-        shade.forget = cfg.forgetSeconds
-        shade.rethink = 0
-        shade.route = []
+        foe.target = quarry.r.id
+        foe.lastSeen = quarry.at
+        foe.forget = cfg.forgetSeconds
+        foe.rethink = 0
+        foe.route = []
       }
     }
 
-    if (shade.target && shade.lastSeen) {
-      shade.rethink -= dt
-      if (clearBetween(map, shade, shade.lastSeen, cfg.clearance)) {
-        shade.route = [shade.lastSeen]
-      } else if (shade.rethink <= 0 || shade.route.length === 0) {
-        shade.route = routeTo(map, shade, shade.lastSeen)
-        shade.rethink = cfg.rethinkSeconds
+    if (foe.target && foe.lastSeen) {
+      foe.rethink -= dt
+      if (clearBetween(map, foe, foe.lastSeen, cfg.clearance)) {
+        foe.route = [foe.lastSeen]
+      } else if (foe.rethink <= 0 || foe.route.length === 0) {
+        foe.route = routeTo(map, foe, foe.lastSeen)
+        foe.rethink = cfg.rethinkSeconds
       }
-      advance(shade, tune.huntSpeed * dt, map, cfg.clearance)
+      advance(foe, tune.huntSpeed * dt, map, cfg.clearance)
       if (
         quarry &&
-        Math.hypot(quarry.at.x - shade.x, quarry.at.z - shade.z) <
-          tune.touchRadius
+        Math.hypot(quarry.at.x - foe.x, quarry.at.z - foe.z) < tune.touchRadius
       ) {
         out.struck.push(quarry.r.id)
-        out.strikers[quarry.r.id] = shade.kind
-        giveUp(shade)
+        out.strikers[quarry.r.id] = foe.kind
+        giveUp(foe)
       }
       continue
     }
 
     // Drifting round its lair: to a floor cell within patrolRadius of it,
     // then another.
-    if (shade.route.length === 0) {
-      const near = roomCells(shade, map, tune.patrolRadius)
+    if (foe.route.length === 0) {
+      const near = roomCells(foe, map, tune.patrolRadius)
       const to =
-        near.length > 0 ? near[Math.floor(rng() * near.length)] : shade.lair
-      shade.route = routeTo(map, shade, to)
+        near.length > 0 ? near[Math.floor(rng() * near.length)] : foe.lair
+      foe.route = routeTo(map, foe, to)
     }
-    advance(shade, tune.patrolSpeed * dt, map, cfg.clearance)
+    advance(foe, tune.patrolSpeed * dt, map, cfg.clearance)
   }
   return out
 }
 
-// The floor a shade keeps to: the Warden its chamber, any other the
+// The floor a foe keeps to: the Warden its chamber, any other the
 // floor within `radius` of its lair.
-function roomCells(shade: TunnelShade, map: MazeMap, radius: number): XZ[] {
+function roomCells(foe: UndercroftFoe, map: MazeMap, radius: number): XZ[] {
   const cells = map.cells.map((cell) => cellPoint(map.grid, map.size, cell))
-  return shade.kind === 'warden'
+  return foe.kind === 'warden'
     ? cells.filter((p) => inRoom(ROOMS.deep, p))
     : cells.filter(
-        (p) => Math.hypot(p.x - shade.lair.x, p.z - shade.lair.z) <= radius
+        (p) => Math.hypot(p.x - foe.lair.x, p.z - foe.lair.z) <= radius
       )
 }
 
-// Where a hit throws a shade: a floor cell of its room at least `from`
+// Where a hit throws a foe: a floor cell of its room at least `from`
 // metres from every raider down here, or, with none so far, the furthest.
 function blinkSpot(
-  shade: TunnelShade,
+  foe: UndercroftFoe,
   below: readonly { at: XZ }[],
   map: MazeMap,
   rng: Rng,
   from: number,
   radius: number
 ): XZ {
-  const cells = roomCells(shade, map, radius)
+  const cells = roomCells(foe, map, radius)
   const nearest = (p: XZ) =>
     below.reduce(
       (d, { at }) => Math.min(d, Math.hypot(at.x - p.x, at.z - p.z)),
@@ -290,7 +287,7 @@ function blinkSpot(
     )
   const far = cells.filter((p) => nearest(p) >= from)
   if (far.length > 0) return far[Math.floor(rng() * far.length)]
-  let best: XZ = shade.lair
+  let best: XZ = foe.lair
   let bestD = -1
   for (const p of cells) {
     const d = nearest(p)
@@ -302,12 +299,12 @@ function blinkSpot(
   return best
 }
 
-// Where each shade walks in the world, the burned and the thrown left out.
-export function tunnelShadesAt(
-  shades: readonly TunnelShade[],
+// Where each foe walks in the world, the burned and the thrown left out.
+export function undercroftFoesAt(
+  foes: readonly UndercroftFoe[],
   place: MazePlace
-): (TunnelShade & { world: XZ })[] {
-  return shades
-    .filter((shade) => shade.gone <= 0 && shade.blink <= 0)
-    .map((shade) => ({ ...shade, world: mazeToWorld(place, shade) }))
+): (UndercroftFoe & { world: XZ })[] {
+  return foes
+    .filter((foe) => foe.gone <= 0 && foe.blink <= 0)
+    .map((foe) => ({ ...foe, world: mazeToWorld(place, foe) }))
 }
