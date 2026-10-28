@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
+import { FOG_IN, FOG_SPOT, inChamber } from '../../src/fogwall.ts'
 import { mazeToWorld } from '../../src/maze.ts'
 import { mulberry32 } from '../../src/rng.ts'
 import { beamFrom } from '../../src/shadowmen.ts'
@@ -244,5 +245,58 @@ describe('the foes of the Undercroft', () => {
     expect(run([warden], [raider(outside)], 10).struck).toEqual([])
     const inside = { x: UNDERCROFT.warden.x + 3, z: UNDERCROFT.warden.z }
     expect(run([warden], [raider(inside)], 10).struck).toContain('r')
+  })
+
+  // A foe held just inside the fog, and a raider aiming at it from `from`,
+  // for `seconds`: the foe is put back on its spot every step, so it never
+  // drifts out of the beam.
+  function holdAt(foe: UndercroftFoe, foes: UndercroftFoe[], from: XZ) {
+    const spot = { x: FOG_IN.x - 1, z: FOG_IN.z }
+    const rng = mulberry32(9)
+    let wounds = 0
+    let bursts = 0
+    for (let t = 0; t < 10; t += 0.1) {
+      if (foe.gone > 0 || foe.blink > 0) break
+      foe.x = spot.x
+      foe.z = spot.z
+      foe.route = []
+      const lit = { ...aiming(from, spot), vulnerable: false }
+      const out = stepUndercroftFoes(foes, rng, {
+        dt: 0.1,
+        raiders: [lit],
+        place,
+      })
+      wounds += out.wounds.length
+      bursts += out.bursts.length
+    }
+    return { wounds, bursts }
+  }
+
+  it('let no beam through the fog wall while the Warden stands', () => {
+    const outside = { x: FOG_SPOT.x + 1, z: FOG_SPOT.z }
+    expect(inChamber(outside)).toBe(false)
+    const warden = createUndercroftFoes().find((s) => s.kind === 'warden')
+    if (!warden) throw new Error('no Warden')
+    expect(holdAt(warden, [warden], outside).wounds).toBe(0)
+    expect(warden.burn).toBe(0)
+
+    // The same beam from the chamber's side of the fog finds it.
+    const within = createUndercroftFoes().find((s) => s.kind === 'warden')
+    if (!within) throw new Error('no Warden')
+    const inside = { x: FOG_IN.x - 4, z: FOG_IN.z }
+    expect(inChamber(inside)).toBe(true)
+    expect(holdAt(within, [within], inside).wounds).toBe(1)
+  })
+
+  it('part every foe from the chamber while the Warden stands, and none once it bursts', () => {
+    const outside = { x: FOG_SPOT.x + 1, z: FOG_SPOT.z }
+    const foes = createUndercroftFoes()
+    const rat = foes[0]
+    const warden = foes.find((s) => s.kind === 'warden')
+    if (!warden) throw new Error('no Warden')
+    expect(holdAt(rat, foes, outside).bursts).toBe(0)
+    // With the Warden burst the fog is gone, and the beam goes through.
+    warden.gone = CONFIG.tunnel.warden.respawnSeconds
+    expect(holdAt(rat, foes, outside).bursts).toBe(1)
   })
 })

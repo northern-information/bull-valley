@@ -18,6 +18,7 @@
 
 import { advance, clearBetween, routeTo } from './caretaker.ts'
 import { CONFIG } from './config.ts'
+import { inChamber } from './fogwall.ts'
 import { cellPoint, inMaze, mazeToWorld, worldToMaze } from './maze.ts'
 import { inBeam } from './shadowmen.ts'
 import { inRoom, ROOMS, theUndercroft, UNDERCROFT } from './undercroft.ts'
@@ -130,6 +131,11 @@ export function stepUndercroftFoes(
   }
   const local = raiders.map((r) => ({ r, at: worldToMaze(place, r) }))
   const below = local.filter(({ at }) => inMaze(map.size, at.x, at.z))
+  // The fog wall stands across the deep chamber's door while the Warden
+  // does (fogwall.ts), and nothing passes it: no beam, sight or touch
+  // reaches from one side to the other.
+  const fogUp = foes.some((f) => f.kind === 'warden' && f.gone <= 0)
+  const parted = (a: XZ, b: XZ) => fogUp && inChamber(a) !== inChamber(b)
   for (const foe of foes) {
     const tune = cfg[foe.kind]
     if (foe.gone > 0) {
@@ -146,7 +152,7 @@ export function stepUndercroftFoes(
     const world = mazeToWorld(place, foe)
     const holders: string[] = []
     for (const { r, at } of below) {
-      if (!r.beam) continue
+      if (!r.beam || parted(at, foe)) continue
       const chest = { ...world, y: r.beam.floor + tune.chestHeight }
       if (inBeam(r.beam, chest) && clearBetween(map, at, foe, 0)) {
         holders.push(r.id)
@@ -178,13 +184,15 @@ export function stepUndercroftFoes(
       continue
     }
 
-    // Only a raider who can be struck, in the Undercroft; the Warden only
-    // one in its chamber.
+    // Only a raider who can be struck, in the Undercroft, on the foe's side
+    // of the fog; the Warden only one in its chamber.
     const prey = calm
       ? []
       : below.filter(
           ({ r, at }) =>
-            r.vulnerable && (foe.kind !== 'warden' || inRoom(ROOMS.deep, at))
+            r.vulnerable &&
+            !parted(at, foe) &&
+            (foe.kind !== 'warden' || inRoom(ROOMS.deep, at))
         )
     const sees = (at: XZ) => {
       const d = Math.hypot(at.x - foe.x, at.z - foe.z)
