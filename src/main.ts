@@ -69,7 +69,7 @@ import { createTrafficRig } from './trafficrig.ts'
 import { createTrails } from './trails.ts'
 import { TripSolids } from './tripsolidsrig.ts'
 import { Truck } from './truck.ts'
-import { joyrideMs } from './truckplan.ts'
+import { joyrideMs, truckParking } from './truckplan.ts'
 import { createTruckRadio } from './truckradiorig.ts'
 import { UndercroftFoes } from './undercroftfoesrig.ts'
 import { wireValley } from './valleysync.ts'
@@ -202,41 +202,44 @@ async function boot() {
   // never on the bare terrain.
   const truck = new Truck({ scene, groundAt: world.ground.at })
 
-  // Park Matthew Marx's Chevy at the road nearest the spawn station, already
-  // pointed down tonight's joyride.
+  // Park Matthew Marx's Chevy beside Tyler's Jeep on the spawn Citgo's lot,
+  // nose pointed down the lot the way it leaves for tonight's joyride.
   const spawnStation = world.spawnStation
   if (!spawnStation) throw new Error('No fuel station inside the survey')
-  const truckPoint = nearestRoadPoint(graph, spawnStation.x, spawnStation.z)
-  if (!truckPoint) throw new Error('No road near the spawn station')
-  const departRoute = wanderRoute(
-    graph,
-    truckPoint,
-    mulberry32(0xcab42),
-    CONFIG.truck.wanderMetres
-  )
-  const homeDir = (() => {
-    const dx = departRoute[1].x - departRoute[0].x
-    const dz = departRoute[1].z - departRoute[0].z
-    const len = Math.hypot(dx, dz) || 1
-    return { x: dx / len, z: dz / len }
-  })()
-  truck.setHome(truckPoint, homeDir)
+  const parking = truckParking(spawnStation)
+  const { home, homeDir, pullOut } = parking
+  const leaveFrom = nearestRoadPoint(graph, pullOut.x, pullOut.z)
+  if (!leaveFrom) throw new Error('No road near the spawn station')
+  const departRoute = [
+    home,
+    pullOut,
+    ...wanderRoute(
+      graph,
+      leaveFrom,
+      mulberry32(0xcab42),
+      CONFIG.truck.wanderMetres
+    ),
+  ]
+  truck.setHome(home, homeDir)
   truck.parkHome()
-  // The roads Matthew Marx drives: home, the joyride, his donuts.
+  // The roads Matthew Marx drives: home, the joyride, his donuts (from the
+  // pull-out, clear of the Jeep's nose).
   const truckContext: TruckContext = {
     graph,
-    home: { x: truckPoint.x, z: truckPoint.z },
-    homeDir,
+    ...parking,
     departRoute,
     donutRoute: (seed) =>
       world.donutField
-        ? donutRoute(
-            truckPoint,
-            homeDir,
-            world.donutField,
-            mulberry32(seed),
-            CONFIG.truck.donuts
-          )
+        ? [
+            home,
+            ...donutRoute(
+              pullOut,
+              homeDir,
+              world.donutField,
+              mulberry32(seed),
+              CONFIG.truck.donuts
+            ),
+          ]
         : null,
   }
   // What the valley is told of them: it never knows the roads.
@@ -244,17 +247,19 @@ async function boot() {
     home: truckContext.home,
     joyrideMs: joyrideMs(truckContext),
   }
-  // Spawn on the lot between the pump island and the truck, facing the
-  // truck — clear of the building, which sits behind the pumps.
+  // Spawn on the lot between the pump island and the road, facing the
+  // road — clear of the building, which sits behind the pumps.
   {
-    const dx = truck.x - spawnStation.x
-    const dz = truck.z - spawnStation.z
+    const frontage = nearestRoadPoint(graph, spawnStation.x, spawnStation.z)
+    if (!frontage) throw new Error('No road near the spawn station')
+    const dx = frontage.x - spawnStation.x
+    const dz = frontage.z - spawnStation.z
     const len = Math.hypot(dx, dz) || 1
     world.spawn.x = spawnStation.x + (dx / len) * CONFIG.spawn.offset
     world.spawn.z = spawnStation.z + (dz / len) * CONFIG.spawn.offset
     world.spawn.yaw = Math.atan2(
-      -(truck.x - world.spawn.x),
-      -(truck.z - world.spawn.z)
+      -(frontage.x - world.spawn.x),
+      -(frontage.z - world.spawn.z)
     )
   }
 

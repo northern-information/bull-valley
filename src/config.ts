@@ -435,7 +435,7 @@ export const CONFIG = {
     },
   },
   spawn: {
-    // The spawn sits this far from the pump island, toward the truck: on
+    // The spawn sits this far from the pump island, toward the road: on
     // the lot, between the pumps and the road sign.
     offset: 5,
   },
@@ -558,6 +558,13 @@ export const CONFIG = {
       tailHeight: 1.15,
       staleMs: 1000,
     },
+    // Where the truck parks at home (truckplan.ts truckParking): beside
+    // Tyler's Jeep (CONFIG.tyler) on its pump side, `beside` metres off
+    // it, nose the same way; the road's edge is too near its other side.
+    // It leaves by a spot `pullOut` metres ahead, clear of the Jeep's nose,
+    // and comes home from one `pullIn` behind, down the lot between the
+    // canopy and Moab, clear of the road sign.
+    park: { beside: 2.9, pullOut: 9, pullIn: 10 },
     wanderMetres: 6000, // how far the outbound joyride runs
     // Matthew Marx's day (marx.ts): he reads at the tailgate this long,
     // then does donuts this long, over and over. The first one into the bed
