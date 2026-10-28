@@ -14,6 +14,8 @@ import {
   joyrideRoute,
   planLeg,
   pointAlong,
+  routeFrom,
+  truckParking,
 } from '../../src/truckplan.ts'
 import type { Metres, Road, XZ } from '../../src/interfaces.ts'
 import type { TruckContext } from '../../src/truckplan.ts'
@@ -58,6 +60,9 @@ const ctx: TruckContext = {
   graph,
   home,
   homeDir: { x: 0, z: -1 },
+  // Off the road on the lot, ahead of where he parks and behind it.
+  pullOut: { x: home.x + 6, z: home.z - 8 },
+  pullIn: { x: home.x + 6, z: home.z + 8 },
   departRoute,
   donutRoute: (seed) => (seed === 0 ? null : donuts),
 }
@@ -69,7 +74,24 @@ describe('the roads Marx drives', () => {
     const route = joyrideRoute(ctx)
     expect(route[0]).toEqual(departRoute[0])
     expect(route[route.length - 1]).toEqual(home)
-    expect(length(route)).toBeCloseTo(length(departRoute) * 2, 0)
+    const back = homeRoute(ctx, departRoute[departRoute.length - 1]) ?? []
+    expect(route).toEqual([...departRoute, ...back.slice(1)])
+  })
+
+  it('comes home in from behind, by the pull-in', () => {
+    const route = homeRoute(ctx, { x: -250, z: 0 }) ?? []
+    expect(route.slice(-2)).toEqual([ctx.pullIn, home])
+    // Already home, he stays put.
+    expect(homeRoute(ctx, home)).toEqual([home])
+  })
+
+  it('leaves home out ahead, by the pull-out', () => {
+    const to = near(-300, 0)
+    const route = routeFrom(ctx, home, to) ?? []
+    expect(route.slice(0, 2)).toEqual([home, ctx.pullOut])
+    expect(route[route.length - 1]).toEqual(to)
+    // From anywhere else, straight by road.
+    expect(routeFrom(ctx, out, to)).toEqual(callRoute(graph, out, to))
   })
 
   it('tells the valley how long the joyride takes, his walk included', () => {
@@ -119,9 +141,8 @@ describe('approachStart', () => {
       rest: false,
       cut: T0 + 5000,
     })
-    expect(Math.hypot(at.x - from.x, at.z - from.z)).toBeCloseTo(
-      CONFIG.truck.speed * 5,
-      0
+    expect(at).toEqual(
+      pointAlong(routeFrom(ctx, from, to) ?? [], CONFIG.truck.speed, false, 5)
     )
     // Nowhere to drive: where it stood.
     const lost = { x: 99999, z: 99999 }
@@ -230,5 +251,44 @@ describe('planLeg', () => {
     if (ferry.kind !== 'drive') throw new Error('not a drive')
     expect(ferry.points[0]).toEqual(to)
     expect(ferry.points[ferry.points.length - 1]).toEqual(home)
+  })
+})
+
+describe('truckParking', () => {
+  // A station turned a quarter round, so local +X (toward the road) is
+  // world +Z.
+  const station = { x: 100, y: 0, z: 50, yaw: Math.PI / 2 }
+  const local = (p: XZ): XZ => {
+    const dx = p.x - station.x
+    const dz = p.z - station.z
+    return { x: dz, z: -dx }
+  }
+  const parking = truckParking(station)
+  const { at } = CONFIG.tyler
+
+  it('parks beside the Jeep, on its pump side', () => {
+    const home = local(parking.home)
+    expect(Math.hypot(home.x - at.x, home.z - at.z)).toBeCloseTo(
+      CONFIG.truck.park.beside
+    )
+    expect(home.x).toBeLessThan(at.x)
+  })
+
+  it('faces the way the Jeep does, and pulls out ahead and in behind', () => {
+    const { toward } = CONFIG.tyler
+    const len = Math.hypot(toward.x - at.x, toward.z - at.z)
+    const dir = local({
+      x: station.x + parking.homeDir.x,
+      z: station.z + parking.homeDir.z,
+    })
+    expect(dir.x).toBeCloseTo((toward.x - at.x) / len)
+    expect(dir.z).toBeCloseTo((toward.z - at.z) / len)
+    const home = local(parking.home)
+    const out = local(parking.pullOut)
+    const back = local(parking.pullIn)
+    expect(out.x - home.x).toBeCloseTo(dir.x * CONFIG.truck.park.pullOut)
+    expect(out.z - home.z).toBeCloseTo(dir.z * CONFIG.truck.park.pullOut)
+    expect(back.x - home.x).toBeCloseTo(-dir.x * CONFIG.truck.park.pullIn)
+    expect(back.z - home.z).toBeCloseTo(-dir.z * CONFIG.truck.park.pullIn)
   })
 })

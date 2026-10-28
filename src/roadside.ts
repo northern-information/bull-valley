@@ -12,18 +12,20 @@ import type { Rng } from './rng.ts'
 
 const ROADSIDE_SEED = 0x9013e5
 
-// Carriageway widths in metres by class; world.ts draws the ribbons at
-// these widths, and the poles and lamps stand clear of them.
-const ROAD_WIDTH: Record<RoadClass, number> = {
-  primary: 8,
-  secondary: 7,
-  tertiary: 6,
-  residential: 5,
-  unclassified: 5,
+// Every road is two lanes, one each way; a lane's width in metres by
+// class. world.ts draws the ribbons two lanes wide, the poles and lamps
+// stand clear of them, and traffic keeps to the right-hand one
+// (traffic.ts).
+const LANE_WIDTH: Record<RoadClass, number> = {
+  primary: 4.5,
+  secondary: 4,
+  tertiary: 3.6,
+  residential: 3.3,
+  unclassified: 3.3,
 }
 
 export function roadWidth(c: RoadClass): number {
-  return ROAD_WIDTH[c]
+  return LANE_WIDTH[c] * 2
 }
 
 export const ROADSIDE = {

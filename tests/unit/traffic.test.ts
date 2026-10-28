@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { CONFIG } from '../../src/config.ts'
 import { buildRoadGraph } from '../../src/roadgraph.ts'
+import { roadWidth } from '../../src/roadside.ts'
 import {
   buildTraffic,
   carsNear,
@@ -102,8 +103,10 @@ describe('laying the routes', () => {
       ],
       ['tertiary']
     )
-    expect(lane[0].z).toBeCloseTo(-1.5, 9)
-    expect(lane[1].z).toBeCloseTo(-1.5, 9)
+    // A quarter of the road's width: the middle of its right-hand lane.
+    const middle = -roadWidth('tertiary') / 4
+    expect(lane[0].z).toBeCloseTo(middle, 9)
+    expect(lane[1].z).toBeCloseTo(middle, 9)
   })
 })
 

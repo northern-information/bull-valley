@@ -7,18 +7,71 @@
 import { CONFIG } from './config.ts'
 import { TO_DOOR_SECONDS } from './marx.ts'
 import { callRoute, createWalker } from './roadgraph.ts'
+import { toWorld } from './store.ts'
 import type { XZ } from './interfaces.ts'
 import type { Approach, Leg } from './marx.ts'
 import type { RoadGraph, Route } from './roadgraph.ts'
+import type { StoreOrigin } from './store.ts'
 
-// What the client knows of the roads: the graph, where the truck parks and
-// which way it faces there, the joyride out, and the donuts for a seed.
-export interface TruckContext {
-  graph: RoadGraph
+// Where the truck parks and which way it faces there, and the two spots on
+// the lot it drives through: `pullOut` ahead of it to leave, `pullIn`
+// behind it to come home, so it never drives through what stands round it.
+export interface TruckParking {
   home: XZ
   homeDir: XZ
+  pullOut: XZ
+  pullIn: XZ
+}
+
+// What the client knows of the roads: the graph, where the truck parks,
+// the joyride out, and the donuts for a seed.
+export interface TruckContext extends TruckParking {
+  graph: RoadGraph
   departRoute: Route
   donutRoute(seed: number): Route | null
+}
+
+// Where the truck parks at the spawn Citgo `station` (CONFIG.truck.park):
+// beside Tyler's Jeep (CONFIG.tyler) on its pump side, nose the same way.
+// It leaves out ahead of the Jeep, and comes home from behind both, round
+// Moab and under the road sign's side of the lot.
+export function truckParking(station: StoreOrigin): TruckParking {
+  const { at, toward } = CONFIG.tyler
+  const { beside, pullOut, pullIn } = CONFIG.truck.park
+  const len = Math.hypot(toward.x - at.x, toward.z - at.z) || 1
+  const dx = (toward.x - at.x) / len
+  const dz = (toward.z - at.z) / len
+  // Square to the Jeep, toward the pumps (local -X).
+  const side = dz >= 0 ? 1 : -1
+  const hx = at.x - dz * side * beside
+  const hz = at.z + dx * side * beside
+  const world = (x: number, z: number): XZ => {
+    const [wx, , wz] = toWorld(station, [x, 0, z])
+    return { x: wx, z: wz }
+  }
+  const cos = Math.cos(station.yaw)
+  const sin = Math.sin(station.yaw)
+  return {
+    home: world(hx, hz),
+    homeDir: { x: cos * dx - sin * dz, z: sin * dx + cos * dz },
+    pullOut: world(hx + dx * pullOut, hz + dz * pullOut),
+    pullIn: world(hx - dx * pullIn, hz - dz * pullIn),
+  }
+}
+
+// Nearer home than this is at home.
+const AT_HOME = 0.5
+
+const atHome = (ctx: TruckParking, p: XZ): boolean =>
+  Math.hypot(p.x - ctx.home.x, p.z - ctx.home.z) < AT_HOME
+
+// The roads from `from` to `to`, leaving the lot by `pullOut` when it
+// starts at home; null with no road between.
+export function routeFrom(ctx: TruckContext, from: XZ, to: XZ): Route | null {
+  if (!atHome(ctx, from)) return callRoute(ctx.graph, from, to)
+  const route = callRoute(ctx.graph, ctx.pullOut, to)
+  if (!route) return null
+  return [{ x: ctx.home.x, z: ctx.home.z }, ...route]
 }
 
 export type TruckPlan =
@@ -44,12 +97,14 @@ export function joyrideRoute(ctx: TruckContext): Route {
   return [...out, ...back.slice(1)]
 }
 
-// The roads from `from` to where the truck parks, ending there; null with
-// no road between.
+// The roads from `from` to where the truck parks, in by `pullIn` and
+// ending there; null with no road between. From home it stays put.
 export function homeRoute(ctx: TruckContext, from: XZ): Route | null {
-  const route = callRoute(ctx.graph, from, ctx.home)
+  const home = { x: ctx.home.x, z: ctx.home.z }
+  if (atHome(ctx, from)) return [home]
+  const route = callRoute(ctx.graph, from, ctx.pullIn)
   if (!route || route.length < 1) return null
-  return [...route, { x: ctx.home.x, z: ctx.home.z }]
+  return [...route, { x: ctx.pullIn.x, z: ctx.pullIn.z }, home]
 }
 
 // The joyride, out and home, in ms, Marx's walk to his door included: what
@@ -80,7 +135,7 @@ export function approachStart(ctx: TruckContext, from: Approach): XZ {
     if (!points) return ctx.home
     return pointAlong(points, CONFIG.truck.donuts.speed, true, seconds)
   }
-  const points = callRoute(ctx.graph, from.from, from.to)
+  const points = routeFrom(ctx, from.from, from.to)
   if (!points || points.length < 2) return from.from
   return pointAlong(points, CONFIG.truck.speed, from.rest, seconds)
 }
@@ -118,17 +173,17 @@ export function planLeg(leg: Leg, ctx: TruckContext): TruckPlan {
     case 'joyride':
       return drive(joyrideRoute(ctx), leg.at, { fromTailgate: true })
     case 'charter':
-      return drive(callRoute(ctx.graph, ctx.home, leg.to), leg.at, {
+      return drive(routeFrom(ctx, ctx.home, leg.to), leg.at, {
         fromTailgate: true,
         home: false,
       })
     case 'called':
-      return drive(callRoute(ctx.graph, leg.from, leg.to), leg.at, {
+      return drive(routeFrom(ctx, leg.from, leg.to), leg.at, {
         fromTailgate: leg.rest,
         home: false,
       })
     case 'ferry': {
-      const route = callRoute(ctx.graph, leg.from, leg.to)
+      const route = routeFrom(ctx, leg.from, leg.to)
       const end = route?.[route.length - 1] ?? leg.to
       return drive(homeRoute(ctx, end), leg.at)
     }
