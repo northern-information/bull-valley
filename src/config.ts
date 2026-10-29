@@ -1201,9 +1201,12 @@ export const CONFIG = {
     // within nearRadius of the player, out past the fog to where the
     // shadowmen cross (CONFIG.shadowmen.despawnRadius); a route whose
     // bounds lie further off is not looked at, and no car beyond it is
-    // worked out or drawn. The `real` nearest throw real light.
+    // worked out or drawn. The `real` nearest throw real light; a spot
+    // handed to a nearer car fades out and in again over `spotFade`
+    // seconds, so the car it lit does not blink.
     nearRadius: 360,
     real: 2,
+    spotFade: 0.6,
   },
   wreck: {
     // The green BMW nosed into a tree beside the spawn Citgo, station-local
