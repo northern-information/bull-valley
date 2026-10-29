@@ -691,3 +691,42 @@ export function lampBeams(
     ? [ahead]
     : [ahead, taillightBeam(lamp, tail, height, cfg.tail)]
 }
+
+// One of the `real` headlight spots (trafficrig.ts): the car it rides
+// with, if any, and how far lit it is, 0 to 1.
+export interface RealSpot {
+  car: string | null
+  level: number
+}
+
+// The spots handed round the cars, `ids` nearest first, after `dt`
+// seconds. A spot keeps its car while that car is one of the nearest, or
+// while no nearer car is without one; one giving its car up fades out
+// over `fade` seconds before it moves, and fades in on the next, so no
+// car's beam (nor the car it lights) goes on or off in a frame.
+export function handSpots(
+  spots: readonly RealSpot[],
+  ids: readonly string[],
+  dt: number,
+  fade: number
+): RealSpot[] {
+  const step = fade > 0 ? dt / fade : 1
+  const placed = new Set(ids)
+  const wanted = ids.slice(0, spots.length)
+  // A car out of reach takes its spot with it: it is far off by then.
+  const next = spots.map((s): RealSpot =>
+    s.car !== null && placed.has(s.car) ? { ...s } : { car: null, level: 0 }
+  )
+  const held = new Set(next.map((s) => s.car))
+  const unlit = wanted.filter((id) => !held.has(id))
+  for (const s of next) {
+    if (s.car === null && unlit.length > 0) s.car = unlit.shift() ?? null
+  }
+  for (const s of next) {
+    if (s.car === null) continue
+    const yields = unlit.length > 0 && !wanted.includes(s.car)
+    s.level = Math.min(1, Math.max(0, s.level + (yields ? -step : step)))
+    if (yields && s.level === 0) s.car = null
+  }
+  return next
+}

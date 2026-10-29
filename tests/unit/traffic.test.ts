@@ -8,6 +8,7 @@ import {
   carsNear,
   chooseRoutes,
   exitsOf,
+  handSpots,
   isLampKind,
   isVehicleKind,
   isVehicleSpeed,
@@ -305,5 +306,54 @@ describe('the valley', () => {
       if (carried.has(i)) on += e.length
     })
     expect(on / all).toBeGreaterThan(0.6)
+  })
+})
+
+describe('handSpots', () => {
+  const off = [
+    { car: null, level: 0 },
+    { car: null, level: 0 },
+  ]
+
+  it('fades the spots in on the nearest cars', () => {
+    const spots = handSpots(off, ['a', 'b', 'c'], 0.3, 0.6)
+    expect(spots).toEqual([
+      { car: 'a', level: 0.5 },
+      { car: 'b', level: 0.5 },
+    ])
+    expect(handSpots(spots, ['a', 'b', 'c'], 0.3, 0.6)).toEqual([
+      { car: 'a', level: 1 },
+      { car: 'b', level: 1 },
+    ])
+  })
+
+  it('fades a spot out before handing it to a nearer car', () => {
+    const lit = [
+      { car: 'a', level: 1 },
+      { car: 'b', level: 1 },
+    ]
+    // c comes nearer than b: b's spot dims, and only goes once dark.
+    let spots = handSpots(lit, ['a', 'c', 'b'], 0.3, 0.6)
+    expect(spots).toEqual([
+      { car: 'a', level: 1 },
+      { car: 'b', level: 0.5 },
+    ])
+    spots = handSpots(spots, ['a', 'c', 'b'], 0.3, 0.6)
+    expect(spots[1]).toEqual({ car: null, level: 0 })
+    spots = handSpots(spots, ['a', 'c', 'b'], 0.3, 0.6)
+    expect(spots[1]).toEqual({ car: 'c', level: 0.5 })
+  })
+
+  it('keeps a spot on a car no nearer car is without', () => {
+    const lit = [
+      { car: 'a', level: 1 },
+      { car: 'c', level: 1 },
+    ]
+    // c drove out of reach: its spot goes to b.
+    expect(handSpots(lit, ['a', 'b'], 0.3, 0.6)).toEqual([
+      { car: 'a', level: 1 },
+      { car: 'b', level: 0.5 },
+    ])
+    expect(handSpots(lit, ['c', 'a', 'b'], 0.3, 0.6)).toEqual(lit)
   })
 })

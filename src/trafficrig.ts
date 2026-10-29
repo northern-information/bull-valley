@@ -1,9 +1,9 @@
 import * as THREE from 'three'
 import { CONFIG } from './config.ts'
-import { carsNear, lampsOf } from './traffic.ts'
+import { carsNear, handSpots, lampsOf } from './traffic.ts'
 import { buildVehicle, lookKey } from './trafficmodels.ts'
 import type { HeightAt, XZ } from './interfaces.ts'
-import type { Car, Traffic, TrafficLamp } from './traffic.ts'
+import type { Car, RealSpot, Traffic, TrafficLamp } from './traffic.ts'
 import type { VehicleModel } from './trafficmodels.ts'
 
 // The valley's traffic as seen: only the cars within CONFIG.traffic
@@ -13,7 +13,8 @@ import type { VehicleModel } from './trafficmodels.ts'
 // of reach goes back to a pool by its looks and is drawn again for the
 // next car that looks the same, so nothing is built twice for long. The
 // `real` nearest throw real light down the road from their headlights: a
-// fixed set of spots, so the scene's lights never change in number.
+// fixed set of spots, so the scene's lights never change in number, each
+// faded from one car to the next (traffic.ts handSpots).
 
 // A car as drawn: where it is, its ground, and its lamps for the valley.
 export interface PlacedCar extends Car {
@@ -107,6 +108,10 @@ export function createTrafficRig({
     return spot
   })
 
+  // Which car each spot rides with, and the clock it was last handed at.
+  let held: RealSpot[] = spots.map(() => ({ car: null, level: 0 }))
+  let last: number | null = null
+
   let cars: PlacedCar[] = []
   return {
     get cars() {
@@ -129,8 +134,18 @@ export function createTrafficRig({
           Math.hypot(a.x - at.x, a.z - at.z) -
           Math.hypot(b.x - at.x, b.z - at.z)
       )
+      const dt = last === null ? 0 : Math.min(0.25, Math.max(0, seconds - last))
+      last = seconds
+      held = handSpots(
+        held,
+        placed.map((car) => car.id),
+        dt,
+        cfg.spotFade
+      )
+      const byId = new Map(placed.map((car) => [car.id, car]))
       spots.forEach((spot, i) => {
-        const car = placed[i]
+        const { car: id, level } = held[i]
+        const car = id === null ? undefined : byId.get(id)
         if (!car) {
           spot.intensity = 0
           return
@@ -138,7 +153,7 @@ export function createTrafficRig({
         const { nose, height } = cfg.vehicles[car.kind]
         const dx = Math.sin(car.heading)
         const dz = Math.cos(car.heading)
-        spot.intensity = 900
+        spot.intensity = 900 * level
         spot.position.set(car.x + dx * nose, car.y + height, car.z + dz * nose)
         spot.target.position.set(
           car.x + dx * (nose + 30),
