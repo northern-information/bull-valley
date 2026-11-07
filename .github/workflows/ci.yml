@@ -25,11 +25,23 @@ jobs:
     timeout-minutes: 5
     outputs:
       docs-only: ${{ steps.diff.outputs.docs-only }}
+      playwright: ${{ steps.playwright.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: github.event_name == 'pull_request'
         with:
           fetch-depth: 0
+      # The e2e container's image tag must equal the installed
+      # @playwright/test, or the browsers it ships are the wrong build.
+      # package.json pins it exactly, so it is the one source of truth.
+      - id: playwright
+        name: Which Playwright
+        run: |
+          version=$(jq -r '.devDependencies["@playwright/test"]' package.json)
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error file=package.json::@playwright/test must be pinned to an exact version, got '$version'"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
       - id: diff
         name: Is it docs only
         run: |
@@ -101,10 +113,11 @@ jobs:
     timeout-minutes: 15
     # Playwright's image has the browsers and their system packages, so the
     # job skips `playwright install --with-deps`. That step pulled 32 MB of
-    # apt packages and once took 4 minutes on a slow mirror. Keep the tag
-    # equal to the @playwright/test version in package.json.
+    # apt packages and once took 4 minutes on a slow mirror. The tag comes
+    # from the @playwright/test pin in package.json (the `changes` job), so
+    # a Playwright bump moves the image with it.
     container:
-      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      image: mcr.microsoft.com/playwright:v${{ needs.changes.outputs.playwright }}-noble
       options: --user 1001
     # The runner draws WebGL in software, so each spec is slow; the suite
     # runs as shards at the same time. Playwright's --shard deals the tests
