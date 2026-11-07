@@ -104,7 +104,7 @@ jobs:
     # apt packages and once took 4 minutes on a slow mirror. Keep the tag
     # equal to the @playwright/test version in package.json.
     container:
-      image: mcr.microsoft.com/playwright:v1.63.0-noble
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
       options: --user 1001
     # The runner draws WebGL in software, so each spec is slow; the suite
     # runs as shards at the same time. Playwright's --shard deals the tests
